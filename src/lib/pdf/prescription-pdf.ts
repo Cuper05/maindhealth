@@ -1,0 +1,95 @@
+import PDFDocument from "pdfkit";
+
+export type PrescriptionPdfData = {
+  chartNumber: string;
+  patientName: string;
+  patientAge?: string;
+  doctorName: string;
+  doctorLicense?: string | null;
+  doctorSpecialty?: string | null;
+  issuedAt: Date;
+  generalNotes?: string | null;
+  items: {
+    medication: string;
+    dose?: string | null;
+    frequency?: string | null;
+    duration?: string | null;
+    route?: string | null;
+    instructions?: string | null;
+  }[];
+};
+
+function calcAge(birthDate: string | null | undefined) {
+  if (!birthDate) return undefined;
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return `${age} años`;
+}
+
+export function buildPrescriptionPdf(data: PrescriptionPdfData): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: "LETTER" });
+    const chunks: Buffer[] = [];
+
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    doc.fontSize(18).fillColor("#0f766e").text("MaindHealth", { align: "center" });
+    doc.fontSize(12).fillColor("#334155").text("Receta médica", { align: "center" });
+    doc.moveDown(1.5);
+
+    doc.fontSize(10).fillColor("#0f172a");
+    doc.text(`Expediente: ${data.chartNumber}`);
+    doc.text(`Paciente: ${data.patientName}`);
+    if (data.patientAge) doc.text(`Edad: ${data.patientAge}`);
+    doc.text(
+      `Fecha: ${data.issuedAt.toLocaleDateString("es-MX", {
+        dateStyle: "long",
+      })}`,
+    );
+    doc.moveDown();
+
+    doc.text(`Médico: ${data.doctorName}`);
+    if (data.doctorSpecialty) doc.text(`Especialidad: ${data.doctorSpecialty}`);
+    if (data.doctorLicense) doc.text(`Cédula: ${data.doctorLicense}`);
+    doc.moveDown();
+
+    doc.fontSize(11).fillColor("#0f766e").text("Medicamentos");
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor("#0f172a");
+
+    data.items.forEach((item, index) => {
+      doc.font("Helvetica-Bold").text(`${index + 1}. ${item.medication}`);
+      doc.font("Helvetica");
+      const details = [
+        item.dose && `Dosis: ${item.dose}`,
+        item.frequency && `Frecuencia: ${item.frequency}`,
+        item.duration && `Duración: ${item.duration}`,
+        item.route && `Vía: ${item.route}`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      if (details) doc.text(details);
+      if (item.instructions) doc.text(`Indicaciones: ${item.instructions}`);
+      doc.moveDown(0.5);
+    });
+
+    if (data.generalNotes) {
+      doc.moveDown();
+      doc.font("Helvetica-Bold").text("Observaciones generales");
+      doc.font("Helvetica").text(data.generalNotes);
+    }
+
+    doc.moveDown(2);
+    doc.text("_______________________________", { align: "center" });
+    doc.text("Firma del médico", { align: "center" });
+
+    doc.end();
+  });
+}
+
+export { calcAge };
