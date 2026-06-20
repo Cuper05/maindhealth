@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/action-session";
 import { db } from "@/lib/db";
 import { clinicalRecordsTable, patientsTable } from "@/lib/db/schema";
+import { logActivity } from "@/lib/audit/log-activity";
 import {
   parseClinicalRecordForm,
   parsePatientForm,
@@ -57,6 +58,14 @@ export async function createPatient(_prev: unknown, formData: FormData) {
     currentMedications: data.currentMedications,
   });
 
+  await logActivity({
+    userId: session.userId,
+    module: "pacientes",
+    action: "crear",
+    recordId: patient.id,
+    detail: `Paciente ${chartNumber}`,
+  });
+
   revalidatePath("/pacientes");
   return actionSuccess({ patientId: patient.id });
 }
@@ -94,6 +103,13 @@ export async function updateClinicalRecord(
       ...data,
     });
   }
+
+  await logActivity({
+    userId: session.userId,
+    module: "expediente",
+    action: "actualizar",
+    recordId: patientId,
+  });
 
   revalidatePath(`/pacientes/${patientId}`);
   return actionSuccess({});

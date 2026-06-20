@@ -13,6 +13,7 @@ import {
   prescriptionItemsTable,
   prescriptionsTable,
 } from "@/lib/db/schema";
+import { logActivity } from "@/lib/audit/log-activity";
 import { parsePrescriptionPayload } from "@/lib/validators/consultation";
 
 export async function savePrescription(payload: unknown) {
@@ -76,6 +77,14 @@ export async function savePrescription(payload: unknown) {
       instructions: item.instructions,
     })),
   );
+
+  await logActivity({
+    userId: session.userId,
+    module: "recetas",
+    action: existing ? "actualizar" : "emitir",
+    recordId: prescriptionId,
+    detail: `${data.items.length} medicamento(s)`,
+  });
 
   revalidatePath("/recetas");
   revalidatePath(`/consultas/cita/${consultation.appointmentId}`);

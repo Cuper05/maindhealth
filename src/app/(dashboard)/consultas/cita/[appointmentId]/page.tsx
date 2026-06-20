@@ -14,6 +14,16 @@ import {
   vitalSignsTable,
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
+import {
+  formatDiagnosisOptions,
+  formatMedicationOptions,
+  formatSymptomOptions,
+} from "@/lib/catalog/format-options";
+import {
+  getActiveDiagnoses,
+  getActiveMedications,
+  getActiveSymptoms,
+} from "@/lib/queries/catalogs";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConsultationWorkspace } from "@/components/forms/ConsultationWorkspace";
 import { cardClassName } from "@/lib/ui/classes";
@@ -90,6 +100,12 @@ export default async function ConsultationByAppointmentPage({
     .orderBy(desc(vitalSignsTable.recordedAt))
     .limit(1);
 
+  const [symptoms, diagnoses, medications] = await Promise.all([
+    getActiveSymptoms(),
+    getActiveDiagnoses(),
+    getActiveMedications(),
+  ]);
+
   const patientName = formatPersonName({
     firstName: appointment.patientFirstName,
     lastNamePaternal: appointment.patientLastNamePaternal,
@@ -157,10 +173,16 @@ export default async function ConsultationByAppointmentPage({
         <div className="lg:col-span-2">
           <ConsultationWorkspace
             appointmentId={appointmentId}
+            patientId={appointment.patientId}
             consultation={consultation ?? null}
             prescription={prescriptionData}
+            diagnosisOptions={formatDiagnosisOptions(diagnoses)}
+            symptomOptions={formatSymptomOptions(symptoms)}
+            medicationOptions={formatMedicationOptions(medications)}
             canWriteConsultation={can(session?.role, "consultations:write")}
             canWritePrescription={can(session?.role, "prescriptions:write")}
+            canWriteFollowUp={can(session?.role, "followups:write")}
+            canUploadDocuments={can(session?.role, "patients:write")}
           />
         </div>
       </div>

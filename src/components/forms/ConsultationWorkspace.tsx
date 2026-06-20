@@ -1,8 +1,14 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
+import { CatalogAutocomplete } from "@/components/forms/CatalogAutocomplete";
 import { saveConsultation } from "@/lib/actions/consultations";
 import { savePrescription } from "@/lib/actions/prescriptions";
+import {
+  findMedicationMatch,
+  type MedicationCatalogOption,
+} from "@/lib/catalog/format-options";
 import { FormAlert, SubmitButton } from "@/components/ui/PageHeader";
 import {
   inputClassName,
@@ -38,18 +44,35 @@ type PrescriptionData = {
   items: PrescriptionItem[];
 };
 
+type CatalogAutocompleteOption = {
+  value: string;
+  label: string;
+};
+
 export function ConsultationWorkspace({
   appointmentId,
+  patientId,
   consultation,
   prescription,
+  diagnosisOptions = [],
+  symptomOptions = [],
+  medicationOptions = [],
   canWriteConsultation,
   canWritePrescription,
+  canWriteFollowUp,
+  canUploadDocuments,
 }: {
   appointmentId: number;
+  patientId: number;
   consultation: ConsultationData | null;
   prescription: PrescriptionData | null;
+  diagnosisOptions?: CatalogAutocompleteOption[];
+  symptomOptions?: CatalogAutocompleteOption[];
+  medicationOptions?: MedicationCatalogOption[];
   canWriteConsultation: boolean;
   canWritePrescription: boolean;
+  canWriteFollowUp?: boolean;
+  canUploadDocuments?: boolean;
 }) {
   const [consultState, consultAction, consultPending] = useActionState(
     saveConsultation,
@@ -67,6 +90,8 @@ export function ConsultationWorkspace({
       : [{ medication: "", dose: "", frequency: "", duration: "", route: "", instructions: "" }],
   );
   const [generalNotes, setGeneralNotes] = useState(prescription?.generalNotes ?? "");
+  const [currentIllness, setCurrentIllness] = useState(consultation?.currentIllness ?? "");
+  const [diagnosis, setDiagnosis] = useState(consultation?.diagnosis ?? "");
 
   const activeConsultationId =
     consultationId ??
@@ -112,6 +137,22 @@ export function ConsultationWorkspace({
     );
   }
 
+  function updateMedication(index: number, value: string) {
+    const match = findMedicationMatch(medicationOptions, value);
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        if (!match) return { ...item, medication: value };
+        return {
+          ...item,
+          medication: match.name,
+          dose: item.dose?.trim() ? item.dose : match.strength ?? "",
+          route: item.route?.trim() ? item.route : match.form ?? "",
+        };
+      }),
+    );
+  }
+
   function addItem() {
     setItems((prev) => [
       ...prev,
@@ -136,22 +177,47 @@ export function ConsultationWorkspace({
               name="reason"
               defaultValue={consultation?.reason}
             />
-            <TextArea
-              label="Padecimiento actual"
-              name="currentIllness"
-              defaultValue={consultation?.currentIllness}
-            />
+            {symptomOptions.length > 0 ? (
+              <CatalogAutocomplete
+                label="Padecimiento actual"
+                name="currentIllness"
+                value={currentIllness}
+                onChange={setCurrentIllness}
+                options={symptomOptions}
+                rows={3}
+                hint="Escribe libremente o elige síntomas del catálogo."
+              />
+            ) : (
+              <TextArea
+                label="Padecimiento actual"
+                name="currentIllness"
+                defaultValue={consultation?.currentIllness}
+              />
+            )}
             <TextArea
               label="Exploración general"
               name="physicalExam"
               defaultValue={consultation?.physicalExam}
             />
-            <TextArea
-              label="Diagnóstico *"
-              name="diagnosis"
-              required
-              defaultValue={consultation?.diagnosis}
-            />
+            {diagnosisOptions.length > 0 ? (
+              <CatalogAutocomplete
+                label="Diagnóstico *"
+                name="diagnosis"
+                required
+                value={diagnosis}
+                onChange={setDiagnosis}
+                options={diagnosisOptions}
+                rows={3}
+                hint="Escribe libremente o elige un diagnóstico del catálogo (CIE-10)."
+              />
+            ) : (
+              <TextArea
+                label="Diagnóstico *"
+                name="diagnosis"
+                required
+                defaultValue={consultation?.diagnosis}
+              />
+            )}
             <TextArea
               label="Plan de tratamiento"
               name="treatmentPlan"
@@ -195,11 +261,20 @@ export function ConsultationWorkspace({
                   Medicamento {index + 1}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <InputField
-                    label="Medicamento *"
-                    value={item.medication}
-                    onChange={(v) => updateItem(index, "medication", v)}
-                  />
+                  {medicationOptions.length > 0 ? (
+                    <MedicationCatalogField
+                      label="Medicamento *"
+                      value={item.medication}
+                      options={medicationOptions}
+                      onChange={(v) => updateMedication(index, v)}
+                    />
+                  ) : (
+                    <InputField
+                      label="Medicamento *"
+                      value={item.medication}
+                      onChange={(v) => updateItem(index, "medication", v)}
+                    />
+                  )}
                   <InputField
                     label="Dosis"
                     value={item.dose ?? ""}
@@ -270,6 +345,36 @@ export function ConsultationWorkspace({
           </div>
         </section>
       )}
+
+      {canWriteFollowUp && activeConsultationId && (
+        <section className={cardClassName}>
+          <h2 className="mb-2 text-lg font-medium text-slate-900">Seguimiento</h2>
+          <p className="mb-3 text-sm text-slate-600">
+            Registra la evolución del paciente y programa la próxima revisión.
+          </p>
+          <Link
+            href={`/seguimientos/nuevo?patientId=${patientId}&consultationId=${activeConsultationId}&redirect=/consultas/cita/${appointmentId}`}
+            className={buttonSecondaryClassName}
+          >
+            Registrar seguimiento
+          </Link>
+        </section>
+      )}
+
+      {canUploadDocuments && activeConsultationId && (
+        <section className={cardClassName}>
+          <h2 className="mb-2 text-lg font-medium text-slate-900">Documentos</h2>
+          <p className="mb-3 text-sm text-slate-600">
+            Adjunta laboratorios, imágenes o reportes a esta consulta.
+          </p>
+          <Link
+            href={`/documentos/nuevo?patientId=${patientId}&consultationId=${activeConsultationId}&redirect=/consultas/cita/${appointmentId}`}
+            className={buttonSecondaryClassName}
+          >
+            Cargar documento
+          </Link>
+        </section>
+      )}
     </div>
   );
 }
@@ -317,6 +422,41 @@ function InputField({
         onChange={(e) => onChange(e.target.value)}
         className={inputClassName}
       />
+    </div>
+  );
+}
+
+function MedicationCatalogField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: MedicationCatalogOption[];
+  onChange: (value: string) => void;
+}) {
+  const listId = "catalog-medications";
+
+  return (
+    <div>
+      <label className={labelClassName}>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        list={listId}
+        placeholder="Escribe o elige del catálogo"
+        className={inputClassName}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option.name} value={option.datalistValue}>
+            {[option.strength, option.form].filter(Boolean).join(" · ")}
+          </option>
+        ))}
+      </datalist>
     </div>
   );
 }

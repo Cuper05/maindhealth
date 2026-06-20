@@ -14,6 +14,7 @@ import {
   consultationsTable,
 } from "@/lib/db/schema";
 import { getAppointmentStatusByCode } from "@/lib/queries/catalogs";
+import { logActivity } from "@/lib/audit/log-activity";
 import { parseConsultationForm } from "@/lib/validators/consultation";
 
 export async function saveConsultation(_prev: unknown, formData: FormData) {
@@ -77,6 +78,14 @@ export async function saveConsultation(_prev: unknown, formData: FormData) {
       .returning({ id: consultationsTable.id });
     consultationId = created.id;
   }
+
+  await logActivity({
+    userId: session.userId,
+    module: "consultas",
+    action: existing ? "actualizar" : "crear",
+    recordId: consultationId,
+    detail: data.diagnosis,
+  });
 
   const completedStatus = await getAppointmentStatusByCode("completed");
   if (completedStatus) {

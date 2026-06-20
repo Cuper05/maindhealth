@@ -31,7 +31,7 @@ Abre **http://localhost:3003**
 
 > Si migras desde el schema anterior: `dropdb maindhealth && createdb maindhealth` antes de `db:push`.
 
-## MVP Fase 1 — estado
+## Estado del producto
 
 | Módulo | BD | UI |
 |--------|----|----|
@@ -39,10 +39,16 @@ Abre **http://localhost:3003**
 | Pacientes | ✅ | ✅ alta + detalle + expediente |
 | Expediente clínico | ✅ | ✅ pestaña en detalle paciente |
 | Agenda médica | ✅ | ✅ listado + nueva cita + detalle |
-| Triage / signos vitales | ✅ | ✅ listado + captura (IMC auto) |
-| Consultas / teleconsulta | ✅ | ✅ nota médica por cita |
-| Recetas | ✅ | ✅ emisión + PDF |
-| Seguimientos | ✅ | 🔜 |
+| Triage / signos vitales | ✅ | ✅ listado + captura + historial gráfico |
+| Consultas / teleconsulta | ✅ | ✅ nota médica + catálogos clínicos |
+| Recetas | ✅ | ✅ emisión + PDF + catálogo de medicamentos |
+| Documentos clínicos | ✅ | ✅ carga + listado + ver archivo |
+| Seguimientos | ✅ | ✅ listado + registro + próximas revisiones |
+| Dispositivos médicos | ✅ | ✅ inventario + alertas de mantenimiento |
+| Bitácora | ✅ | ✅ auditoría de acciones |
+| Notificaciones | ✅ | ✅ recordatorios in-app |
+| Reportes operativos | ✅ | ✅ indicadores clínicos y productividad |
+| Catálogos clínicos | ✅ | ✅ síntomas, diagnósticos, medicamentos |
 | Configuración / usuarios | ✅ | ✅ listado |
 
 ## Documentación
@@ -54,7 +60,7 @@ Abre **http://localhost:3003**
 - [docs/ROADMAP.md](./docs/ROADMAP.md) — fases 1–3
 - [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) — tabla maestra para desarrollo
 
-## Modelo de datos (Fase 1)
+## Modelo de datos
 
 ```
 roles → users (médicos son users con rol doctor)
@@ -62,10 +68,14 @@ patients → clinical_records (1:1)
 patients → appointments → consultations → prescriptions → prescription_items
                         → vital_signs
                         → follow_ups
+                        → clinical_documents
+medical_devices · activity_log · notifications
 ```
 
-## Próximos pasos
+## Próximos pasos (Fase 3)
 
-1. Seguimiento del paciente (formulario + listado pendientes)
-2. Integración video real (Daily.co o similar)
-3. Fase 2: documentos, dispositivos, reportes, catálogos
+1. Lecturas automáticas de dispositivos (`device_readings`)
+2. Portal del paciente
+3. Firma digital y laboratorio
+4. Pagos de consulta
+5. Videollamada real (Daily.co)

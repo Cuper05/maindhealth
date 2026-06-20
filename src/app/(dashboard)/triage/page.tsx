@@ -3,10 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import {
-  patientsTable,
-  vitalSignsTable,
-} from "@/lib/db/schema";
+import { patientsTable, vitalSignsTable } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buttonPrimaryClassName } from "@/lib/ui/classes";
@@ -18,6 +15,7 @@ export default async function TriagePage() {
   const rows = await db
     .select({
       id: vitalSignsTable.id,
+      patientId: patientsTable.id,
       recordedAt: vitalSignsTable.recordedAt,
       systolicPressure: vitalSignsTable.systolicPressure,
       diastolicPressure: vitalSignsTable.diastolicPressure,
@@ -42,11 +40,19 @@ export default async function TriagePage() {
         title="Triage y signos vitales"
         description="Captura de presión, temperatura, saturación, peso, altura y glucosa."
         action={
-          canWrite ? (
-            <Link href="/triage/nuevo" className={buttonPrimaryClassName}>
-              + Capturar signos
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/triage/historial"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Historial gráfico
             </Link>
-          ) : undefined
+            {canWrite ? (
+              <Link href="/triage/nuevo" className={buttonPrimaryClassName}>
+                + Capturar signos
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
@@ -77,13 +83,18 @@ export default async function TriagePage() {
                     {row.recordedAt.toLocaleString("es-MX")}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-slate-500">{row.chartNumber}</span>
-                    <br />
-                    {formatPersonName({
-                      firstName: row.patientFirstName,
-                      lastNamePaternal: row.patientLastNamePaternal,
-                      lastNameMaternal: row.patientLastNameMaternal,
-                    })}
+                    <Link
+                      href={`/triage/historial?patientId=${row.patientId}`}
+                      className="text-teal-700 hover:underline"
+                    >
+                      <span className="font-mono text-xs text-slate-500">{row.chartNumber}</span>
+                      <br />
+                      {formatPersonName({
+                        firstName: row.patientFirstName,
+                        lastNamePaternal: row.patientLastNamePaternal,
+                        lastNameMaternal: row.patientLastNameMaternal,
+                      })}
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     {row.systolicPressure && row.diastolicPressure

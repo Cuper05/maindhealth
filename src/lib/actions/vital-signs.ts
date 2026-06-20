@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/action-session";
 import { db } from "@/lib/db";
 import { vitalSignsTable } from "@/lib/db/schema";
+import { logActivity } from "@/lib/audit/log-activity";
 import {
   computeBmi,
   parseVitalSignsForm,
@@ -48,7 +49,16 @@ export async function captureVitalSigns(_prev: unknown, formData: FormData) {
     })
     .returning({ id: vitalSignsTable.id });
 
+  await logActivity({
+    userId: session.userId,
+    module: "triage",
+    action: "crear",
+    recordId: record.id,
+    detail: `Paciente #${data.patientId}`,
+  });
+
   revalidatePath("/triage");
+  revalidatePath("/triage/historial");
   if (data.appointmentId) {
     revalidatePath(`/agenda/${data.appointmentId}`);
     revalidatePath(`/consultas/cita/${data.appointmentId}`);

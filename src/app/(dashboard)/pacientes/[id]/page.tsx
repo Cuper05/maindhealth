@@ -7,15 +7,21 @@ import { db } from "@/lib/db";
 import {
   appointmentsTable,
   catalogAppointmentStatusesTable,
+  catalogDocumentTypesTable,
   clinicalRecordsTable,
+  clinicalDocumentsTable,
   consultationsTable,
+  followUpsTable,
   patientsTable,
   prescriptionsTable,
+  usersTable,
   vitalSignsTable,
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
+import { getPatientVitalsHistory } from "@/lib/queries/vital-signs";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ClinicalRecordForm } from "@/components/forms/ClinicalRecordForm";
+import { VitalSignsCharts } from "@/components/vitals/VitalSignsCharts";
 import { cardClassName } from "@/lib/ui/classes";
 
 export default async function PacienteDetailPage({
@@ -67,7 +73,9 @@ export default async function PacienteDetailPage({
     .from(vitalSignsTable)
     .where(eq(vitalSignsTable.patientId, patientId))
     .orderBy(desc(vitalSignsTable.recordedAt))
-    .limit(10);
+    .limit(20);
+
+  const vitalsHistory = await getPatientVitalsHistory(patientId);
 
   const consultations = await db
     .select({
@@ -91,6 +99,39 @@ export default async function PacienteDetailPage({
     .orderBy(desc(prescriptionsTable.issuedAt))
     .limit(10);
 
+  const followUps = await db
+    .select({
+      id: followUpsTable.id,
+      followUpAt: followUpsTable.followUpAt,
+      nextReviewAt: followUpsTable.nextReviewAt,
+      evolution: followUpsTable.evolution,
+      doctorFirstName: usersTable.firstName,
+      doctorLastNamePaternal: usersTable.lastNamePaternal,
+      doctorLastNameMaternal: usersTable.lastNameMaternal,
+    })
+    .from(followUpsTable)
+    .innerJoin(usersTable, eq(followUpsTable.doctorId, usersTable.id))
+    .where(eq(followUpsTable.patientId, patientId))
+    .orderBy(desc(followUpsTable.followUpAt))
+    .limit(10);
+
+  const documents = await db
+    .select({
+      id: clinicalDocumentsTable.id,
+      fileName: clinicalDocumentsTable.fileName,
+      fileSize: clinicalDocumentsTable.fileSize,
+      uploadedAt: clinicalDocumentsTable.uploadedAt,
+      typeName: catalogDocumentTypesTable.name,
+    })
+    .from(clinicalDocumentsTable)
+    .innerJoin(
+      catalogDocumentTypesTable,
+      eq(clinicalDocumentsTable.documentTypeId, catalogDocumentTypesTable.id),
+    )
+    .where(eq(clinicalDocumentsTable.patientId, patientId))
+    .orderBy(desc(clinicalDocumentsTable.uploadedAt))
+    .limit(20);
+
   const tabs = [
     ["resumen", "Resumen"],
     ["expediente", "Expediente"],
@@ -98,6 +139,8 @@ export default async function PacienteDetailPage({
     ["signos", "Signos vitales"],
     ["consultas", "Consultas"],
     ["recetas", "Recetas"],
+    ["seguimientos", "Seguimientos"],
+    ["documentos", "Documentos"],
   ] as const;
 
   return (
@@ -172,16 +215,25 @@ export default async function PacienteDetailPage({
 
       {tab === "signos" && (
         <>
-          {can(session?.role, "vitals:write") && (
-            <div className="mb-4">
+          <div className="mb-4 flex flex-wrap items-center gap-4">
+            {can(session?.role, "vitals:write") && (
               <Link
                 href={`/triage/nuevo?patientId=${patient.id}`}
                 className="text-sm text-teal-700 hover:underline"
               >
                 + Capturar signos vitales
               </Link>
-            </div>
-          )}
+            )}
+            {can(session?.role, "vitals:view") && vitalsHistory.length > 0 && (
+              <Link
+                href={`/triage/historial?patientId=${patient.id}`}
+                className="text-sm text-slate-600 hover:text-teal-700 hover:underline"
+              >
+                Abrir historial completo →
+              </Link>
+            )}
+          </div>
+          {vitalsHistory.length > 0 && <VitalSignsCharts records={vitalsHistory} />}
           <VitalsList vitals={vitals} />
         </>
       )}
@@ -209,6 +261,38 @@ export default async function PacienteDetailPage({
             external: true,
           }))}
         />
+      )}
+
+      {tab === "seguimientos" && (
+        <>
+          {can(session?.role, "followups:write") && (
+            <div className="mb-4">
+              <Link
+                href={`/seguimientos/nuevo?patientId=${patient.id}&redirect=/pacientes/${patient.id}?tab=seguimientos`}
+                className="text-sm text-teal-700 hover:underline"
+              >
+                + Registrar seguimiento
+              </Link>
+            </div>
+          )}
+          <FollowUpsList followUps={followUps} />
+        </>
+      )}
+
+      {tab === "documentos" && (
+        <>
+          {canWrite && (
+            <div className="mb-4">
+              <Link
+                href={`/documentos/nuevo?patientId=${patient.id}&redirect=/pacientes/${patient.id}?tab=documentos`}
+                className="text-sm text-teal-700 hover:underline"
+              >
+                + Cargar documento
+              </Link>
+            </div>
+          )}
+          <DocumentsList documents={documents} />
+        </>
       )}
     </div>
   );
@@ -296,6 +380,85 @@ function ListSection({
               <p className="text-sm text-slate-500">{item.subtitle}</p>
             )}
           </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DocumentsList({
+  documents,
+}: {
+  documents: {
+    id: number;
+    fileName: string;
+    fileSize: number;
+    uploadedAt: Date;
+    typeName: string;
+  }[];
+}) {
+  if (documents.length === 0) {
+    return <p className="text-sm text-slate-500">Sin documentos en el expediente.</p>;
+  }
+  return (
+    <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+      {documents.map((doc) => (
+        <li key={doc.id} className="flex items-center justify-between gap-4 px-4 py-3">
+          <div>
+            <p className="font-medium text-slate-900">{doc.fileName}</p>
+            <p className="text-sm text-slate-500">
+              {doc.typeName} · {doc.uploadedAt.toLocaleString("es-MX")} ·{" "}
+              {(doc.fileSize / 1024).toFixed(1)} KB
+            </p>
+          </div>
+          <a
+            href={`/api/documents/${doc.id}/file`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-teal-700 hover:underline"
+          >
+            Ver
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FollowUpsList({
+  followUps,
+}: {
+  followUps: {
+    id: number;
+    followUpAt: Date;
+    nextReviewAt: Date | null;
+    evolution: string | null;
+    doctorFirstName: string;
+    doctorLastNamePaternal: string;
+    doctorLastNameMaternal: string | null;
+  }[];
+}) {
+  if (followUps.length === 0) {
+    return <p className="text-sm text-slate-500">Sin seguimientos registrados.</p>;
+  }
+  return (
+    <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+      {followUps.map((f) => (
+        <li key={f.id} className="px-4 py-3">
+          <p className="text-sm text-slate-500">
+            {f.followUpAt.toLocaleString("es-MX")} ·{" "}
+            {formatPersonName({
+              firstName: f.doctorFirstName,
+              lastNamePaternal: f.doctorLastNamePaternal,
+              lastNameMaternal: f.doctorLastNameMaternal,
+            })}
+          </p>
+          <p className="mt-1 font-medium text-slate-900">{f.evolution}</p>
+          {f.nextReviewAt && (
+            <p className="mt-1 text-sm text-amber-700">
+              Próxima revisión: {f.nextReviewAt.toLocaleString("es-MX")}
+            </p>
+          )}
         </li>
       ))}
     </ul>

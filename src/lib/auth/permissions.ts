@@ -15,7 +15,10 @@ export type Permission =
   | "followups:write"
   | "users:write"
   | "reports:view"
-  | "config:view";
+  | "config:view"
+  | "devices:view"
+  | "devices:write"
+  | "notifications:view";
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
@@ -34,6 +37,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "users:write",
     "reports:view",
     "config:view",
+    "devices:view",
+    "devices:write",
+    "notifications:view",
   ],
   doctor: [
     "appointments:view",
@@ -46,18 +52,23 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "prescriptions:write",
     "followups:view",
     "followups:write",
+    "devices:view",
+    "notifications:view",
   ],
   nurse: [
     "appointments:view",
     "patients:view",
     "vitals:view",
     "vitals:write",
+    "devices:view",
+    "notifications:view",
   ],
   reception: [
     "appointments:view",
     "appointments:write",
     "patients:view",
     "patients:write",
+    "notifications:view",
   ],
   patient: ["appointments:view"],
 };
@@ -88,7 +99,8 @@ export function canAccessRoute(role: UserRole | undefined, href: string): boolea
   if (href.startsWith("/recetas")) return can(role, "prescriptions:view");
   if (href.startsWith("/seguimientos")) return can(role, "followups:view");
   if (href.startsWith("/documentos")) return can(role, "patients:view");
-  if (href.startsWith("/dispositivos")) return can(role, "config:view");
+  if (href.startsWith("/dispositivos")) return can(role, "devices:view");
+  if (href.startsWith("/notificaciones")) return can(role, "notifications:view");
   if (href.startsWith("/reportes")) return can(role, "reports:view");
   if (href.startsWith("/configuracion")) return can(role, "config:view");
   return true;

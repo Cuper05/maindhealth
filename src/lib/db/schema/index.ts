@@ -1,5 +1,6 @@
 export * from "./roles";
 export * from "./catalogs";
+export * from "./catalog-extended";
 export * from "./users";
 export * from "./patients";
 export * from "./clinical-records";
@@ -8,3 +9,7 @@ export * from "./vital-signs";
 export * from "./consultations";
 export * from "./prescriptions";
 export * from "./follow-ups";
+export * from "./clinical-documents";
+export * from "./medical-devices";
+export * from "./notifications";
+export * from "./activity-log";

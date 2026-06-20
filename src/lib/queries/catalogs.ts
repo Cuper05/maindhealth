@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import {
   catalogAppointmentStatusesTable,
   catalogAppointmentTypesTable,
+  catalogDeviceTypesTable,
+  catalogDiagnosesTable,
+  catalogDocumentTypesTable,
+  catalogMedicationsTable,
+  catalogSymptomsTable,
   patientsTable,
   rolesTable,
   usersTable,
@@ -51,4 +56,44 @@ export async function getAppointmentStatusByCode(code: string) {
     .from(catalogAppointmentStatusesTable)
     .where(eq(catalogAppointmentStatusesTable.code, code));
   return status;
+}
+
+export async function getDocumentTypes() {
+  return db
+    .select()
+    .from(catalogDocumentTypesTable)
+    .where(eq(catalogDocumentTypesTable.active, true))
+    .orderBy(asc(catalogDocumentTypesTable.name));
+}
+
+export async function getDeviceTypes() {
+  return db
+    .select()
+    .from(catalogDeviceTypesTable)
+    .where(eq(catalogDeviceTypesTable.active, true))
+    .orderBy(asc(catalogDeviceTypesTable.name));
+}
+
+export async function getActiveSymptoms() {
+  return db
+    .select()
+    .from(catalogSymptomsTable)
+    .where(eq(catalogSymptomsTable.active, true))
+    .orderBy(asc(catalogSymptomsTable.name));
+}
+
+export async function getActiveDiagnoses() {
+  return db
+    .select()
+    .from(catalogDiagnosesTable)
+    .where(eq(catalogDiagnosesTable.active, true))
+    .orderBy(asc(catalogDiagnosesTable.name));
+}
+
+export async function getActiveMedications() {
+  return db
+    .select()
+    .from(catalogMedicationsTable)
+    .where(eq(catalogMedicationsTable.active, true))
+    .orderBy(asc(catalogMedicationsTable.name));
 }

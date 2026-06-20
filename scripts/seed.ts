@@ -8,7 +8,14 @@ import {
   appointmentsTable,
   catalogAppointmentStatusesTable,
   catalogAppointmentTypesTable,
+  catalogDeviceTypesTable,
+  catalogDiagnosesTable,
+  catalogDocumentTypesTable,
+  catalogMedicationsTable,
+  catalogSymptomsTable,
   clinicalRecordsTable,
+  medicalDevicesTable,
+  notificationsTable,
   patientsTable,
   rolesTable,
   usersTable,
@@ -34,6 +41,105 @@ const APPOINTMENT_TYPES = [
   { name: "Consulta general", description: "Primera vez o seguimiento general" },
   { name: "Seguimiento", description: "Control de evolución" },
   { name: "Urgencia leve", description: "Atención prioritaria no crítica" },
+] as const;
+
+const DOCUMENT_TYPES = [
+  { name: "Laboratorio", description: "Resultados de estudios de laboratorio" },
+  { name: "Imagen / rayos X", description: "Radiografías, tomografías, ultrasonido" },
+  { name: "Receta previa", description: "Recetas de otras consultas" },
+  { name: "Reporte médico", description: "Informes clínicos externos" },
+  { name: "Identificación", description: "INE, CURP, comprobantes" },
+  { name: "Otro", description: "Documentos varios" },
+] as const;
+
+const SYMPTOMS = [
+  { name: "Cefalea", category: "Neurológico", description: "Dolor de cabeza" },
+  { name: "Fiebre", category: "General", description: "Temperatura elevada" },
+  { name: "Tos seca", category: "Respiratorio", description: "Tos sin expectoración" },
+  { name: "Dolor abdominal", category: "Digestivo", description: "Malestar en abdomen" },
+  { name: "Fatiga", category: "General", description: "Cansancio persistente" },
+  { name: "Mareo", category: "Neurológico", description: "Sensación de inestabilidad" },
+  { name: "Náusea", category: "Digestivo", description: "Sensación de malestar gástrico" },
+] as const;
+
+const DIAGNOSES = [
+  {
+    code: "J06.9",
+    name: "Infección aguda de vías respiratorias superiores",
+    description: "Resfriado común, faringitis viral",
+  },
+  {
+    code: "I10",
+    name: "Hipertensión esencial",
+    description: "Presión arterial elevada sin causa secundaria",
+  },
+  {
+    code: "E11.9",
+    name: "Diabetes mellitus tipo 2",
+    description: "Control metabólico y seguimiento",
+  },
+  {
+    code: "R51",
+    name: "Cefalea",
+    description: "Dolor de cabeza inespecífico",
+  },
+  {
+    code: "K21.0",
+    name: "Enfermedad por reflujo gastroesofágico",
+    description: "Con esofagitis",
+  },
+] as const;
+
+const MEDICATIONS = [
+  {
+    name: "Tylenol",
+    genericName: "Paracetamol",
+    form: "Tableta",
+    strength: "500 mg",
+    description: "Analgésico y antipirético",
+  },
+  {
+    name: "Advil",
+    genericName: "Ibuprofeno",
+    form: "Tableta",
+    strength: "400 mg",
+    description: "Antiinflamatorio no esteroideo",
+  },
+  {
+    name: "Cozaar",
+    genericName: "Losartán",
+    form: "Tableta",
+    strength: "50 mg",
+    description: "Antihipertensivo ARA II",
+  },
+  {
+    name: "Glucophage",
+    genericName: "Metformina",
+    form: "Tableta",
+    strength: "850 mg",
+    description: "Antidiabético oral",
+  },
+  {
+    name: "Losec",
+    genericName: "Omeprazol",
+    form: "Cápsula",
+    strength: "20 mg",
+    description: "Inhibidor de bomba de protones",
+  },
+] as const;
+
+const DEVICE_TYPES = [
+  { name: "Baumanómetro", category: "clinico", description: "Triage — presión arterial" },
+  { name: "Oxímetro", category: "clinico", description: "Triage — SpO2" },
+  { name: "Termómetro", category: "clinico", description: "Triage — temperatura" },
+  { name: "Báscula digital", category: "clinico", description: "Triage — peso" },
+  { name: "Medidor de altura", category: "clinico", description: "Triage — altura / IMC" },
+  { name: "Glucómetro", category: "clinico", description: "Triage — glucosa" },
+  { name: "Cámara HD", category: "tecnologico", description: "Teleconsulta" },
+  { name: "Micrófono", category: "tecnologico", description: "Teleconsulta" },
+  { name: "Computadora clínica", category: "tecnologico", description: "Estación de trabajo" },
+  { name: "Router / red", category: "soporte", description: "Conectividad" },
+  { name: "UPS", category: "soporte", description: "Respaldo eléctrico" },
 ] as const;
 
 async function ensureRole(db: ReturnType<typeof getDb>, code: string) {
@@ -84,6 +190,74 @@ async function main() {
     if (!existing) {
       await db.insert(catalogAppointmentTypesTable).values(type);
     }
+  }
+
+  for (const docType of DOCUMENT_TYPES) {
+    const [existing] = await db
+      .select()
+      .from(catalogDocumentTypesTable)
+      .where(eq(catalogDocumentTypesTable.name, docType.name));
+    if (!existing) {
+      await db.insert(catalogDocumentTypesTable).values(docType);
+    }
+  }
+
+  for (const devType of DEVICE_TYPES) {
+    const [existing] = await db
+      .select()
+      .from(catalogDeviceTypesTable)
+      .where(eq(catalogDeviceTypesTable.name, devType.name));
+    if (!existing) {
+      await db.insert(catalogDeviceTypesTable).values(devType);
+    }
+  }
+
+  for (const symptom of SYMPTOMS) {
+    const [existing] = await db
+      .select()
+      .from(catalogSymptomsTable)
+      .where(eq(catalogSymptomsTable.name, symptom.name));
+    if (!existing) {
+      await db.insert(catalogSymptomsTable).values(symptom);
+    }
+  }
+
+  for (const diagnosis of DIAGNOSES) {
+    const [existing] = await db
+      .select()
+      .from(catalogDiagnosesTable)
+      .where(eq(catalogDiagnosesTable.name, diagnosis.name));
+    if (!existing) {
+      await db.insert(catalogDiagnosesTable).values(diagnosis);
+    }
+  }
+
+  for (const medication of MEDICATIONS) {
+    const [existing] = await db
+      .select()
+      .from(catalogMedicationsTable)
+      .where(eq(catalogMedicationsTable.name, medication.name));
+    if (!existing) {
+      await db.insert(catalogMedicationsTable).values(medication);
+    }
+  }
+
+  const [oximeterType] = await db
+    .select()
+    .from(catalogDeviceTypesTable)
+    .where(eq(catalogDeviceTypesTable.name, "Oxímetro"));
+  const [existingDevice] = await db.select().from(medicalDevicesTable).limit(1);
+  if (!existingDevice && oximeterType) {
+    await db.insert(medicalDevicesTable).values({
+      deviceTypeId: oximeterType.id,
+      brand: "Omron",
+      model: "Demo",
+      serialNumber: "OX-DEMO-001",
+      registeredAt: new Date().toISOString().slice(0, 10),
+      status: "activo",
+      location: "Teleconsultorio 1",
+    });
+    console.log("Equipo demo creado");
   }
 
   const adminRole = await ensureRole(db, "admin");
@@ -206,6 +380,23 @@ async function main() {
       meetingUrl: "https://meet.example.com/maindhealth-demo",
     });
     console.log("Cita demo creada");
+  }
+
+  for (const user of [admin, doctorUser]) {
+    const [existingWelcome] = await db
+      .select()
+      .from(notificationsTable)
+      .where(eq(notificationsTable.referenceKey, `sistema:bienvenida:${user.id}`));
+    if (!existingWelcome) {
+      await db.insert(notificationsTable).values({
+        userId: user.id,
+        type: "sistema",
+        title: "Bienvenido a MaindHealth",
+        body: "Aquí verás recordatorios de citas, seguimientos y triage.",
+        href: "/notificaciones",
+        referenceKey: `sistema:bienvenida:${user.id}`,
+      });
+    }
   }
 
   console.log("Seed completado");

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { logActivity } from "@/lib/audit/log-activity";
 import { getSession } from "@/lib/auth/session";
 import type { UserRole } from "@/lib/constants";
 import { db } from "@/lib/db";
@@ -60,6 +61,13 @@ export async function POST(request: Request) {
     session.role = role;
     session.isLoggedIn = true;
     await session.save();
+
+    await logActivity({
+      userId: row.id,
+      module: "auth",
+      action: "login",
+      detail: email,
+    });
 
     return NextResponse.json({
       ok: true,

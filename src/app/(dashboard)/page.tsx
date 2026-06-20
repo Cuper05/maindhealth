@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { count, eq, gte, lt, and, sql } from "drizzle-orm";
+import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import {
@@ -9,6 +10,7 @@ import {
   rolesTable,
   usersTable,
 } from "@/lib/db/schema";
+import { getUnreadNotificationCount } from "@/lib/queries/notifications";
 
 export default async function HomePage() {
   const session = await requireSession();
@@ -45,6 +47,11 @@ export default async function HomePage() {
         ),
     ]);
 
+  const unreadNotifications =
+    session?.userId && can(session.role, "notifications:view")
+      ? await getUnreadNotificationCount(session.userId)
+      : 0;
+
   return (
     <div>
       <h1 className="text-2xl font-semibold text-slate-900">
@@ -63,6 +70,13 @@ export default async function HomePage() {
           value={followUpRow?.total ?? 0}
           href="/seguimientos"
         />
+        {can(session?.role, "notifications:view") && (
+          <StatCard
+            label="Notificaciones sin leer"
+            value={unreadNotifications}
+            href="/notificaciones"
+          />
+        )}
       </div>
 
       <section className="mt-10 rounded-xl border border-teal-100 bg-teal-50/50 p-6">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
@@ -43,6 +44,21 @@ export default async function ConfiguracionPage() {
         Usuarios internos, roles y catálogos del sistema.
       </p>
 
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Link
+          href="/bitacora"
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          Ver bitácora del sistema →
+        </Link>
+        <Link
+          href="/configuracion/catalogos"
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          Catálogos clínicos →
+        </Link>
+      </div>
+
       <section className="mt-8">
         <h2 className="text-lg font-medium text-slate-800">Usuarios</h2>
         <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -73,8 +89,12 @@ export default async function ConfiguracionPage() {
         </div>
       </section>
 
-      <section className="mt-8 rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-        Catálogos (tipos de consulta, síntomas, diagnósticos, medicamentos) — Fase 2.
+      <section className="mt-8 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
+        Catálogos de síntomas, diagnósticos y medicamentos disponibles en{" "}
+        <Link href="/configuracion/catalogos" className="text-teal-700 hover:underline">
+          Catálogos clínicos
+        </Link>
+        .
       </section>
     </div>
   );

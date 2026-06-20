@@ -14,8 +14,10 @@ const NAV = [
   { href: "/consultas", label: "Consultas", phase: 1 },
   { href: "/recetas", label: "Recetas", phase: 1 },
   { href: "/seguimientos", label: "Seguimientos", phase: 1 },
-  { href: "/documentos", label: "Documentos clínicos", phase: 2 },
+  { href: "/notificaciones", label: "Notificaciones", phase: 2 },
+  { href: "/documentos", label: "Documentos clínicos", phase: 2 as const },
   { href: "/dispositivos", label: "Dispositivos médicos", phase: 2 },
+  { href: "/bitacora", label: "Bitácora", phase: 2 },
   { href: "/reportes", label: "Reportes", phase: 2 },
   { href: "/configuracion", label: "Configuración", phase: 2 },
 ] as const;
@@ -23,9 +25,11 @@ const NAV = [
 export function Sidebar({
   userName,
   role,
+  unreadNotifications = 0,
 }: {
   userName: string;
   role: UserRole;
+  unreadNotifications?: number;
 }) {
   const pathname = usePathname();
 
@@ -63,12 +67,21 @@ export function Sidebar({
                   : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              {item.label}
-              {item.phase === 2 && (
-                <span className="ml-1 text-[10px] uppercase text-slate-400">
-                  f2
+              <span className="flex items-center justify-between gap-2">
+                <span>
+                  {item.label}
+                  {item.phase === 2 && (
+                    <span className="ml-1 text-[10px] uppercase text-slate-400">
+                      f2
+                    </span>
+                  )}
                 </span>
-              )}
+                {item.href === "/notificaciones" && unreadNotifications > 0 && (
+                  <span className="rounded-full bg-teal-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </span>
+                )}
+              </span>
             </Link>
           );
         })}

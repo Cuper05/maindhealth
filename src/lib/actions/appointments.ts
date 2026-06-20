@@ -9,6 +9,7 @@ import {
 import { db } from "@/lib/db";
 import { appointmentsTable } from "@/lib/db/schema";
 import { getAppointmentStatusByCode } from "@/lib/queries/catalogs";
+import { logActivity } from "@/lib/audit/log-activity";
 import { parseAppointmentForm } from "@/lib/validators/appointment";
 
 export async function createAppointment(_prev: unknown, formData: FormData) {
@@ -44,6 +45,14 @@ export async function createAppointment(_prev: unknown, formData: FormData) {
       meetingUrl: data.meetingUrl || null,
     })
     .returning({ id: appointmentsTable.id });
+
+  await logActivity({
+    userId: session.userId,
+    module: "agenda",
+    action: "crear",
+    recordId: appointment.id,
+    detail: `Cita paciente #${data.patientId}`,
+  });
 
   revalidatePath("/agenda");
   return actionSuccess({ appointmentId: appointment.id });
