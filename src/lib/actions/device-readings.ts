@@ -6,6 +6,7 @@ import {
   actionSuccess,
   getActionSession,
 } from "@/lib/auth/action-session";
+import { syncClinicalAlertsFromVitals } from "@/lib/alerts/sync-from-vitals";
 import { logActivity } from "@/lib/audit/log-activity";
 import { db } from "@/lib/db";
 import { deviceReadingsTable, vitalSignsTable } from "@/lib/db/schema";
@@ -73,6 +74,20 @@ export async function recordDeviceReading(_prev: unknown, formData: FormData) {
     })
     .returning({ id: deviceReadingsTable.id });
 
+  if (data.patientId) {
+    await syncClinicalAlertsFromVitals({
+      patientId: data.patientId,
+      vitalSignId,
+      systolicPressure: data.systolicPressure,
+      diastolicPressure: data.diastolicPressure,
+      heartRate: data.heartRate,
+      oxygenSaturation: data.oxygenSaturation,
+      temperature: data.temperature,
+      glucose: data.glucose,
+      source: "device",
+    });
+  }
+
   await logActivity({
     userId: session.userId,
     module: "dispositivos",
@@ -82,6 +97,9 @@ export async function recordDeviceReading(_prev: unknown, formData: FormData) {
   });
 
   revalidatePath(`/dispositivos/${data.medicalDeviceId}`);
-  if (data.patientId) revalidatePath(`/pacientes/${data.patientId}`);
+  if (data.patientId) {
+    revalidatePath(`/pacientes/${data.patientId}`);
+    revalidatePath("/alertas");
+  }
   return actionSuccess({ readingId: reading.id, vitalSignId });
 }

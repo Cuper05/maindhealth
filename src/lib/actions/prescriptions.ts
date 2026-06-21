@@ -14,6 +14,7 @@ import {
   prescriptionsTable,
 } from "@/lib/db/schema";
 import { logActivity } from "@/lib/audit/log-activity";
+import { buildPrescriptionFolio } from "@/lib/prescriptions/folio";
 import { parsePrescriptionPayload } from "@/lib/validators/consultation";
 
 export async function savePrescription(payload: unknown) {
@@ -64,6 +65,11 @@ export async function savePrescription(payload: unknown) {
       })
       .returning({ id: prescriptionsTable.id });
     prescriptionId = created.id;
+    const { folio, verificationCode } = buildPrescriptionFolio(prescriptionId);
+    await db
+      .update(prescriptionsTable)
+      .set({ prescriptionFolio: folio, verificationCode })
+      .where(eq(prescriptionsTable.id, prescriptionId));
   }
 
   await db.insert(prescriptionItemsTable).values(

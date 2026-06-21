@@ -27,6 +27,7 @@ export const ACTIVITY_MODULES = [
   "laboratorio",
   "pagos",
   "firmas",
+  "alertas",
 ] as const;
 
 export type ActivityModule = (typeof ACTIVITY_MODULES)[number];
@@ -47,6 +48,7 @@ export const ACTIVITY_MODULE_LABELS: Record<ActivityModule, string> = {
   laboratorio: "Laboratorio",
   pagos: "Pagos",
   firmas: "Firmas digitales",
+  alertas: "Alertas clínicas",
 };
 
 export const ACTIVITY_ACTION_LABELS: Record<string, string> = {

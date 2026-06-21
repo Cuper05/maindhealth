@@ -10,7 +10,7 @@ import { appointmentsTable } from "./appointments";
 import { patientsTable } from "./patients";
 import { usersTable } from "./users";
 
-export const PAYMENT_METHODS = ["pending", "cash", "card", "transfer"] as const;
+export const PAYMENT_METHODS = ["pending", "cash", "card", "transfer", "stripe"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_STATUSES = ["pending", "paid", "cancelled", "refunded"] as const;
@@ -21,6 +21,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: "Efectivo",
   card: "Tarjeta",
   transfer: "Transferencia",
+  stripe: "Pago en línea",
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
@@ -43,6 +44,8 @@ export const consultationPaymentsTable = pgTable("consultation_payments", {
   method: varchar("method", { length: 30 }).notNull().default("pending"),
   status: varchar("status", { length: 30 }).notNull().default("pending"),
   reference: varchar("reference", { length: 100 }),
+  stripeSessionId: varchar("stripe_session_id", { length: 255 }),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
   paidAt: timestamp("paid_at"),
   notes: text("notes"),
   recordedById: integer("recorded_by_id").references(() => usersTable.id),

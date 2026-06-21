@@ -56,6 +56,12 @@ Abre **http://localhost:3003**
 | Pagos de consulta | ✅ | ✅ agenda + portal |
 | Firma digital (recetas) | ✅ | ✅ hash en PDF |
 | Daily.co (teleconsulta) | ✅ | ✅ auto-sala + embed |
+| Autocita portal | ✅ | ✅ `/portal/citas/nueva` |
+| Pagos Stripe en línea | ✅ | ✅ checkout + webhook |
+| Mensajería clínica | ✅ | ✅ portal + bandeja staff |
+| Alertas clínicas | ✅ | ✅ `/alertas` + reportes |
+| Receta con folio/QR | ✅ | ✅ verificación pública API |
+| Ingesta hardware API | ✅ | ✅ `/api/device-readings/ingest` |
 | Configuración / usuarios | ✅ | ✅ listado |
 
 ## Documentación
@@ -64,7 +70,7 @@ Abre **http://localhost:3003**
 - [docs/DATABASE.md](./docs/DATABASE.md) — esquema y relaciones
 - [docs/NAVIGATION.md](./docs/NAVIGATION.md) — pantallas y menú
 - [docs/EQUIPMENT.md](./docs/EQUIPMENT.md) — equipos del teleconsultorio
-- [docs/ROADMAP.md](./docs/ROADMAP.md) — fases 1–3
+- [docs/ROADMAP.md](./docs/ROADMAP.md) — fases 1–4
 - [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) — tabla maestra para desarrollo
 
 ## Modelo de datos

@@ -74,6 +74,8 @@ export async function GET(
     doctorLicense: doctor.professionalLicense,
     doctorSpecialty: doctor.specialty,
     issuedAt: prescription.issuedAt,
+    prescriptionFolio: prescription.prescriptionFolio,
+    verificationCode: prescription.verificationCode,
     generalNotes: prescription.generalNotes,
     items,
     signature: signature

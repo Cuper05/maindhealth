@@ -33,6 +33,8 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
         <MetricCard label="Pagos cobrados" value={report.summary.paymentsPaid} href="/pagos" />
         <MetricCard label="Firmas digitales" value={report.summary.digitalSignatures} />
         <MetricCard label="Teleconsultas" value={report.summary.teleconsultas} href="/agenda" />
+        <MetricCard label="Alertas pendientes" value={report.summary.pendingClinicalAlerts} href="/alertas" highlight={report.summary.pendingClinicalAlerts > 0} />
+        <MetricCard label="Alertas en periodo" value={report.summary.clinicalAlertsInPeriod} href="/alertas?todas=1" />
       </div>
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <section className={cardClassName}><h2 className="font-medium text-slate-900">Citas por estatus</h2><p className="mt-1 text-sm text-slate-500">Distribución en el periodo.</p>{report.appointmentsByStatus.length === 0 ? <p className="mt-4 text-sm text-slate-500">Sin citas.</p> : <ul className="mt-4 space-y-3">{report.appointmentsByStatus.map((row) => (<li key={row.statusName}><div className="mb-1 flex justify-between text-sm"><span>{row.statusName}</span><span className="font-medium">{row.total}</span></div><div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-600" style={{ width: `${(row.total / maxAppt) * 100}%` }} /></div></li>))}</ul>}</section>

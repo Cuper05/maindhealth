@@ -14,6 +14,9 @@ export const NOTIFICATION_TYPES = [
   "seguimiento_pendiente",
   "triage_pendiente",
   "dispositivo_alerta",
+  "videollamada_lista",
+  "mensaje_nuevo",
+  "alerta_clinica",
   "sistema",
 ] as const;
 
@@ -24,6 +27,9 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   seguimiento_pendiente: "Seguimiento",
   triage_pendiente: "Triage pendiente",
   dispositivo_alerta: "Dispositivo",
+  videollamada_lista: "Videollamada",
+  mensaje_nuevo: "Mensaje",
+  alerta_clinica: "Alerta clínica",
   sistema: "Sistema",
 };
 

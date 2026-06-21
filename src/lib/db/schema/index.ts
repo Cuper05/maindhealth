@@ -17,3 +17,5 @@ export * from "./device-readings";
 export * from "./lab-results";
 export * from "./consultation-payments";
 export * from "./digital-signatures";
+export * from "./clinical-messages";
+export * from "./clinical-alerts";

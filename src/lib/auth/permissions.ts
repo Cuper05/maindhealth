@@ -3,6 +3,7 @@ import type { UserRole } from "@/lib/constants";
 export type Permission =
   | "appointments:view"
   | "appointments:write"
+  | "appointments:book"
   | "patients:view"
   | "patients:write"
   | "vitals:view"
@@ -26,84 +27,42 @@ export type Permission =
   | "labs:write"
   | "payments:view"
   | "payments:write"
-  | "signatures:write";
+  | "signatures:write"
+  | "messages:view"
+  | "messages:write"
+  | "alerts:view"
+  | "alerts:write";
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
-    "appointments:view",
-    "appointments:write",
-    "patients:view",
-    "patients:write",
-    "vitals:view",
-    "vitals:write",
-    "consultations:view",
-    "consultations:write",
-    "prescriptions:view",
-    "prescriptions:write",
-    "followups:view",
-    "followups:write",
-    "users:write",
-    "reports:view",
-    "config:view",
-    "devices:view",
-    "devices:write",
-    "notifications:view",
-    "readings:view",
-    "readings:write",
-    "labs:view",
-    "labs:write",
-    "payments:view",
-    "payments:write",
-    "signatures:write",
+    "appointments:view", "appointments:write", "patients:view", "patients:write",
+    "vitals:view", "vitals:write", "consultations:view", "consultations:write",
+    "prescriptions:view", "prescriptions:write", "followups:view", "followups:write",
+    "users:write", "reports:view", "config:view", "devices:view", "devices:write",
+    "notifications:view", "readings:view", "readings:write", "labs:view", "labs:write",
+    "payments:view", "payments:write", "signatures:write", "messages:view", "messages:write",
+    "alerts:view", "alerts:write",
   ],
   doctor: [
-    "appointments:view",
-    "appointments:write",
-    "patients:view",
-    "vitals:view",
-    "consultations:view",
-    "consultations:write",
-    "prescriptions:view",
-    "prescriptions:write",
-    "followups:view",
-    "followups:write",
-    "devices:view",
-    "notifications:view",
-    "readings:view",
-    "labs:view",
-    "labs:write",
-    "payments:view",
-    "signatures:write",
+    "appointments:view", "appointments:write", "patients:view", "vitals:view",
+    "consultations:view", "consultations:write", "prescriptions:view", "prescriptions:write",
+    "followups:view", "followups:write", "devices:view", "notifications:view",
+    "readings:view", "labs:view", "labs:write", "payments:view", "signatures:write",
+    "messages:view", "messages:write", "alerts:view", "alerts:write",
   ],
   nurse: [
-    "appointments:view",
-    "patients:view",
-    "vitals:view",
-    "vitals:write",
-    "devices:view",
-    "notifications:view",
-    "readings:view",
-    "readings:write",
-    "labs:view",
-    "labs:write",
+    "appointments:view", "patients:view", "vitals:view", "vitals:write", "devices:view",
+    "notifications:view", "readings:view", "readings:write", "labs:view", "labs:write",
+    "messages:view", "messages:write", "alerts:view", "alerts:write",
   ],
   reception: [
-    "appointments:view",
-    "appointments:write",
-    "patients:view",
-    "patients:write",
-    "notifications:view",
-    "payments:view",
-    "payments:write",
+    "appointments:view", "appointments:write", "patients:view", "patients:write",
+    "notifications:view", "payments:view", "payments:write", "messages:view", "messages:write",
   ],
   patient: [
-    "portal:view",
-    "appointments:view",
-    "prescriptions:view",
-    "patients:view",
-    "notifications:view",
-    "labs:view",
-    "payments:view",
+    "portal:view", "appointments:view", "appointments:book", "prescriptions:view",
+    "patients:view", "notifications:view", "labs:view", "payments:view",
+    "messages:view", "messages:write",
   ],
 };
 
@@ -115,10 +74,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   patient: "Paciente",
 };
 
-export function can(
-  role: UserRole | undefined,
-  permission: Permission,
-): boolean {
+export function can(role: UserRole | undefined, permission: Permission): boolean {
   if (!role) return false;
   return ROLE_PERMISSIONS[role].includes(permission);
 }
@@ -137,6 +93,8 @@ export function canAccessRoute(role: UserRole | undefined, href: string): boolea
   if (href.startsWith("/dispositivos")) return can(role, "devices:view");
   if (href.startsWith("/laboratorio")) return can(role, "labs:view");
   if (href.startsWith("/pagos")) return can(role, "payments:view");
+  if (href.startsWith("/mensajes")) return can(role, "messages:view");
+  if (href.startsWith("/alertas")) return can(role, "alerts:view");
   if (href.startsWith("/notificaciones")) return can(role, "notifications:view");
   if (href.startsWith("/reportes")) return can(role, "reports:view");
   if (href.startsWith("/configuracion")) return can(role, "config:view");

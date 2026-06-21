@@ -21,9 +21,18 @@ import {
   notificationsTable,
   patientsTable,
   vitalSignsTable,
+  usersTable,
 } from "@/lib/db/schema";
 import { DEVICE_STATUS_LABELS, type DeviceStatus } from "@/lib/db/schema/medical-devices";
 import { formatPersonName } from "@/lib/format/name";
+
+async function getPatientIdForUser(userId: number) {
+  const [user] = await db
+    .select({ patientId: usersTable.patientId })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  return user?.patientId ?? null;
+}
 
 type NotificationInsert = {
   userId: number;
@@ -82,12 +91,21 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
     if (role === "doctor") {
       conditions.push(eq(appointmentsTable.doctorId, userId));
     }
+    if (role === "patient") {
+      const patientId = await getPatientIdForUser(userId);
+      if (patientId) {
+        conditions.push(eq(appointmentsTable.patientId, patientId));
+      } else {
+        conditions.push(sql`1 = 0`);
+      }
+    }
 
     const rows = await db
       .select({
         id: appointmentsTable.id,
         startAt: appointmentsTable.startAt,
         reason: appointmentsTable.reason,
+        meetingUrl: appointmentsTable.meetingUrl,
         firstName: patientsTable.firstName,
         lastNamePaternal: patientsTable.lastNamePaternal,
         lastNameMaternal: patientsTable.lastNameMaternal,
@@ -99,19 +117,35 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
     for (const appt of rows) {
       const referenceKey = `cita:${appt.id}`;
       activeKeys.push(referenceKey);
+      const href = role === "patient" ? `/portal/citas/${appt.id}` : `/agenda/${appt.id}`;
       await ensureNotification({
         userId,
         type: "cita_proxima",
         referenceKey,
-        title: `Cita con ${formatPersonName(appt)}`,
+        title: role === "patient"
+          ? `Tu cita — ${appt.startAt.toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}`
+          : `Cita con ${formatPersonName(appt)}`,
         body:
           appt.reason ??
           `Programada para ${appt.startAt.toLocaleString("es-MX", {
             dateStyle: "medium",
             timeStyle: "short",
           })}`,
-        href: `/agenda/${appt.id}`,
+        href,
       });
+
+      if (appt.meetingUrl && role === "patient") {
+        const videoKey = `videollamada:${appt.id}`;
+        activeKeys.push(videoKey);
+        await ensureNotification({
+          userId,
+          type: "videollamada_lista",
+          referenceKey: videoKey,
+          title: "Videollamada lista",
+          body: "Tu consulta incluye enlace de teleconsulta. Entra 5 minutos antes.",
+          href: `/portal/citas/${appt.id}`,
+        });
+      }
     }
   }
 

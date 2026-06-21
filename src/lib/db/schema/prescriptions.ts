@@ -16,6 +16,8 @@ export const prescriptionsTable = pgTable("prescriptions", {
     .references(() => usersTable.id),
   issuedAt: timestamp("issued_at").notNull().defaultNow(),
   generalNotes: text("general_notes"),
+  prescriptionFolio: varchar("prescription_folio", { length: 40 }),
+  verificationCode: varchar("verification_code", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

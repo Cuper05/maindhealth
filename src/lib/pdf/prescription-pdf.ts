@@ -1,4 +1,6 @@
 import PDFDocument from "pdfkit";
+import QRCode from "qrcode";
+import { buildVerificationUrl } from "@/lib/prescriptions/folio";
 
 export type PrescriptionPdfData = {
   chartNumber: string;
@@ -8,6 +10,8 @@ export type PrescriptionPdfData = {
   doctorLicense?: string | null;
   doctorSpecialty?: string | null;
   issuedAt: Date;
+  prescriptionFolio?: string | null;
+  verificationCode?: string | null;
   generalNotes?: string | null;
   items: {
     medication: string;
@@ -35,7 +39,15 @@ function calcAge(birthDate: string | null | undefined) {
   return `${age} años`;
 }
 
-export function buildPrescriptionPdf(data: PrescriptionPdfData): Promise<Buffer> {
+export async function buildPrescriptionPdf(data: PrescriptionPdfData): Promise<Buffer> {
+  let qrBuffer: Buffer | undefined;
+  if (data.prescriptionFolio) {
+    qrBuffer = await QRCode.toBuffer(buildVerificationUrl(data.prescriptionFolio), {
+      width: 120,
+      margin: 1,
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: "LETTER" });
     const chunks: Buffer[] = [];
@@ -45,10 +57,15 @@ export function buildPrescriptionPdf(data: PrescriptionPdfData): Promise<Buffer>
     doc.on("error", reject);
 
     doc.fontSize(18).fillColor("#0f766e").text("MaindHealth", { align: "center" });
-    doc.fontSize(12).fillColor("#334155").text("Receta médica", { align: "center" });
+    doc.fontSize(12).fillColor("#334155").text("Receta médica electrónica", { align: "center" });
+    if (qrBuffer) {
+      doc.image(qrBuffer, doc.page.width - 150, 40, { width: 90 });
+    }
     doc.moveDown(1.5);
 
     doc.fontSize(10).fillColor("#0f172a");
+    if (data.prescriptionFolio) doc.text(`Folio: ${data.prescriptionFolio}`);
+    if (data.verificationCode) doc.text(`Verificación: ${data.verificationCode}`);
     doc.text(`Expediente: ${data.chartNumber}`);
     doc.text(`Paciente: ${data.patientName}`);
     if (data.patientAge) doc.text(`Edad: ${data.patientAge}`);

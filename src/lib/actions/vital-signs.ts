@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/action-session";
 import { db } from "@/lib/db";
 import { vitalSignsTable } from "@/lib/db/schema";
+import { syncClinicalAlertsFromVitals } from "@/lib/alerts/sync-from-vitals";
 import { logActivity } from "@/lib/audit/log-activity";
 import {
   computeBmi,
@@ -49,6 +50,18 @@ export async function captureVitalSigns(_prev: unknown, formData: FormData) {
     })
     .returning({ id: vitalSignsTable.id });
 
+  await syncClinicalAlertsFromVitals({
+    patientId: data.patientId,
+    vitalSignId: record.id,
+    systolicPressure: data.systolicPressure,
+    diastolicPressure: data.diastolicPressure,
+    heartRate: data.heartRate,
+    oxygenSaturation: data.oxygenSaturation,
+    temperature: data.temperature,
+    glucose: data.glucose,
+    source: "triage",
+  });
+
   await logActivity({
     userId: session.userId,
     module: "triage",
@@ -64,6 +77,8 @@ export async function captureVitalSigns(_prev: unknown, formData: FormData) {
     revalidatePath(`/consultas/cita/${data.appointmentId}`);
   }
   revalidatePath(`/pacientes/${data.patientId}`);
+  revalidatePath("/alertas");
+  revalidatePath("/reportes");
 
   return actionSuccess({ vitalSignId: record.id });
 }

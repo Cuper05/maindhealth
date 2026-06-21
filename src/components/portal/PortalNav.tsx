@@ -7,6 +7,7 @@ import { APP_NAME } from "@/lib/constants";
 const NAV = [
   { href: "/portal", label: "Inicio" },
   { href: "/portal/citas", label: "Mis citas" },
+  { href: "/portal/mensajes", label: "Mensajes" },
   { href: "/portal/recetas", label: "Recetas" },
   { href: "/portal/documentos", label: "Documentos" },
   { href: "/portal/laboratorio", label: "Laboratorio" },

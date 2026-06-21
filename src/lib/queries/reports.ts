@@ -1,10 +1,11 @@
-import { count, desc, eq, gte, isNotNull, and } from "drizzle-orm";
+import { count, desc, eq, gte, isNotNull, and, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   ACTIVITY_MODULE_LABELS,
   activityLogTable,
   appointmentsTable,
   catalogAppointmentStatusesTable,
+  clinicalAlertsTable,
   consultationPaymentsTable,
   consultationsTable,
   deviceReadingsTable,
@@ -36,6 +37,8 @@ export type OperationalReport = {
     paymentsPaid: number;
     digitalSignatures: number;
     teleconsultas: number;
+    pendingClinicalAlerts: number;
+    clinicalAlertsInPeriod: number;
   };
   appointmentsByStatus: { statusName: string; total: number }[];
   doctorProductivity: { doctorName: string; consultations: number; prescriptions: number }[];
@@ -57,6 +60,7 @@ export async function getOperationalReport(periodDays: ReportPeriodDays): Promis
     [newPatientsRow], [appointmentsRow], [consultationsRow], [prescriptionsRow],
     [followUpsRow], [vitalCapturesRow], [deviceReadingsRow], [labResultsRow],
     [paymentsPaidRow], [signaturesRow], [teleconsultasRow],
+    [pendingAlertsRow], [alertsInPeriodRow],
     appointmentsByStatus, doctorConsultations,
     doctorPrescriptions, activityRows, vitalRows,
   ] = await Promise.all([
@@ -75,6 +79,8 @@ export async function getOperationalReport(periodDays: ReportPeriodDays): Promis
     db.select({ total: count() }).from(appointmentsTable).where(
       and(gte(appointmentsTable.startAt, periodStart), isNotNull(appointmentsTable.meetingUrl)),
     ),
+    db.select({ total: count() }).from(clinicalAlertsTable).where(isNull(clinicalAlertsTable.acknowledgedAt)),
+    db.select({ total: count() }).from(clinicalAlertsTable).where(gte(clinicalAlertsTable.createdAt, periodStart)),
     db.select({ statusName: catalogAppointmentStatusesTable.name, total: count() })
       .from(appointmentsTable)
       .innerJoin(catalogAppointmentStatusesTable, eq(appointmentsTable.appointmentStatusId, catalogAppointmentStatusesTable.id))
@@ -170,6 +176,8 @@ export async function getOperationalReport(periodDays: ReportPeriodDays): Promis
       paymentsPaid: paymentsPaidRow?.total ?? 0,
       digitalSignatures: signaturesRow?.total ?? 0,
       teleconsultas: teleconsultasRow?.total ?? 0,
+      pendingClinicalAlerts: pendingAlertsRow?.total ?? 0,
+      clinicalAlertsInPeriod: alertsInPeriodRow?.total ?? 0,
     },
     appointmentsByStatus, doctorProductivity, activityByModule, outOfRangeVitals,
   };

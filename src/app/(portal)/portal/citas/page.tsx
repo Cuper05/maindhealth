@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { getPortalAppointments } from "@/lib/queries/portal";
 import { formatPersonName } from "@/lib/format/name";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { cardClassName } from "@/lib/ui/classes";
+import { cardClassName, buttonPrimaryClassName } from "@/lib/ui/classes";
 
 export default async function PortalCitasPage() {
   const session = await requireSession();
@@ -15,7 +15,15 @@ export default async function PortalCitasPage() {
 
   return (
     <div>
-      <PageHeader title="Mis citas" description="Consultas programadas y videollamadas." />
+      <PageHeader
+        title="Mis citas"
+        description="Consultas programadas y videollamadas."
+        action={
+          <Link href="/portal/citas/nueva" className={buttonPrimaryClassName}>
+            Agendar cita
+          </Link>
+        }
+      />
       <div className="space-y-3">
         {appointments.length === 0 ? (
           <p className="text-sm text-slate-500">Sin citas registradas.</p>

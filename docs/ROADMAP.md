@@ -20,10 +20,18 @@ Documentos clínicos, dispositivos médicos, bitácora, catálogos extendidos, n
 6. ✅ Daily.co — salas automáticas en teleconsulta (con `VIDEO_API_KEY`)
 7. ✅ Analítica extendida en reportes
 
-## Fase 4 — Futuro
+## Fase 4 — Portal avanzado e integraciones ✅
 
-- Integración hardware en tiempo real (MQTT / BLE)
-- Pasarela de pago (Stripe / Conekta)
-- Prescripción electrónica regulada
-- Portal paciente avanzado (mensajería, autocita)
+1. ✅ Autocita en portal (`/portal/citas/nueva`) + pago pendiente automático
+2. ✅ Stripe Checkout — pagos en línea (`STRIPE_SECRET_KEY` + webhook)
+3. ✅ Daily.co + recordatorios de videollamada en notificaciones
+4. ✅ Mensajería paciente–clínica (`/portal/mensajes`, `/mensajes`)
+5. ✅ API ingest hardware — `POST /api/device-readings/ingest` con `x-api-key`
+6. ✅ Receta regulada — folio `MH-RX-*`, código de verificación, QR en PDF
+7. ✅ Alertas clínicas (`/alertas`) + métricas en reportes
+
+## Fase 5 — Futuro
+
+- Integración MQTT / BLE en tiempo real
+- Pasarela alternativa (Conekta)
 - Analítica predictiva / alertas IA
