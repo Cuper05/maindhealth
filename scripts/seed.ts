@@ -461,6 +461,24 @@ async function main() {
     console.log("Resultado de laboratorio demo creado");
   }
 
+  const [demoAppt] = await db
+    .select({ id: appointmentsTable.id })
+    .from(appointmentsTable)
+    .where(eq(appointmentsTable.patientId, patient.id))
+    .limit(1);
+  const [existingPayment] = await db.select().from(consultationPaymentsTable).limit(1);
+  if (demoAppt && !existingPayment) {
+    await db.insert(consultationPaymentsTable).values({
+      appointmentId: demoAppt.id,
+      patientId: patient.id,
+      amountCents: 35000,
+      method: "pending",
+      status: "pending",
+      notes: "Consulta general telemedicina",
+    });
+    console.log("Pago demo creado");
+  }
+
   for (const user of [admin, doctorUser, patientUser]) {
     const [existingWelcome] = await db
       .select()
