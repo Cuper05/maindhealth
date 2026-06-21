@@ -11,6 +11,7 @@ import { resolvePatientId } from "@/lib/auth/patient-scope";
 import { db } from "@/lib/db";
 import { clinicalMessagesTable } from "@/lib/db/schema";
 import { logActivity } from "@/lib/audit/log-activity";
+import { markMessagesReadForUser } from "@/lib/queries/messages";
 import { parseMessageForm } from "@/lib/validators/phase4";
 
 export async function sendClinicalMessage(_prev: unknown, formData: FormData) {
@@ -64,23 +65,7 @@ export async function markMessagesRead(patientId: number) {
   const session = await getActionSession("messages:view");
   if ("error" in session) return actionError(session.error);
 
-  if (session.role === "patient") {
-    const ownPatientId = await resolvePatientId({
-      userId: session.userId,
-      role: session.role,
-      isLoggedIn: true,
-    });
-    if (ownPatientId !== patientId) return actionError("Sin permiso");
-    await db
-      .update(clinicalMessagesTable)
-      .set({ readByPatientAt: new Date() })
-      .where(eq(clinicalMessagesTable.patientId, patientId));
-  } else {
-    await db
-      .update(clinicalMessagesTable)
-      .set({ readByStaffAt: new Date() })
-      .where(eq(clinicalMessagesTable.patientId, patientId));
-  }
+  await markMessagesReadForUser(patientId, session);
 
   revalidatePath("/portal/mensajes");
   revalidatePath("/mensajes");

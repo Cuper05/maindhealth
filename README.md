@@ -71,6 +71,7 @@ Abre **http://localhost:3003**
 - [docs/NAVIGATION.md](./docs/NAVIGATION.md) — pantallas y menú
 - [docs/EQUIPMENT.md](./docs/EQUIPMENT.md) — equipos del teleconsultorio
 - [docs/ROADMAP.md](./docs/ROADMAP.md) — fases 1–4
+- [docs/PRODUCTION.md](./docs/PRODUCTION.md) — Vercel, Neon, Stripe, Daily.co, dominio
 - [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) — tabla maestra para desarrollo
 
 ## Modelo de datos

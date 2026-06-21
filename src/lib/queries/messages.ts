@@ -1,7 +1,35 @@
 import { desc, eq, isNull, sql } from "drizzle-orm";
+import { resolvePatientId } from "@/lib/auth/patient-scope";
+import type { UserRole } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { clinicalMessagesTable, patientsTable, usersTable } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
+
+export async function markMessagesReadForUser(
+  patientId: number,
+  session: { userId: number; role: UserRole },
+) {
+  if (session.role === "patient") {
+    const ownPatientId = await resolvePatientId({
+      userId: session.userId,
+      role: session.role,
+      isLoggedIn: true,
+    });
+    if (ownPatientId !== patientId) {
+      throw new Error("Sin permiso");
+    }
+    await db
+      .update(clinicalMessagesTable)
+      .set({ readByPatientAt: new Date() })
+      .where(eq(clinicalMessagesTable.patientId, patientId));
+    return;
+  }
+
+  await db
+    .update(clinicalMessagesTable)
+    .set({ readByStaffAt: new Date() })
+    .where(eq(clinicalMessagesTable.patientId, patientId));
+}
 
 export async function getPatientMessages(patientId: number) {
   return db

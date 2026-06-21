@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 config({ override: true });
+config({ path: ".env.local", override: true });
 
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";

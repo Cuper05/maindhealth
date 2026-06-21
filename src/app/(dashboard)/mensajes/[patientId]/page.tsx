@@ -2,10 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
-import { markMessagesRead } from "@/lib/actions/clinical-messages";
 import {
   formatMessageSender,
   getPatientMessages,
+  markMessagesReadForUser,
 } from "@/lib/queries/messages";
 import { getPatientSummary } from "@/lib/queries/portal";
 import { MessageComposer } from "@/components/portal/MessageComposer";
@@ -29,7 +29,10 @@ export default async function MensajesPacientePage({
   const patient = await getPatientSummary(patientId);
   if (!patient) notFound();
 
-  await markMessagesRead(patientId);
+  await markMessagesReadForUser(patientId, {
+    userId: session!.userId!,
+    role: session!.role!,
+  });
   const rows = await getPatientMessages(patientId);
   const messages = rows.map((row) => ({
     id: row.id,
