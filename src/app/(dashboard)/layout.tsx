@@ -14,6 +14,9 @@ export default async function DashboardLayout({
   if (!session?.userId || !session.role || !session.name) {
     redirect("/login");
   }
+  if (session.role === "patient") {
+    redirect("/portal");
+  }
 
   let unreadNotifications = 0;
   if (can(session.role, "notifications:view")) {

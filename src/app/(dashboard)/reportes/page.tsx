@@ -28,6 +28,11 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
         <MetricCard label="Seguimientos" value={report.summary.followUps} href="/seguimientos" />
         <MetricCard label="Capturas de triage" value={report.summary.vitalCaptures} href="/triage" />
         <MetricCard label="Signos fuera de rango" value={report.summary.outOfRangeVitals} href="/triage/historial" highlight={report.summary.outOfRangeVitals > 0} />
+        <MetricCard label="Lecturas de equipos" value={report.summary.deviceReadings} href="/dispositivos" />
+        <MetricCard label="Resultados lab." value={report.summary.labResults} href="/laboratorio" />
+        <MetricCard label="Pagos cobrados" value={report.summary.paymentsPaid} href="/pagos" />
+        <MetricCard label="Firmas digitales" value={report.summary.digitalSignatures} />
+        <MetricCard label="Teleconsultas" value={report.summary.teleconsultas} href="/agenda" />
       </div>
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <section className={cardClassName}><h2 className="font-medium text-slate-900">Citas por estatus</h2><p className="mt-1 text-sm text-slate-500">Distribución en el periodo.</p>{report.appointmentsByStatus.length === 0 ? <p className="mt-4 text-sm text-slate-500">Sin citas.</p> : <ul className="mt-4 space-y-3">{report.appointmentsByStatus.map((row) => (<li key={row.statusName}><div className="mb-1 flex justify-between text-sm"><span>{row.statusName}</span><span className="font-medium">{row.total}</span></div><div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-600" style={{ width: `${(row.total / maxAppt) * 100}%` }} /></div></li>))}</ul>}</section>

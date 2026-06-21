@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { CatalogAutocomplete } from "@/components/forms/CatalogAutocomplete";
+import { SignPrescriptionButton } from "@/components/forms/SignPrescriptionButton";
 import { saveConsultation } from "@/lib/actions/consultations";
 import { savePrescription } from "@/lib/actions/prescriptions";
 import {
@@ -61,6 +62,10 @@ export function ConsultationWorkspace({
   canWritePrescription,
   canWriteFollowUp,
   canUploadDocuments,
+  canSignPrescription,
+  prescriptionId: savedPrescriptionId,
+  prescriptionSigned,
+  prescriptionSignatureHash,
 }: {
   appointmentId: number;
   patientId: number;
@@ -73,6 +78,10 @@ export function ConsultationWorkspace({
   canWritePrescription: boolean;
   canWriteFollowUp?: boolean;
   canUploadDocuments?: boolean;
+  canSignPrescription?: boolean;
+  prescriptionId?: number;
+  prescriptionSigned?: boolean;
+  prescriptionSignatureHash?: string | null;
 }) {
   const [consultState, consultAction, consultPending] = useActionState(
     saveConsultation,
@@ -341,6 +350,13 @@ export function ConsultationWorkspace({
               >
                 Descargar PDF
               </a>
+            )}
+            {canSignPrescription && (savedPrescriptionId ?? prescriptionId) && (
+              <SignPrescriptionButton
+                prescriptionId={(savedPrescriptionId ?? prescriptionId)!}
+                signed={prescriptionSigned ?? false}
+                signatureHash={prescriptionSignatureHash}
+              />
             )}
           </div>
         </section>

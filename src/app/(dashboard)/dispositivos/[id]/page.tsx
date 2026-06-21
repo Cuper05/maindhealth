@@ -5,8 +5,12 @@ import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { catalogDeviceTypesTable, medicalDevicesTable } from "@/lib/db/schema";
 import { getDeviceTypes } from "@/lib/queries/catalogs";
+import { getDeviceReadings } from "@/lib/queries/device-readings";
+import { getActivePatients } from "@/lib/queries/catalogs";
+import { DeviceReadingForm } from "@/components/forms/DeviceReadingForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DeviceEditor } from "@/components/forms/DeviceEditor";
+import { cardClassName } from "@/lib/ui/classes";
 
 export default async function DispositivoDetailPage({
   params,
@@ -42,7 +46,11 @@ export default async function DispositivoDetailPage({
 
   if (!row) notFound();
 
-  const deviceTypes = await getDeviceTypes();
+  const [deviceTypes, readings, patients] = await Promise.all([
+    getDeviceTypes(),
+    getDeviceReadings(deviceId),
+    can(session.role, "readings:write") ? getActivePatients() : Promise.resolve([]),
+  ]);
 
   return (
     <div>
@@ -52,6 +60,52 @@ export default async function DispositivoDetailPage({
         backHref="/dispositivos"
       />
       <DeviceEditor device={row} deviceTypes={deviceTypes} />
+
+      {can(session.role, "readings:write") && (
+        <DeviceReadingForm
+          deviceId={deviceId}
+          patients={patients.map((p) => ({
+            id: p.id,
+            label: `${p.chartNumber} — ${p.firstName} ${p.lastNamePaternal}`,
+          }))}
+        />
+      )}
+
+      {can(session.role, "readings:view") && (
+        <section className={`${cardClassName} mt-6`}>
+          <h2 className="mb-4 font-medium text-slate-900">Lecturas recientes</h2>
+          {readings.length === 0 ? (
+            <p className="text-sm text-slate-500">Sin lecturas registradas.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-slate-500">
+                  <tr>
+                    <th className="pb-2 pr-4">Fecha</th>
+                    <th className="pb-2 pr-4">Paciente</th>
+                    <th className="pb-2 pr-4">PA</th>
+                    <th className="pb-2 pr-4">SpO2</th>
+                    <th className="pb-2">FC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {readings.map((r) => (
+                    <tr key={r.id} className="border-t border-slate-100">
+                      <td className="py-2 pr-4">{r.recordedAt.toLocaleString("es-MX")}</td>
+                      <td className="py-2 pr-4">{r.patientName ?? "—"}</td>
+                      <td className="py-2 pr-4">
+                        {r.systolicPressure}/{r.diastolicPressure}
+                      </td>
+                      <td className="py-2 pr-4">{r.oxygenSaturation ?? "—"}</td>
+                      <td className="py-2">{r.heartRate ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

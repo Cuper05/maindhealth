@@ -17,6 +17,8 @@ const NAV = [
   { href: "/notificaciones", label: "Notificaciones", phase: 2 },
   { href: "/documentos", label: "Documentos clínicos", phase: 2 as const },
   { href: "/dispositivos", label: "Dispositivos médicos", phase: 2 },
+  { href: "/laboratorio", label: "Laboratorio", phase: 3 },
+  { href: "/pagos", label: "Pagos", phase: 3 },
   { href: "/bitacora", label: "Bitácora", phase: 2 },
   { href: "/reportes", label: "Reportes", phase: 2 },
   { href: "/configuracion", label: "Configuración", phase: 2 },

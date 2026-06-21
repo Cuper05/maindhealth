@@ -33,6 +33,7 @@ export const appointmentsTable = pgTable("appointments", {
   reason: text("reason"),
   notes: text("notes"),
   meetingUrl: text("meeting_url"),
+  meetingRoomName: text("meeting_room_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

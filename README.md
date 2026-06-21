@@ -28,6 +28,7 @@ Abre **http://localhost:3003**
 |---------|--------|------------|
 | Admin | `admin@maindhealth.local` | `admin123` |
 | Médico demo | `doctor@maindhealth.local` | `admin123` |
+| Paciente demo | `paciente@maindhealth.local` | `admin123` |
 
 > Si migras desde el schema anterior: `dropdb maindhealth && createdb maindhealth` antes de `db:push`.
 
@@ -49,6 +50,12 @@ Abre **http://localhost:3003**
 | Notificaciones | ✅ | ✅ recordatorios in-app |
 | Reportes operativos | ✅ | ✅ indicadores clínicos y productividad |
 | Catálogos clínicos | ✅ | ✅ síntomas, diagnósticos, medicamentos |
+| Portal del paciente | ✅ | ✅ `/portal` |
+| Lecturas de dispositivos | ✅ | ✅ registro + sync triage |
+| Laboratorio estructurado | ✅ | ✅ staff + portal |
+| Pagos de consulta | ✅ | ✅ agenda + portal |
+| Firma digital (recetas) | ✅ | ✅ hash en PDF |
+| Daily.co (teleconsulta) | ✅ | ✅ auto-sala + embed |
 | Configuración / usuarios | ✅ | ✅ listado |
 
 ## Documentación
@@ -72,10 +79,11 @@ patients → appointments → consultations → prescriptions → prescription_i
 medical_devices · activity_log · notifications
 ```
 
-## Próximos pasos (Fase 3)
+## Próximos pasos (Fase 4)
 
-1. Lecturas automáticas de dispositivos (`device_readings`)
-2. Portal del paciente
-3. Firma digital y laboratorio
-4. Pagos de consulta
-5. Videollamada real (Daily.co)
+1. Hardware en tiempo real (`device_readings` streaming)
+2. Pasarela de pago en línea
+3. Prescripción electrónica regulada
+4. Mensajería y autocita en portal paciente
+
+Para teleconsulta real configure `VIDEO_API_KEY` (Daily.co) en `.env`.

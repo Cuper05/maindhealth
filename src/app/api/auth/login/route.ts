@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     const [row] = await db
       .select({
         id: usersTable.id,
+        patientId: usersTable.patientId,
         firstName: usersTable.firstName,
         lastNamePaternal: usersTable.lastNamePaternal,
         lastNameMaternal: usersTable.lastNameMaternal,
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
 
     const session = await getSession();
     session.userId = row.id;
+    session.patientId = row.patientId ?? undefined;
     session.name = name;
     session.role = role;
     session.isLoggedIn = true;
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      user: { id: row.id, name, role },
+      user: { id: row.id, name, role, patientId: row.patientId },
     });
   } catch (err) {
     console.error("[login]", err);

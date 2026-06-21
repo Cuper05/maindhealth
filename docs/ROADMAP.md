@@ -8,24 +8,22 @@ Pantallas: Login, Dashboard, Pacientes, Agenda, Triage, Consultas, Recetas, Segu
 
 ## Fase 2 — Operación sólida ✅
 
-1. ✅ Documentos clínicos (`clinical_documents`, catálogo de tipos)
-2. ✅ Control de dispositivos médicos
-3. ✅ Bitácora del sistema (`activity_log`)
-4. ✅ Catálogos: síntomas, diagnósticos, medicamentos (integrados en consultas/recetas)
-5. ✅ Notificaciones in-app
-6. ✅ Historial gráfico de signos vitales
-7. ✅ Reportes operativos
+Documentos clínicos, dispositivos médicos, bitácora, catálogos extendidos, notificaciones, gráficas de signos vitales, reportes operativos.
 
-## Fase 3 — Escalamiento (siguiente)
+## Fase 3 — Escalamiento ✅
 
-- `device_readings` (integración hardware)
-- Portal avanzado del paciente
-- Firma digital
-- Laboratorio / `lab_results`
-- `consultation_payments`
-- Analítica avanzada
-- Videollamada real (Daily.co)
+1. ✅ `device_readings` — lecturas de equipos + sync opcional a triage
+2. ✅ Portal del paciente (`/portal`) — citas, recetas, documentos, lab, pagos
+3. ✅ Firma digital — recetas con hash SHA-256 en PDF
+4. ✅ `lab_results` — resultados estructurados
+5. ✅ `consultation_payments` — cobros por cita (manual MVP)
+6. ✅ Daily.co — salas automáticas en teleconsulta (con `VIDEO_API_KEY`)
+7. ✅ Analítica extendida en reportes
 
-## No empezar por
+## Fase 4 — Futuro
 
-Portal paciente completo, facturación, integración automática con hardware, analítica avanzada — hasta validar Fase 2 en operación real.
+- Integración hardware en tiempo real (MQTT / BLE)
+- Pasarela de pago (Stripe / Conekta)
+- Prescripción electrónica regulada
+- Portal paciente avanzado (mensajería, autocita)
+- Analítica predictiva / alertas IA

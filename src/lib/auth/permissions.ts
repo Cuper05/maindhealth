@@ -18,7 +18,15 @@ export type Permission =
   | "config:view"
   | "devices:view"
   | "devices:write"
-  | "notifications:view";
+  | "notifications:view"
+  | "portal:view"
+  | "readings:view"
+  | "readings:write"
+  | "labs:view"
+  | "labs:write"
+  | "payments:view"
+  | "payments:write"
+  | "signatures:write";
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
@@ -40,6 +48,13 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "devices:view",
     "devices:write",
     "notifications:view",
+    "readings:view",
+    "readings:write",
+    "labs:view",
+    "labs:write",
+    "payments:view",
+    "payments:write",
+    "signatures:write",
   ],
   doctor: [
     "appointments:view",
@@ -54,6 +69,11 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "followups:write",
     "devices:view",
     "notifications:view",
+    "readings:view",
+    "labs:view",
+    "labs:write",
+    "payments:view",
+    "signatures:write",
   ],
   nurse: [
     "appointments:view",
@@ -62,6 +82,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "vitals:write",
     "devices:view",
     "notifications:view",
+    "readings:view",
+    "readings:write",
+    "labs:view",
+    "labs:write",
   ],
   reception: [
     "appointments:view",
@@ -69,8 +93,18 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "patients:view",
     "patients:write",
     "notifications:view",
+    "payments:view",
+    "payments:write",
   ],
-  patient: ["appointments:view"],
+  patient: [
+    "portal:view",
+    "appointments:view",
+    "prescriptions:view",
+    "patients:view",
+    "notifications:view",
+    "labs:view",
+    "payments:view",
+  ],
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -91,17 +125,25 @@ export function can(
 
 export function canAccessRoute(role: UserRole | undefined, href: string): boolean {
   if (!role) return false;
-  if (href === "/") return true;
+  if (href === "/") return role !== "patient";
+  if (href.startsWith("/portal")) return can(role, "portal:view");
   if (href.startsWith("/pacientes")) return can(role, "patients:view");
-  if (href.startsWith("/agenda")) return can(role, "appointments:view");
+  if (href.startsWith("/agenda") || href.startsWith("/citas")) return can(role, "appointments:view") && role !== "patient";
   if (href.startsWith("/triage")) return can(role, "vitals:view");
   if (href.startsWith("/consultas")) return can(role, "consultations:view");
-  if (href.startsWith("/recetas")) return can(role, "prescriptions:view");
+  if (href.startsWith("/recetas")) return can(role, "prescriptions:view") && role !== "patient";
   if (href.startsWith("/seguimientos")) return can(role, "followups:view");
-  if (href.startsWith("/documentos")) return can(role, "patients:view");
+  if (href.startsWith("/documentos")) return can(role, "patients:view") && role !== "patient";
   if (href.startsWith("/dispositivos")) return can(role, "devices:view");
+  if (href.startsWith("/laboratorio")) return can(role, "labs:view");
+  if (href.startsWith("/pagos")) return can(role, "payments:view");
   if (href.startsWith("/notificaciones")) return can(role, "notifications:view");
   if (href.startsWith("/reportes")) return can(role, "reports:view");
   if (href.startsWith("/configuracion")) return can(role, "config:view");
-  return true;
+  if (href.startsWith("/bitacora")) return can(role, "config:view");
+  return role !== "patient";
+}
+
+export function defaultHomeForRole(role: UserRole): string {
+  return role === "patient" ? "/portal" : "/";
 }

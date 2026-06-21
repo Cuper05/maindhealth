@@ -23,7 +23,7 @@ function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
 
-      let data: { error?: string } = {};
+      let data: { error?: string; user?: { role?: string } } = {};
       try {
         data = await res.json();
       } catch {
@@ -36,7 +36,10 @@ function LoginForm() {
         return;
       }
 
-      router.push(searchParams.get("from") || "/");
+      const from = searchParams.get("from");
+      const role = data.user?.role;
+      const defaultPath = role === "patient" ? "/portal" : "/";
+      router.push(from && from !== "/" ? from : defaultPath);
       router.refresh();
     } catch {
       setError("No se pudo conectar con el servidor");

@@ -17,6 +17,12 @@ export type PrescriptionPdfData = {
     route?: string | null;
     instructions?: string | null;
   }[];
+  signature?: {
+    signerName: string;
+    signerLicense?: string | null;
+    signedAt: Date;
+    signatureHash: string;
+  };
 };
 
 function calcAge(birthDate: string | null | undefined) {
@@ -85,8 +91,21 @@ export function buildPrescriptionPdf(data: PrescriptionPdfData): Promise<Buffer>
     }
 
     doc.moveDown(2);
-    doc.text("_______________________________", { align: "center" });
-    doc.text("Firma del médico", { align: "center" });
+    if (data.signature) {
+      doc.text("_______________________________", { align: "center" });
+      doc.text(data.signature.signerName, { align: "center" });
+      if (data.signature.signerLicense) {
+        doc.text(`Cédula: ${data.signature.signerLicense}`, { align: "center" });
+      }
+      doc.fontSize(8).fillColor("#64748b").text(
+        `Firma digital · ${data.signature.signedAt.toLocaleString("es-MX")}`,
+        { align: "center" },
+      );
+      doc.text(`Hash: ${data.signature.signatureHash.slice(0, 24)}…`, { align: "center" });
+    } else {
+      doc.text("_______________________________", { align: "center" });
+      doc.text("Firma del médico", { align: "center" });
+    }
 
     doc.end();
   });

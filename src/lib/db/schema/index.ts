@@ -13,3 +13,7 @@ export * from "./clinical-documents";
 export * from "./medical-devices";
 export * from "./notifications";
 export * from "./activity-log";
+export * from "./device-readings";
+export * from "./lab-results";
+export * from "./consultation-payments";
+export * from "./digital-signatures";

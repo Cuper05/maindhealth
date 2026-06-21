@@ -4,6 +4,7 @@ import type { UserRole } from "@/lib/constants";
 
 export interface SessionData {
   userId?: number;
+  patientId?: number;
   name?: string;
   role?: UserRole;
   isLoggedIn: boolean;

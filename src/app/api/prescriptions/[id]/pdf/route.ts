@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { resolvePatientId } from "@/lib/auth/patient-scope";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { buildPrescriptionPdf, calcAge } from "@/lib/pdf/prescription-pdf";
+import { getPrescriptionSignature } from "@/lib/queries/signatures";
 
 export async function GET(
   _request: Request,
@@ -36,6 +38,13 @@ export async function GET(
     return NextResponse.json({ error: "Receta no encontrada" }, { status: 404 });
   }
 
+  if (session.role === "patient") {
+    const patientId = await resolvePatientId(session);
+    if (!patientId || patientId !== prescription.patientId) {
+      return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+    }
+  }
+
   const [patient] = await db
     .select()
     .from(patientsTable)
@@ -55,6 +64,8 @@ export async function GET(
     return NextResponse.json({ error: "Datos incompletos" }, { status: 404 });
   }
 
+  const signature = await getPrescriptionSignature(prescriptionId);
+
   const pdf = await buildPrescriptionPdf({
     chartNumber: patient.chartNumber,
     patientName: formatPersonName(patient),
@@ -65,6 +76,14 @@ export async function GET(
     issuedAt: prescription.issuedAt,
     generalNotes: prescription.generalNotes,
     items,
+    signature: signature
+      ? {
+          signerName: signature.signerName,
+          signerLicense: signature.signerLicense,
+          signedAt: signature.signedAt,
+          signatureHash: signature.signatureHash,
+        }
+      : undefined,
   });
 
   const filename = `receta-${patient.chartNumber}-${prescriptionId}.pdf`;

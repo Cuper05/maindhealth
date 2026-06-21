@@ -14,6 +14,9 @@ import {
   vitalSignsTable,
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
+import { getPaymentForAppointment } from "@/lib/queries/portal";
+import { PaymentPanel } from "@/components/forms/PaymentPanel";
+import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { cardClassName } from "@/lib/ui/classes";
 
@@ -76,6 +79,8 @@ export default async function AppointmentDetailPage({
     .from(consultationsTable)
     .where(eq(consultationsTable.appointmentId, appointmentId));
 
+  const payment = await getPaymentForAppointment(appointmentId);
+
   const patientName = formatPersonName({
     firstName: row.patientFirstName,
     lastNamePaternal: row.patientLastNamePaternal,
@@ -103,18 +108,11 @@ export default async function AppointmentDetailPage({
           <Info label="Tipo" value={row.typeName} />
           <Info label="Modalidad" value={row.modality} />
           <Info label="Motivo" value={row.reason} className="sm:col-span-2" />
-          {row.meetingUrl && (
+          {row.meetingUrl && row.modality === "teleconsulta" && (
             <div className="sm:col-span-2">
               <dt className="text-slate-500">Videollamada</dt>
-              <dd>
-                <a
-                  href={row.meetingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-teal-700 hover:underline"
-                >
-                  Unirse a la consulta
-                </a>
+              <dd className="mt-2">
+                <DailyVideoRoom meetingUrl={row.meetingUrl} title="Sala de teleconsulta" />
               </dd>
             </div>
           )}
@@ -156,6 +154,14 @@ export default async function AppointmentDetailPage({
           </p>
         </section>
       )}
+
+      <div className="mt-6">
+        <PaymentPanel
+          appointmentId={appointmentId}
+          payment={payment}
+          canWrite={can(session?.role, "payments:write")}
+        />
+      </div>
     </div>
   );
 }

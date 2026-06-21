@@ -1,12 +1,16 @@
-import { count, desc, eq, gte } from "drizzle-orm";
+import { count, desc, eq, gte, isNotNull, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   ACTIVITY_MODULE_LABELS,
   activityLogTable,
   appointmentsTable,
   catalogAppointmentStatusesTable,
+  consultationPaymentsTable,
   consultationsTable,
+  deviceReadingsTable,
+  digitalSignaturesTable,
   followUpsTable,
+  labResultsTable,
   patientsTable,
   prescriptionsTable,
   usersTable,
@@ -27,6 +31,11 @@ export type OperationalReport = {
     followUps: number;
     vitalCaptures: number;
     outOfRangeVitals: number;
+    deviceReadings: number;
+    labResults: number;
+    paymentsPaid: number;
+    digitalSignatures: number;
+    teleconsultas: number;
   };
   appointmentsByStatus: { statusName: string; total: number }[];
   doctorProductivity: { doctorName: string; consultations: number; prescriptions: number }[];
@@ -46,7 +55,9 @@ export async function getOperationalReport(periodDays: ReportPeriodDays): Promis
 
   const [
     [newPatientsRow], [appointmentsRow], [consultationsRow], [prescriptionsRow],
-    [followUpsRow], [vitalCapturesRow], appointmentsByStatus, doctorConsultations,
+    [followUpsRow], [vitalCapturesRow], [deviceReadingsRow], [labResultsRow],
+    [paymentsPaidRow], [signaturesRow], [teleconsultasRow],
+    appointmentsByStatus, doctorConsultations,
     doctorPrescriptions, activityRows, vitalRows,
   ] = await Promise.all([
     db.select({ total: count() }).from(patientsTable).where(gte(patientsTable.registeredAt, periodStart)),
@@ -55,6 +66,15 @@ export async function getOperationalReport(periodDays: ReportPeriodDays): Promis
     db.select({ total: count() }).from(prescriptionsTable).where(gte(prescriptionsTable.issuedAt, periodStart)),
     db.select({ total: count() }).from(followUpsTable).where(gte(followUpsTable.followUpAt, periodStart)),
     db.select({ total: count() }).from(vitalSignsTable).where(gte(vitalSignsTable.recordedAt, periodStart)),
+    db.select({ total: count() }).from(deviceReadingsTable).where(gte(deviceReadingsTable.recordedAt, periodStart)),
+    db.select({ total: count() }).from(labResultsTable).where(gte(labResultsTable.resultAt, periodStart)),
+    db.select({ total: count() }).from(consultationPaymentsTable).where(
+      and(gte(consultationPaymentsTable.paidAt, periodStart), eq(consultationPaymentsTable.status, "paid")),
+    ),
+    db.select({ total: count() }).from(digitalSignaturesTable).where(gte(digitalSignaturesTable.signedAt, periodStart)),
+    db.select({ total: count() }).from(appointmentsTable).where(
+      and(gte(appointmentsTable.startAt, periodStart), isNotNull(appointmentsTable.meetingUrl)),
+    ),
     db.select({ statusName: catalogAppointmentStatusesTable.name, total: count() })
       .from(appointmentsTable)
       .innerJoin(catalogAppointmentStatusesTable, eq(appointmentsTable.appointmentStatusId, catalogAppointmentStatusesTable.id))
@@ -145,6 +165,11 @@ export async function getOperationalReport(periodDays: ReportPeriodDays): Promis
         heartRate: row.heartRate, oxygenSaturation: row.oxygenSaturation,
         temperature: row.temperature, glucose: row.glucose,
       })).length,
+      deviceReadings: deviceReadingsRow?.total ?? 0,
+      labResults: labResultsRow?.total ?? 0,
+      paymentsPaid: paymentsPaidRow?.total ?? 0,
+      digitalSignatures: signaturesRow?.total ?? 0,
+      teleconsultas: teleconsultasRow?.total ?? 0,
     },
     appointmentsByStatus, doctorProductivity, activityByModule, outOfRangeVitals,
   };

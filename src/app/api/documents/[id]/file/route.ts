@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { resolvePatientId } from "@/lib/auth/patient-scope";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -29,6 +30,13 @@ export async function GET(
 
   if (!document) {
     return NextResponse.json({ error: "Documento no encontrado" }, { status: 404 });
+  }
+
+  if (session.role === "patient") {
+    const patientId = await resolvePatientId(session);
+    if (!patientId || patientId !== document.patientId) {
+      return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+    }
   }
 
   try {

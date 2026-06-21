@@ -23,6 +23,10 @@ export const ACTIVITY_MODULES = [
   "seguimientos",
   "documentos",
   "dispositivos",
+  "portal",
+  "laboratorio",
+  "pagos",
+  "firmas",
 ] as const;
 
 export type ActivityModule = (typeof ACTIVITY_MODULES)[number];
@@ -39,6 +43,10 @@ export const ACTIVITY_MODULE_LABELS: Record<ActivityModule, string> = {
   seguimientos: "Seguimientos",
   documentos: "Documentos",
   dispositivos: "Dispositivos",
+  portal: "Portal paciente",
+  laboratorio: "Laboratorio",
+  pagos: "Pagos",
+  firmas: "Firmas digitales",
 };
 
 export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
@@ -50,4 +58,7 @@ export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   mantenimiento: "Mantenimiento",
   emitir: "Emitir",
   cargar: "Cargar",
+  registrar: "Registrar",
+  firmar: "Firmar",
+  pagar: "Registrar pago",
 };

@@ -9,11 +9,14 @@ import {
 } from "drizzle-orm/pg-core";
 import { rolesTable } from "./roles";
 
+import { patientsTable } from "./patients";
+
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   roleId: integer("role_id")
     .notNull()
     .references(() => rolesTable.id),
+  patientId: integer("patient_id").references(() => patientsTable.id),
   firstName: varchar("first_name", { length: 150 }).notNull(),
   lastNamePaternal: varchar("last_name_paternal", { length: 150 }).notNull(),
   lastNameMaternal: varchar("last_name_maternal", { length: 150 }),

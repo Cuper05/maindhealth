@@ -14,6 +14,9 @@ import {
   catalogMedicationsTable,
   catalogSymptomsTable,
   clinicalRecordsTable,
+  consultationPaymentsTable,
+  deviceReadingsTable,
+  labResultsTable,
   medicalDevicesTable,
   notificationsTable,
   patientsTable,
@@ -262,6 +265,7 @@ async function main() {
 
   const adminRole = await ensureRole(db, "admin");
   const doctorRole = await ensureRole(db, "doctor");
+  const patientRole = await ensureRole(db, "patient");
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@maindhealth.local";
 
   let [admin] = await db
@@ -368,21 +372,96 @@ async function main() {
     const end = new Date(tomorrow);
     end.setMinutes(30);
 
-    await db.insert(appointmentsTable).values({
+    const [appt] = await db
+      .insert(appointmentsTable)
+      .values({
+        patientId: patient.id,
+        doctorId: doctorUser.id,
+        appointmentTypeId: generalType.id,
+        appointmentStatusId: scheduledStatus.id,
+        modality: "teleconsulta",
+        startAt: tomorrow,
+        endAt: end,
+        reason: "Consulta general — seguimiento",
+        meetingUrl: process.env.DAILY_DOMAIN
+          ? `https://${process.env.DAILY_DOMAIN}.daily.co/maindhealth-demo`
+          : "https://maindhealth.daily.co/demo-consulta",
+        meetingRoomName: "maindhealth-demo",
+      })
+      .returning({ id: appointmentsTable.id });
+
+    await db.insert(consultationPaymentsTable).values({
+      appointmentId: appt.id,
       patientId: patient.id,
-      doctorId: doctorUser.id,
-      appointmentTypeId: generalType.id,
-      appointmentStatusId: scheduledStatus.id,
-      modality: "teleconsulta",
-      startAt: tomorrow,
-      endAt: end,
-      reason: "Consulta general — seguimiento",
-      meetingUrl: "https://meet.example.com/maindhealth-demo",
+      amountCents: 35000,
+      method: "pending",
+      status: "pending",
+      notes: "Consulta general telemedicina",
     });
+
     console.log("Cita demo creada");
   }
 
-  for (const user of [admin, doctorUser]) {
+  let [patientUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, "paciente@maindhealth.local"));
+
+  if (!patientUser) {
+    [patientUser] = await db
+      .insert(usersTable)
+      .values({
+        roleId: patientRole.id,
+        patientId: patient.id,
+        firstName: patient.firstName,
+        lastNamePaternal: patient.lastNamePaternal,
+        lastNameMaternal: patient.lastNameMaternal,
+        email: "paciente@maindhealth.local",
+        passwordHash,
+      })
+      .returning();
+    console.log("Usuario paciente demo creado: paciente@maindhealth.local");
+  } else {
+    await db
+      .update(usersTable)
+      .set({ patientId: patient.id, roleId: patientRole.id, passwordHash, active: true })
+      .where(eq(usersTable.email, "paciente@maindhealth.local"));
+  }
+
+  const [demoDevice] = await db.select().from(medicalDevicesTable).limit(1);
+  const [existingReading] = await db.select().from(deviceReadingsTable).limit(1);
+  if (demoDevice && !existingReading) {
+    await db.insert(deviceReadingsTable).values({
+      medicalDeviceId: demoDevice.id,
+      patientId: patient.id,
+      systolicPressure: "128",
+      diastolicPressure: "82",
+      heartRate: "74",
+      oxygenSaturation: "97",
+      source: "device",
+      notes: "Lectura demo oxímetro",
+    });
+    console.log("Lectura de dispositivo demo creada");
+  }
+
+  const [existingLab] = await db.select().from(labResultsTable).limit(1);
+  if (!existingLab) {
+    await db.insert(labResultsTable).values({
+      patientId: patient.id,
+      testName: "Biometría hemática",
+      testCode: "BH-DEMO",
+      results: {
+        hemoglobina: "14.1 g/dL",
+        leucocitos: "6.2 x10³/µL",
+        plaquetas: "245 x10³/µL",
+      },
+      status: "completed",
+      uploadedById: doctorUser.id,
+    });
+    console.log("Resultado de laboratorio demo creado");
+  }
+
+  for (const user of [admin, doctorUser, patientUser]) {
     const [existingWelcome] = await db
       .select()
       .from(notificationsTable)
@@ -393,7 +472,7 @@ async function main() {
         type: "sistema",
         title: "Bienvenido a MaindHealth",
         body: "Aquí verás recordatorios de citas, seguimientos y triage.",
-        href: "/notificaciones",
+        href: user === patientUser ? "/portal" : "/notificaciones",
         referenceKey: `sistema:bienvenida:${user.id}`,
       });
     }

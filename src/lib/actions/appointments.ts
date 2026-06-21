@@ -1,5 +1,6 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   actionError,
@@ -10,6 +11,7 @@ import { db } from "@/lib/db";
 import { appointmentsTable } from "@/lib/db/schema";
 import { getAppointmentStatusByCode } from "@/lib/queries/catalogs";
 import { logActivity } from "@/lib/audit/log-activity";
+import { createDailyRoom } from "@/lib/video/daily";
 import { parseAppointmentForm } from "@/lib/validators/appointment";
 
 export async function createAppointment(_prev: unknown, formData: FormData) {
@@ -45,6 +47,21 @@ export async function createAppointment(_prev: unknown, formData: FormData) {
       meetingUrl: data.meetingUrl || null,
     })
     .returning({ id: appointmentsTable.id });
+
+  let meetingUrl = data.meetingUrl || null;
+  let meetingRoomName: string | null = null;
+
+  if (data.modality === "teleconsulta" && !meetingUrl) {
+    const room = await createDailyRoom(appointment.id);
+    if (room) {
+      meetingUrl = room.url;
+      meetingRoomName = room.name;
+      await db
+        .update(appointmentsTable)
+        .set({ meetingUrl, meetingRoomName })
+        .where(eq(appointmentsTable.id, appointment.id));
+    }
+  }
 
   await logActivity({
     userId: session.userId,

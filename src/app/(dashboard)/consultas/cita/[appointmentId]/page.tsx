@@ -24,9 +24,11 @@ import {
   getActiveMedications,
   getActiveSymptoms,
 } from "@/lib/queries/catalogs";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { ConsultationWorkspace } from "@/components/forms/ConsultationWorkspace";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
 import { cardClassName } from "@/lib/ui/classes";
+import { getPrescriptionSignature } from "@/lib/queries/signatures";
 
 export default async function ConsultationByAppointmentPage({
   params,
@@ -43,6 +45,7 @@ export default async function ConsultationByAppointmentPage({
     .select({
       id: appointmentsTable.id,
       reason: appointmentsTable.reason,
+      modality: appointmentsTable.modality,
       meetingUrl: appointmentsTable.meetingUrl,
       patientId: appointmentsTable.patientId,
       patientFirstName: patientsTable.firstName,
@@ -112,6 +115,10 @@ export default async function ConsultationByAppointmentPage({
     lastNameMaternal: appointment.patientLastNameMaternal,
   });
 
+  const prescriptionSignature = prescriptionData?.id
+    ? await getPrescriptionSignature(prescriptionData.id)
+    : null;
+
   return (
     <div>
       <PageHeader
@@ -124,13 +131,19 @@ export default async function ConsultationByAppointmentPage({
               href={appointment.meetingUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-lg bg-teal-700 px-4 py-2 text-sm text-white hover:bg-teal-800"
+              className="rounded-lg border border-teal-200 bg-white px-4 py-2 text-sm text-teal-800 hover:bg-teal-50"
             >
-              Abrir videollamada
+              Abrir en pestaña
             </a>
           ) : undefined
         }
       />
+
+      {appointment.meetingUrl && appointment.modality === "teleconsulta" && (
+        <section className="mb-6">
+          <DailyVideoRoom meetingUrl={appointment.meetingUrl} title="Teleconsulta en vivo" />
+        </section>
+      )}
 
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <aside className={`${cardClassName} lg:col-span-1`}>
@@ -183,6 +196,10 @@ export default async function ConsultationByAppointmentPage({
             canWritePrescription={can(session?.role, "prescriptions:write")}
             canWriteFollowUp={can(session?.role, "followups:write")}
             canUploadDocuments={can(session?.role, "patients:write")}
+            canSignPrescription={can(session?.role, "signatures:write")}
+            prescriptionId={prescriptionData?.id}
+            prescriptionSigned={!!prescriptionSignature}
+            prescriptionSignatureHash={prescriptionSignature?.signatureHash}
           />
         </div>
       </div>
