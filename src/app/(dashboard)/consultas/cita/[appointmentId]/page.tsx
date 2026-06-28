@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -29,6 +29,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
 import { cardClassName } from "@/lib/ui/classes";
 import { getPrescriptionSignature } from "@/lib/queries/signatures";
+import { getVisitIntakeByAppointment } from "@/lib/queries/visit-intake";
+import { IntakeSummary } from "@/components/intake/IntakeSummary";
 
 export default async function ConsultationByAppointmentPage({
   params,
@@ -63,6 +65,9 @@ export default async function ConsultationByAppointmentPage({
     .where(eq(appointmentsTable.id, appointmentId));
 
   if (!appointment) notFound();
+
+  const intake = await getVisitIntakeByAppointment(appointmentId);
+  if (!intake) redirect(`/estacion/flujo?cita=${appointmentId}`);
 
   const [consultation] = await db
     .select()
@@ -144,6 +149,10 @@ export default async function ConsultationByAppointmentPage({
           <DailyVideoRoom meetingUrl={appointment.meetingUrl} title="Teleconsulta en vivo" />
         </section>
       )}
+
+      <div className="mb-6">
+        <IntakeSummary intake={intake} />
+      </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <aside className={`${cardClassName} lg:col-span-1`}>

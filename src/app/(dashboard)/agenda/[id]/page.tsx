@@ -15,6 +15,8 @@ import {
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { getPaymentForAppointment } from "@/lib/queries/portal";
+import { getVisitIntakeByAppointment } from "@/lib/queries/visit-intake";
+import { IntakeSummary } from "@/components/intake/IntakeSummary";
 import { PaymentPanel } from "@/components/forms/PaymentPanel";
 import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -80,6 +82,8 @@ export default async function AppointmentDetailPage({
     .where(eq(consultationsTable.appointmentId, appointmentId));
 
   const payment = await getPaymentForAppointment(appointmentId);
+  const intake = await getVisitIntakeByAppointment(appointmentId);
+  const intakeComplete = Boolean(intake);
 
   const patientName = formatPersonName({
     firstName: row.patientFirstName,
@@ -119,8 +123,27 @@ export default async function AppointmentDetailPage({
         </dl>
       </section>
 
+      {!intakeComplete && (
+        <section className={`${cardClassName} mb-6 border-amber-200 bg-amber-50`}>
+          <p className="text-sm font-medium text-amber-900">Intake pendiente</p>
+          <p className="mt-1 text-sm text-amber-800">
+            El paciente debe completar el cuestionario de estación antes de triage y consulta.
+          </p>
+          {can(session?.role, "intake:write") && (
+            <Link
+              href={`/estacion/flujo?cita=${appointmentId}`}
+              className="mt-3 inline-block rounded-lg bg-amber-700 px-4 py-2 text-sm text-white hover:bg-amber-800"
+            >
+              Iniciar cuestionario
+            </Link>
+          )}
+        </section>
+      )}
+
+      {intake && <div className="mb-6"><IntakeSummary intake={intake} /></div>}
+
       <div className="flex flex-wrap gap-3">
-        {can(session?.role, "vitals:write") && (
+        {can(session?.role, "vitals:write") && intakeComplete && (
           <Link
             href={`/triage/nuevo?patientId=${row.patientId}&appointmentId=${appointmentId}&redirect=/agenda/${appointmentId}`}
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -128,7 +151,7 @@ export default async function AppointmentDetailPage({
             Capturar triage
           </Link>
         )}
-        {can(session?.role, "consultations:view") && (
+        {can(session?.role, "consultations:view") && intakeComplete && (
           <Link
             href={`/consultas/cita/${appointmentId}`}
             className="rounded-lg bg-teal-700 px-4 py-2 text-sm text-white hover:bg-teal-800"

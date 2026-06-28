@@ -13,6 +13,13 @@
 | Usuarios y roles | `users` + `roles` | Control de acceso |
 | Seguimiento | `follow_ups` | Evolución y próxima revisión |
 
+## Fase 5 — Estación telemedicina
+
+| Módulo | Tabla | Función |
+|--------|-------|---------|
+| Intake por cita | `visit_intakes` | Cuestionario, consentimiento y gate clínico |
+| Estación | UI `/estacion` | Citas del día y wizard de 7 pasos |
+
 ## Prioridad media (Fase 2)
 
 | Módulo | Tabla |

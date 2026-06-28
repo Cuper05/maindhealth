@@ -10,6 +10,7 @@ const NAV = [
   { href: "/", label: "Dashboard", phase: 1 },
   { href: "/pacientes", label: "Pacientes", phase: 1 },
   { href: "/agenda", label: "Agenda", phase: 1 },
+  { href: "/estacion", label: "Estación", phase: 5 },
   { href: "/triage", label: "Triage / signos vitales", phase: 1 },
   { href: "/consultas", label: "Consultas", phase: 1 },
   { href: "/recetas", label: "Recetas", phase: 1 },

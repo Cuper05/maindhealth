@@ -19,3 +19,4 @@ export * from "./consultation-payments";
 export * from "./digital-signatures";
 export * from "./clinical-messages";
 export * from "./clinical-alerts";
+export * from "./visit-intakes";

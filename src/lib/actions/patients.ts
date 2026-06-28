@@ -15,7 +15,7 @@ import {
   parsePatientForm,
 } from "@/lib/validators/patient";
 
-async function nextChartNumber() {
+export async function nextChartNumber() {
   const [row] = await db.select({ total: count() }).from(patientsTable);
   const next = (row?.total ?? 0) + 1;
   return `MH-${String(next).padStart(4, "0")}`;

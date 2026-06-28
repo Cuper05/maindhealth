@@ -31,7 +31,9 @@ export type Permission =
   | "messages:view"
   | "messages:write"
   | "alerts:view"
-  | "alerts:write";
+  | "alerts:write"
+  | "intake:view"
+  | "intake:write";
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
@@ -41,23 +43,25 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     "users:write", "reports:view", "config:view", "devices:view", "devices:write",
     "notifications:view", "readings:view", "readings:write", "labs:view", "labs:write",
     "payments:view", "payments:write", "signatures:write", "messages:view", "messages:write",
-    "alerts:view", "alerts:write",
+    "alerts:view", "alerts:write", "intake:view", "intake:write",
   ],
   doctor: [
     "appointments:view", "appointments:write", "patients:view", "vitals:view",
     "consultations:view", "consultations:write", "prescriptions:view", "prescriptions:write",
     "followups:view", "followups:write", "devices:view", "notifications:view",
     "readings:view", "labs:view", "labs:write", "payments:view", "signatures:write",
-    "messages:view", "messages:write", "alerts:view", "alerts:write",
+    "messages:view", "messages:write", "alerts:view", "alerts:write", "intake:view",
   ],
   nurse: [
     "appointments:view", "patients:view", "vitals:view", "vitals:write", "devices:view",
     "notifications:view", "readings:view", "readings:write", "labs:view", "labs:write",
     "messages:view", "messages:write", "alerts:view", "alerts:write",
+    "intake:view", "intake:write",
   ],
   reception: [
     "appointments:view", "appointments:write", "patients:view", "patients:write",
     "notifications:view", "payments:view", "payments:write", "messages:view", "messages:write",
+    "intake:view", "intake:write",
   ],
   patient: [
     "portal:view", "appointments:view", "appointments:book", "prescriptions:view",
@@ -95,6 +99,7 @@ export function canAccessRoute(role: UserRole | undefined, href: string): boolea
   if (href.startsWith("/pagos")) return can(role, "payments:view");
   if (href.startsWith("/mensajes")) return can(role, "messages:view");
   if (href.startsWith("/alertas")) return can(role, "alerts:view");
+  if (href.startsWith("/estacion")) return can(role, "intake:view");
   if (href.startsWith("/notificaciones")) return can(role, "notifications:view");
   if (href.startsWith("/reportes")) return can(role, "reports:view");
   if (href.startsWith("/configuracion")) return can(role, "config:view");

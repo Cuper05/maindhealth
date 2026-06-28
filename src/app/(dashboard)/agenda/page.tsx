@@ -9,6 +9,7 @@ import {
   catalogAppointmentTypesTable,
   patientsTable,
   usersTable,
+  visitIntakesTable,
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -32,6 +33,7 @@ export default async function AgendaPage() {
       doctorFirstName: usersTable.firstName,
       doctorLastNamePaternal: usersTable.lastNamePaternal,
       doctorLastNameMaternal: usersTable.lastNameMaternal,
+      intakeId: visitIntakesTable.id,
     })
     .from(appointmentsTable)
     .innerJoin(patientsTable, eq(appointmentsTable.patientId, patientsTable.id))
@@ -47,6 +49,7 @@ export default async function AgendaPage() {
       catalogAppointmentTypesTable,
       eq(appointmentsTable.appointmentTypeId, catalogAppointmentTypesTable.id),
     )
+    .leftJoin(visitIntakesTable, eq(visitIntakesTable.appointmentId, appointmentsTable.id))
     .orderBy(desc(appointmentsTable.startAt));
 
   return (
@@ -72,13 +75,14 @@ export default async function AgendaPage() {
               <th className="px-4 py-3 font-medium">Médico</th>
               <th className="px-4 py-3 font-medium">Modalidad</th>
               <th className="px-4 py-3 font-medium">Estatus</th>
+              <th className="px-4 py-3 font-medium">Intake</th>
               <th className="px-4 py-3 font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                   No hay citas.{" "}
                   {canWrite && (
                     <Link href="/agenda/nueva" className="text-teal-700 hover:underline">
@@ -112,6 +116,13 @@ export default async function AgendaPage() {
                   </td>
                   <td className="px-4 py-3 capitalize">{row.modality}</td>
                   <td className="px-4 py-3">{row.statusName}</td>
+                  <td className="px-4 py-3">
+                    {row.intakeId ? (
+                      <span className="text-teal-700">Completo</span>
+                    ) : (
+                      <span className="text-amber-700">Pendiente</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/agenda/${row.id}`}

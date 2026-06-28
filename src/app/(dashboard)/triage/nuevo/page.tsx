@@ -10,6 +10,7 @@ import {
 import {
   getActivePatients,
 } from "@/lib/queries/catalogs";
+import { isVisitIntakeComplete } from "@/lib/queries/visit-intake";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { VitalSignsForm } from "@/components/forms/VitalSignsForm";
 
@@ -26,6 +27,14 @@ export default async function NuevoTriagePage({
   if (!can(session?.role, "vitals:write")) redirect("/triage");
 
   const params = await searchParams;
+
+  if (params.appointmentId) {
+    const appointmentId = Number(params.appointmentId);
+    if (Number.isFinite(appointmentId)) {
+      const complete = await isVisitIntakeComplete(appointmentId);
+      if (!complete) redirect(`/estacion/flujo?cita=${appointmentId}`);
+    }
+  }
   const [patients, appointments] = await Promise.all([
     getActivePatients(),
     db

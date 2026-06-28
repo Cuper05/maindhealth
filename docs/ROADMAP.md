@@ -30,7 +30,15 @@ Documentos clínicos, dispositivos médicos, bitácora, catálogos extendidos, n
 6. ✅ Receta regulada — folio `MH-RX-*`, código de verificación, QR en PDF
 7. ✅ Alertas clínicas (`/alertas`) + métricas en reportes
 
-## Fase 5 — Futuro
+## Fase 5 — Protocolo de estación ✅
+
+1. ✅ Cuestionario obligatorio por cita (`visit_intakes`)
+2. ✅ Estación telemedicina (`/estacion`) — citas del día
+3. ✅ Gate: sin intake no hay triage ni consulta
+4. ✅ Sincronización con expediente clínico
+5. ⏸ Hardware MQTT/BLE — cuando lleguen equipos
+
+## Fase 6 — Futuro
 
 - Integración MQTT / BLE en tiempo real
 - Pasarela alternativa (Conekta)

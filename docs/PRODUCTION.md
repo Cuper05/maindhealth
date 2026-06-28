@@ -88,3 +88,17 @@ npm run db:seed
 # Deploy
 npx vercel deploy --prod
 ```
+
+## Protocolo de estación (Fase 5)
+
+Flujo guiado en **`/estacion/flujo`**:
+
+1. Bienvenida  
+2. Paciente nuevo o recurrente  
+3. Captura / confirmación de datos  
+4. Formulario clínico inicial (antecedentes estructurados)  
+5. Consentimiento informado  
+6. Instrucciones para toma de signos vitales → triage  
+7. Sala de espera de teleconsulta  
+
+Sin completar pasos 1–5 (intake en BD), no hay triage ni consulta.

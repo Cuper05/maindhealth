@@ -7,6 +7,7 @@
 | `/` | Dashboard | 1 |
 | `/pacientes` | Pacientes | 1 |
 | `/agenda` | Agenda médica | 1 |
+| `/estacion` | Estación telemedicina (protocolo intake) | 5 |
 | `/triage` | Triage / signos vitales | 1 |
 | `/consultas` | Consultas / teleconsulta | 1 |
 | `/recetas` | Recetas | 1 |
@@ -19,8 +20,20 @@
 ## Flujo clínico principal
 
 ```
-Login → Dashboard → Pacientes → Agenda → Triage → Consulta → Receta → Seguimiento
+Login → Estación (intake) → Triage → Consulta → Receta → Seguimiento
 ```
+
+### Protocolo de estación (`/estacion/flujo`)
+
+1. Bienvenida  
+2. Paciente nuevo o recurrente  
+3. Captura / confirmación de datos  
+4. Formulario clínico inicial  
+5. Consentimiento informado  
+6. Instrucciones y captura de signos vitales  
+7. Sala de espera de teleconsulta  
+
+Sin intake completado no hay triage ni consulta.
 
 ## Detalle de paciente (Fase 1.1)
 
