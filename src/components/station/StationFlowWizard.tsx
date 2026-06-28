@@ -12,6 +12,7 @@ import {
   type SmokingStatus,
 } from "@/lib/db/schema/visit-intakes";
 import { STATION_CONSENT_TEXT, STATION_VITALS_INSTRUCTIONS } from "@/lib/station/copy";
+import { YesNoDetailList } from "@/components/intake/YesNoDetailList";
 import { optionLabel } from "@/lib/format/name";
 import {
   buttonPrimaryClassName,
@@ -817,21 +818,23 @@ function ClinicalStep({
           onDetail={(v) => setClinical({ ...clinical, heartDiseaseDetails: v })}
           placeholder="Diagnóstico, tratamiento…"
         />
-        <YesNoBlock
+        <YesNoDetailList
           label="¿Alergias?"
           checked={clinical.hasAllergies}
-          onChange={(v) => setClinical({ ...clinical, hasAllergies: v })}
-          detail={clinical.allergyDetails}
-          onDetail={(v) => setClinical({ ...clinical, allergyDetails: v })}
+          onCheckedChange={(v) => setClinical({ ...clinical, hasAllergies: v })}
+          value={clinical.allergyDetails}
+          onChange={(v) => setClinical({ ...clinical, allergyDetails: v })}
           placeholder="Sustancia y reacción…"
+          addLabel="Agregar otra alergia"
         />
-        <YesNoBlock
+        <YesNoDetailList
           label="¿Cirugías previas?"
           checked={clinical.hasSurgeries}
-          onChange={(v) => setClinical({ ...clinical, hasSurgeries: v })}
-          detail={clinical.surgeryDetails}
-          onDetail={(v) => setClinical({ ...clinical, surgeryDetails: v })}
+          onCheckedChange={(v) => setClinical({ ...clinical, hasSurgeries: v })}
+          value={clinical.surgeryDetails}
+          onChange={(v) => setClinical({ ...clinical, surgeryDetails: v })}
           placeholder="Procedimiento y año…"
+          addLabel="Agregar otra cirugía"
         />
         <div>
           <label className={labelClassName}>Otras enfermedades crónicas</label>

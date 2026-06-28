@@ -10,6 +10,7 @@ import {
   type SmokingStatus,
 } from "@/lib/db/schema/visit-intakes";
 import { FormAlert, SubmitButton } from "@/components/ui/PageHeader";
+import { YesNoDetailList } from "@/components/intake/YesNoDetailList";
 import {
   cardClassName,
   inputClassName,
@@ -44,6 +45,8 @@ export function StationIntakeForm({
   const [hasHeartDisease, setHasHeartDisease] = useState(false);
   const [hasAllergies, setHasAllergies] = useState(false);
   const [hasSurgeries, setHasSurgeries] = useState(false);
+  const [allergyDetails, setAllergyDetails] = useState("");
+  const [surgeryDetails, setSurgeryDetails] = useState("");
 
   useEffect(() => {
     if (state?.ok && "appointmentId" in state) {
@@ -131,22 +134,28 @@ export function StationIntakeForm({
             detailName="heartDiseaseDetails"
             detailPlaceholder="Diagnóstico, tratamiento…"
           />
-          <YesNoField
+          <YesNoDetailList
             label="¿Alergias a medicamentos o sustancias?"
-            name="hasAllergies"
             checked={hasAllergies}
-            onChange={setHasAllergies}
+            onCheckedChange={setHasAllergies}
+            value={allergyDetails}
+            onChange={setAllergyDetails}
+            placeholder="A qué es alérgico y reacción…"
+            addLabel="Agregar otra alergia"
             detailName="allergyDetails"
-            detailPlaceholder="A qué es alérgico y reacción…"
           />
-          <YesNoField
+          <input type="hidden" name="hasAllergies" value={hasAllergies ? "yes" : "no"} />
+          <YesNoDetailList
             label="¿Cirugías previas?"
-            name="hasSurgeries"
             checked={hasSurgeries}
-            onChange={setHasSurgeries}
+            onCheckedChange={setHasSurgeries}
+            value={surgeryDetails}
+            onChange={setSurgeryDetails}
+            placeholder="Procedimiento y año aproximado…"
+            addLabel="Agregar otra cirugía"
             detailName="surgeryDetails"
-            detailPlaceholder="Procedimiento y año aproximado…"
           />
+          <input type="hidden" name="hasSurgeries" value={hasSurgeries ? "yes" : "no"} />
           <div>
             <label className={labelClassName}>Otras enfermedades crónicas</label>
             <textarea

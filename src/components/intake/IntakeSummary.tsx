@@ -3,6 +3,7 @@ import {
   SMOKING_STATUS_LABELS,
   type visitIntakesTable,
 } from "@/lib/db/schema/visit-intakes";
+import { formatDetailListForDisplay } from "@/lib/intake/list-details";
 import { cardClassName } from "@/lib/ui/classes";
 
 type Intake = typeof visitIntakesTable.$inferSelect;
@@ -12,8 +13,8 @@ export function IntakeSummary({ intake }: { intake: Intake }) {
     intake.hasDiabetes && `Diabetes: ${intake.diabetesDetails ?? "—"}`,
     intake.hasHypertension && `Hipertensión: ${intake.hypertensionDetails ?? "—"}`,
     intake.hasHeartDisease && `Cardíaco: ${intake.heartDiseaseDetails ?? "—"}`,
-    intake.hasAllergies && `Alergias: ${intake.allergyDetails ?? "—"}`,
-    intake.hasSurgeries && `Cirugías: ${intake.surgeryDetails ?? "—"}`,
+    intake.hasAllergies && `Alergias: ${formatDetailListForDisplay(intake.allergyDetails)}`,
+    intake.hasSurgeries && `Cirugías: ${formatDetailListForDisplay(intake.surgeryDetails)}`,
   ].filter(Boolean) as string[];
 
   return (
