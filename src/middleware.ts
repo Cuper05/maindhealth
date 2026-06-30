@@ -6,13 +6,17 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/payments/webhook",
   "/api/device-readings/ingest",
+  "/estacion/paciente",
 ];
+
+const PUBLIC_API_PREFIXES = ["/api/station/"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
     PUBLIC_PATHS.some((p) => pathname === p) ||
+    PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/api/prescriptions/verify/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")

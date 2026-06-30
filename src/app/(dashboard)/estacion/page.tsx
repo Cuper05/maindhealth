@@ -19,11 +19,28 @@ export default async function EstacionPage() {
         title="Estación de telemedicina"
         description="Panel del día y acceso al protocolo guiado de llegada."
         action={
-          session?.role && can(session.role, "intake:write") ? (
-            <Link href="/estacion/flujo" className={buttonPrimaryClassName}>
-              Iniciar protocolo
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="https://maindhealth.vercel.app/estacion/paciente"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-[#1d6eb8] bg-[#f0f7ff] px-4 py-2 text-sm font-medium text-[#1a4d7c] hover:bg-[#e0efff]"
+            >
+              Pantalla paciente (producción)
+            </a>
+            <Link
+              href="/estacion/paciente"
+              target="_blank"
+              className="rounded-lg border border-teal-600 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100"
+            >
+              Pantalla paciente (local)
             </Link>
-          ) : undefined
+            {session?.role && can(session.role, "intake:write") ? (
+              <Link href="/estacion/flujo" className={buttonPrimaryClassName}>
+                Iniciar protocolo staff
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
