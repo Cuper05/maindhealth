@@ -13,10 +13,15 @@ export function VitalStepScreen({
   totalSteps,
   title,
   instruction,
+  illustration,
   deviceStatus,
+  statusMessage,
   onContinue,
   onSimulate,
   onBack,
+  onRetry,
+  onCapture,
+  captureLabel = "Leer dispositivo",
 }: {
   stepNumber: number;
   totalSteps: number;
@@ -24,18 +29,18 @@ export function VitalStepScreen({
   instruction: string;
   illustration: VitalIllustrationType;
   deviceStatus: "idle" | "waiting" | "reading" | "done" | "retry";
+  statusMessage?: string;
   onContinue: () => void;
   onSimulate: () => void;
   onBack?: () => void;
+  onRetry?: () => void;
+  /** Lectura real del equipo de estación (oxímetro, etc.). */
+  onCapture?: () => void;
+  captureLabel?: string;
 }) {
-  const illustType =
-    stepNumber === 1
-      ? "blood_pressure"
-      : stepNumber === 2
-        ? "oxygen"
-        : stepNumber === 3
-          ? "weight_height"
-          : "temperature";
+  const showCapture =
+    Boolean(onCapture) &&
+    (deviceStatus === "idle" || deviceStatus === "waiting" || deviceStatus === "retry");
 
   return (
     <KioskCard className="overflow-hidden">
@@ -50,14 +55,17 @@ export function VitalStepScreen({
       </div>
 
       <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">{instruction}</p>
+      {statusMessage ? (
+        <p className="mt-2 text-base font-medium text-[#1d6eb8]">{statusMessage}</p>
+      ) : null}
 
       <div className="relative mt-8 overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white py-6 ring-1 ring-slate-100">
-        <VitalIllustration type={illustType} />
+        <VitalIllustration type={illustration} />
         {deviceStatus === "reading" && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
             <div className="rounded-2xl bg-white px-6 py-4 shadow-lg">
               <p className="animate-pulse text-center font-medium text-[#1d6eb8]">
-                Lectura en proceso…
+                {statusMessage || "Lectura en proceso…"}
               </p>
             </div>
           </div>
@@ -68,15 +76,32 @@ export function VitalStepScreen({
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-emerald-600">
                 ✓
               </span>
-              Lectura recibida
+              {statusMessage || "Lectura recibida"}
             </span>
           </div>
         )}
       </div>
 
       <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-6">
-        {onBack && <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>}
-        <KioskPrimaryButton onClick={onContinue}>Continuar</KioskPrimaryButton>
+        {onBack && (
+          <KioskSecondaryButton onClick={onBack}>
+            ← Atrás
+          </KioskSecondaryButton>
+        )}
+        {onRetry && deviceStatus === "done" && (
+          <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
+        )}
+        {showCapture && (
+          <KioskPrimaryButton onClick={onCapture} disabled={deviceStatus === "reading"}>
+            {captureLabel}
+          </KioskPrimaryButton>
+        )}
+        <KioskPrimaryButton
+          onClick={onContinue}
+          disabled={deviceStatus === "reading" || (Boolean(onCapture) && deviceStatus !== "done")}
+        >
+          Continuar
+        </KioskPrimaryButton>
         <button
           type="button"
           onClick={onSimulate}

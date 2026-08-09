@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
 import { STATION_CONSENT_TEXT } from "@/lib/station/copy";
 import type { KioskStep } from "@/lib/db/schema/station-kiosk";
+import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
 import { WelcomeIllustration, WaitingIllustration } from "./KioskIllustrations";
 import {
   KioskCard,
@@ -16,17 +17,33 @@ import {
 import { VitalStepScreen } from "./VitalStepScreen";
 import { VitalsSummaryGrid } from "./VitalsPanel";
 import { KioskShell } from "./KioskShell";
+import { SymptomGuide } from "./SymptomGuide";
+import { DownloadPrescriptionButton } from "./DownloadPrescriptionButton";
+import {
+  buildChiefComplaintFromSelection,
+  emptySymptomSelection,
+  getSymptomSelectionGaps,
+  isSymptomSelectionComplete,
+  symptomSelectionFromUnknown,
+  type SymptomSelection,
+} from "@/lib/kiosk/symptom-catalog";
+import {
+  displayTreatmentPlan,
+  normalizeAssessmentText,
+} from "@/lib/kiosk/assessment-text";
 import {
   kioskApi,
   type AppointmentPayload,
-  type DoctorOption,
+  type AssessmentPayload,
   type PatientPayload,
-  type TodayAppointment,
+  type PaymentOrder,
+  type StationService,
   type VitalsDraft,
 } from "./kiosk-api";
 
 type ClinicalForm = {
   chiefComplaint: string;
+  symptomSelection: SymptomSelection;
   hasDiabetes: boolean;
   hasHypertension: boolean;
   hasAsthma: boolean;
@@ -40,6 +57,7 @@ type ClinicalForm = {
 
 const emptyClinical = (): ClinicalForm => ({
   chiefComplaint: "",
+  symptomSelection: emptySymptomSelection(),
   hasDiabetes: false,
   hasHypertension: false,
   hasAsthma: false,
@@ -58,6 +76,73 @@ const VITAL_STEPS: KioskStep[] = [
   "temperature",
 ];
 
+const PREVIOUS_STEP: Partial<Record<KioskStep, KioskStep>> = {
+  service: "welcome",
+  payment: "service",
+  identification: "payment",
+  registration: "identification",
+  clinical: "registration",
+  preparation: "clinical",
+  blood_pressure: "preparation",
+  oxygen: "blood_pressure",
+  weight_height: "oxygen",
+  temperature: "weight_height",
+  summary: "temperature",
+  analysis: "summary",
+  waiting: "summary",
+};
+
+function formatMoney(cents: number, currency = "MXN") {
+  return new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(cents / 100);
+}
+
+const VITAL_FIELDS: Record<string, (keyof VitalsDraft)[]> = {
+  blood_pressure: ["systolicPressure", "diastolicPressure"],
+  oxygen: ["oxygenSaturation"],
+  weight_height: ["weight", "height", "bmi"],
+  temperature: ["temperature"],
+};
+
+/** Si ya hay lectura del paso, no bloquear en "reading" (evita Continuar/Atrás trabados). */
+function resolveVitalUiStatus(
+  deviceStatus: string,
+  hasReading: boolean,
+): "waiting" | "reading" | "done" {
+  if (hasReading) return "done";
+  if (deviceStatus === "reading") return "reading";
+  return "waiting";
+}
+
+function vitalsCompleteForStep(step: string, draft: VitalsDraft) {
+  const fields = VITAL_FIELDS[step];
+  if (!fields?.length) return false;
+  return fields.every((field) => Boolean(draft[field]));
+}
+
+function clinicalFromDraft(draft: Record<string, unknown> | null | undefined): ClinicalForm {
+  const base = emptyClinical();
+  if (!draft) return base;
+  const symptomSelection = symptomSelectionFromUnknown(draft.symptomSelection);
+  const chiefFromSelection = buildChiefComplaintFromSelection(symptomSelection);
+  return {
+    chiefComplaint:
+      chiefFromSelection ||
+      (typeof draft.chiefComplaint === "string" ? draft.chiefComplaint : base.chiefComplaint),
+    symptomSelection,
+    hasDiabetes: Boolean(draft.hasDiabetes),
+    hasHypertension: Boolean(draft.hasHypertension),
+    hasAsthma: Boolean(draft.hasAsthma),
+    hasHeartDisease: Boolean(draft.hasHeartDisease),
+    hasAllergies: Boolean(draft.hasAllergies),
+    allergyDetails: typeof draft.allergyDetails === "string" ? draft.allergyDetails : base.allergyDetails,
+    currentMedications:
+      typeof draft.currentMedications === "string" ? draft.currentMedications : base.currentMedications,
+    consentAccepted: Boolean(draft.consentAccepted),
+    consentSignerName:
+      typeof draft.consentSignerName === "string" ? draft.consentSignerName : base.consentSignerName,
+  };
+}
+
 export function PatientKioskWizard() {
   const [step, setStep] = useState<KioskStep>("welcome");
   const [patient, setPatient] = useState<PatientPayload | null>(null);
@@ -67,37 +152,116 @@ export function PatientKioskWizard() {
   const [vitalsDraft, setVitalsDraft] = useState<VitalsDraft>({});
   const [deviceStatus, setDeviceStatus] = useState("idle");
   const [clinical, setClinical] = useState<ClinicalForm>(emptyClinical);
-  const [todayAppointments, setTodayAppointments] = useState<TodayAppointment[]>([]);
-  const [doctors, setDoctors] = useState<DoctorOption[]>([]);
+  const [assessment, setAssessment] = useState<AssessmentPayload | null>(null);
+  const [services, setServices] = useState<StationService[]>([]);
+  const [selectedService, setSelectedService] = useState<StationService | null>(null);
+  const [paymentOrder, setPaymentOrder] = useState<PaymentOrder | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string>("unpaid");
   const [dataConfirmed, setDataConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Errores del paso clínico mostrados junto a Continuar (sticky). */
+  const [clinicalError, setClinicalError] = useState<string | null>(null);
+  const [highlightSymptomGaps, setHighlightSymptomGaps] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [oxygenStatus, setOxygenStatus] = useState<string>("");
+  const oxygenCaptureLock = useRef(false);
 
-  const showVitalsPanel = VITAL_STEPS.includes(step) || step === "summary";
+  const showVitalsPanel = VITAL_STEPS.includes(step) || step === "summary" || step === "analysis";
 
   const goToStep = useCallback(async (next: KioskStep, extra?: Record<string, unknown>) => {
+    setError(null);
+    setClinicalError(null);
+    setHighlightSymptomGaps(false);
     setStep(next);
     await kioskApi.patchSession({ currentStep: next, ...extra });
   }, []);
+
+  const goBack = useCallback(async () => {
+    const previous = PREVIOUS_STEP[step];
+    if (!previous) return;
+    setDeviceStatus("idle");
+    await goToStep(previous);
+  }, [goToStep, step]);
+
+  const clearVitalFields = useCallback(async (fields: (keyof VitalsDraft)[]) => {
+    const patch: Record<string, string> = {};
+    for (const field of fields) patch[field] = "";
+    setVitalsDraft((prev) => {
+      const next = { ...prev };
+      for (const field of fields) delete next[field];
+      return next;
+    });
+    setDeviceStatus("waiting");
+    setError(null);
+    await kioskApi.patchVitals(patch, "waiting");
+  }, []);
+
+  const applyVisit = useCallback(
+    (result: {
+      patientId: number;
+      appointmentId: number;
+      chartNumber: string;
+      patientName: string;
+      startAt: string;
+      doctorName: string;
+      modality: string;
+    }, type: "new" | "returning") => {
+      setPatient({
+        id: result.patientId,
+        chartNumber: result.chartNumber,
+        name: result.patientName,
+      });
+      setAppointmentId(result.appointmentId);
+      setAppointment({
+        id: result.appointmentId,
+        startAt: result.startAt,
+        meetingUrl: null,
+        modality: result.modality,
+        statusCode: "scheduled",
+        doctorName: result.doctorName,
+      });
+      setPatientType(type);
+      setClinical((c) => ({ ...c, consentSignerName: result.patientName }));
+      setDataConfirmed(true);
+    },
+    [],
+  );
 
   const loadSession = useCallback(async () => {
     try {
       const data = await kioskApi.getSession();
       if (data.session) {
-        const restoredStep = data.session.currentStep as KioskStep;
-        if (restoredStep !== "welcome") {
-          setStep(restoredStep);
+        let restoredStep = data.session.currentStep as KioskStep;
+        // "analysis" es transitorio: si recargan a mitad, no dejar la UI en "Procesando…"
+        if (restoredStep === "analysis") {
+          restoredStep = "summary";
+          await kioskApi.patchSession({ currentStep: "summary" });
         }
+        if (restoredStep !== "welcome") setStep(restoredStep);
         setPatientType((data.session.patientType as "new" | "returning") ?? null);
         setAppointmentId(data.session.appointmentId ?? null);
         setVitalsDraft(data.session.vitalsDraft ?? {});
         setDeviceStatus(data.session.deviceStatus ?? "idle");
-        if (data.patient) setPatient(data.patient);
+        setClinical(clinicalFromDraft(data.session.clinicalDraft));
+        if (data.session.assessmentDraft) setAssessment(data.session.assessmentDraft);
+        setPaymentStatus(data.session.paymentStatus ?? "unpaid");
+        if (data.paymentOrder) {
+          setPaymentOrder(data.paymentOrder);
+          setPaymentStatus(data.paymentOrder.status);
+        } else if (restoredStep === "payment") {
+          // Sesión en pago sin orden recuperable: vuelve a elegir servicio
+          setStep("service");
+          await kioskApi.patchSession({ currentStep: "service" });
+        }
+        if (data.patient) {
+          setPatient(data.patient);
+          setDataConfirmed(true);
+        }
         if (data.appointment) setAppointment(data.appointment);
       }
     } catch {
-      /* sin sesión previa: mostrar bienvenida */
+      /* sin sesión previa */
     } finally {
       setSessionReady(true);
     }
@@ -105,19 +269,30 @@ export function PatientKioskWizard() {
 
   useEffect(() => {
     loadSession();
-    kioskApi.todayAppointments().then((r) => setTodayAppointments(r.appointments.filter((a) => !a.intakeComplete)));
-    kioskApi.doctors().then((r) => setDoctors(r.doctors));
+    kioskApi.listServices().then((r) => setServices(r.services)).catch(() => setServices([]));
   }, [loadSession]);
+
+  // Si el paso actual ya tiene lecturas, desbloquear (evita atascos en "reading").
+  useEffect(() => {
+    if (!VITAL_STEPS.includes(step)) return;
+    if (vitalsCompleteForStep(step, vitalsDraft)) {
+      setDeviceStatus("done");
+    }
+  }, [step, vitalsDraft]);
 
   useEffect(() => {
     if (!appointmentId || !VITAL_STEPS.includes(step)) return;
     const timer = setInterval(async () => {
       try {
         const { draft } = await kioskApi.pollReadings(appointmentId);
-        if (Object.keys(draft).length > 0) {
-          setVitalsDraft((prev) => ({ ...prev, ...draft }));
-          await kioskApi.patchVitals(draft, "reading");
-        }
+        if (Object.keys(draft).length === 0) return;
+        setVitalsDraft((prev) => {
+          const next = { ...prev, ...draft };
+          const complete = vitalsCompleteForStep(step, next);
+          setDeviceStatus(complete ? "done" : "reading");
+          void kioskApi.patchVitals(draft, complete ? "done" : "reading");
+          return next;
+        });
       } catch {
         /* ignore poll errors */
       }
@@ -125,12 +300,27 @@ export function PatientKioskWizard() {
     return () => clearInterval(timer);
   }, [appointmentId, step]);
 
+  useEffect(() => {
+    if (step !== "waiting") return;
+    const timer = setInterval(async () => {
+      try {
+        const data = await kioskApi.getSession();
+        if (data.appointment?.meetingUrl) {
+          setAppointment(data.appointment);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [step]);
+
   async function handleStart() {
     setBusy(true);
     setError(null);
     try {
       await kioskApi.startSession();
-      await goToStep("identification");
+      await goToStep("service");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -138,29 +328,52 @@ export function PatientKioskWizard() {
     }
   }
 
-  async function selectAppointment(appt: TodayAppointment) {
-    setPatient({
-      id: appt.patientId,
-      chartNumber: appt.chartNumber,
-      name: appt.patientName,
-    });
-    setAppointmentId(appt.id);
-    setAppointment({
-      id: appt.id,
-      startAt: appt.startAt,
-      meetingUrl: appt.meetingUrl,
-      modality: appt.modality,
-      statusCode: "scheduled",
-      doctorName: appt.doctorName,
-    });
-    setClinical((c) => ({ ...c, consentSignerName: appt.patientName }));
-    await kioskApi.patchSession({
-      patientId: appt.patientId,
-      appointmentId: appt.id,
-      patientType: "returning",
-    });
-    setPatientType("returning");
-    setDataConfirmed(false);
+  async function selectService(service: StationService) {
+    setBusy(true);
+    setError(null);
+    try {
+      setSelectedService(service);
+      const { order } = await kioskApi.createPayment(service.id);
+      setPaymentOrder(order);
+      setPaymentStatus(order.status);
+      await goToStep("payment");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo crear el cobro");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approvePaymentDemo() {
+    if (!paymentOrder) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await kioskApi.confirmPayment(paymentOrder.id, "approved");
+      setPaymentOrder(result.order);
+      setPaymentStatus(result.order.status);
+      await goToStep("identification");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Pago no confirmado");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectPaymentDemo() {
+    if (!paymentOrder) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await kioskApi.confirmPayment(paymentOrder.id, "rejected");
+      setPaymentOrder(result.order);
+      setPaymentStatus(result.order.status);
+      setError("Pago rechazado. Puedes reintentar o elegir otro servicio.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al rechazar");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleLookup(e: React.FormEvent<HTMLFormElement>) {
@@ -169,19 +382,19 @@ export function PatientKioskWizard() {
     setError(null);
     const fd = new FormData(e.currentTarget);
     try {
-      const { patient: found, todayAppointment } = await kioskApi.lookup({
+      const { patient: found } = await kioskApi.lookup({
         chartNumber: String(fd.get("chartNumber") ?? ""),
         phone: String(fd.get("phone") ?? ""),
         email: String(fd.get("email") ?? ""),
         curp: String(fd.get("curp") ?? ""),
       });
-      setPatient(found);
-      setClinical((c) => ({ ...c, consentSignerName: found.name }));
-      if (todayAppointment) {
-        await selectAppointment(todayAppointment);
-      } else {
-        setError("Paciente encontrado pero sin cita pendiente hoy. Acude a recepción.");
-      }
+      const visit = await kioskApi.startWalkIn(found.id);
+      applyVisit(visit, "returning");
+      await kioskApi.patchSession({
+        patientId: visit.patientId,
+        appointmentId: visit.appointmentId,
+        patientType: "returning",
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "No encontrado");
     } finally {
@@ -205,24 +418,8 @@ export function PatientKioskWizard() {
         email: fd.get("email") || undefined,
         emergencyContactName: fd.get("emergencyContactName") || undefined,
         emergencyContactPhone: fd.get("emergencyContactPhone") || undefined,
-        doctorId: Number(fd.get("doctorId")),
       });
-      setPatient({
-        id: result.patientId,
-        chartNumber: result.chartNumber,
-        name: result.patientName,
-      });
-      setAppointmentId(result.appointmentId);
-      setAppointment({
-        id: result.appointmentId,
-        startAt: result.startAt,
-        modality: result.modality,
-        statusCode: "scheduled",
-        doctorName: result.doctorName,
-      });
-      setClinical((c) => ({ ...c, consentSignerName: result.patientName }));
-      setPatientType("new");
-      setDataConfirmed(false);
+      applyVisit(result, "new");
       await kioskApi.patchSession({
         patientId: result.patientId,
         appointmentId: result.appointmentId,
@@ -236,24 +433,59 @@ export function PatientKioskWizard() {
   }
 
   async function submitClinical() {
-    if (!appointmentId || !patientType) return;
-    if (clinical.chiefComplaint.trim().length < 3) {
-      setError("Describe el motivo de consulta");
+    if (!appointmentId || !patientType) {
+      const msg =
+        "Falta la sesión de la cita. Vuelve a Identificación/Datos o reinicia la estación.";
+      setClinicalError(msg);
+      setError(msg);
+      return;
+    }
+
+    const symptomGaps = getSymptomSelectionGaps(clinical.symptomSelection);
+    if (symptomGaps.length > 0 || !isSymptomSelectionComplete(clinical.symptomSelection)) {
+      const msg =
+        symptomGaps.length > 0
+          ? symptomGaps.join(" · ")
+          : "Completa cada síntoma: intensidad y desde cuándo.";
+      setClinicalError(msg);
+      setHighlightSymptomGaps(true);
+      setError(msg);
+      document.getElementById("symptom-detail-section")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
+
+    const chiefComplaint = buildChiefComplaintFromSelection(clinical.symptomSelection);
+    if (chiefComplaint.trim().length < 3) {
+      const msg = "Completa la selección de síntomas";
+      setClinicalError(msg);
+      setHighlightSymptomGaps(true);
+      setError(msg);
       return;
     }
     if (!clinical.consentAccepted || clinical.consentSignerName.trim().length < 3) {
-      setError("Acepta el consentimiento informado");
+      const msg = !clinical.consentAccepted
+        ? "Marca la casilla de consentimiento informado"
+        : "Escribe tu nombre completo para el consentimiento (mínimo 3 caracteres)";
+      setClinicalError(msg);
+      setError(msg);
       return;
     }
+
     setBusy(true);
     setError(null);
+    setClinicalError(null);
+    setHighlightSymptomGaps(false);
+    const clinicalPayload = { ...clinical, chiefComplaint };
     try {
       await kioskApi.submitIntake({
         appointmentId,
         patientType,
         consentSignerName: clinical.consentSignerName,
         consentAccepted: true,
-        chiefComplaint: clinical.chiefComplaint,
+        chiefComplaint,
         hasDiabetes: clinical.hasDiabetes,
         diabetesDetails: clinical.hasDiabetes ? "Reportado en estación" : undefined,
         hasHypertension: clinical.hasHypertension,
@@ -268,10 +500,13 @@ export function PatientKioskWizard() {
         smokingStatus: "never",
         alcoholUse: "none",
       });
-      await kioskApi.patchSession({ clinicalDraft: clinical });
+      setClinical(clinicalPayload);
+      await kioskApi.patchSession({ clinicalDraft: clinicalPayload });
       await goToStep("preparation");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error");
+      const msg = err instanceof Error ? err.message : "No se pudo guardar el historial clínico";
+      setClinicalError(msg);
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -279,19 +514,82 @@ export function PatientKioskWizard() {
 
   async function simulateReading(patch: VitalsDraft) {
     setDeviceStatus("reading");
-    await kioskApi.patchVitals(patch, "reading");
     setVitalsDraft((prev) => ({ ...prev, ...patch }));
-    setTimeout(() => setDeviceStatus("done"), 600);
+    await kioskApi.patchVitals(patch, "reading");
+    window.setTimeout(() => {
+      setDeviceStatus("done");
+      void kioskApi.patchVitals({}, "done");
+    }, 600);
   }
 
-  async function confirmVitals() {
+  const captureOximeter = useCallback(async () => {
+    if (oxygenCaptureLock.current) return;
+    oxygenCaptureLock.current = true;
+    setError(null);
+    setDeviceStatus("reading");
+    setOxygenStatus("Iniciando lectura del oxímetro…");
+    try {
+      const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
+      const patch: VitalsDraft = {
+        oxygenSaturation: String(sample.spo2),
+        heartRate: String(sample.hr),
+      };
+      setVitalsDraft((prev) => ({ ...prev, ...patch }));
+      await kioskApi.patchVitals(patch, "done");
+      setDeviceStatus("done");
+      setOxygenStatus(`SpO₂ ${sample.spo2}% · FC ${sample.hr} lpm`);
+    } catch (err) {
+      setDeviceStatus("retry");
+      const msg = err instanceof Error ? err.message : "No se pudo leer el oxímetro";
+      setOxygenStatus(msg);
+      setError(msg);
+    } finally {
+      oxygenCaptureLock.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (step !== "oxygen") return;
+    if (vitalsDraft.oxygenSaturation) {
+      setDeviceStatus("done");
+      return;
+    }
+    void captureOximeter();
+  }, [step, captureOximeter, vitalsDraft.oxygenSaturation]);
+
+  async function runAnalysis() {
     setBusy(true);
     setError(null);
     try {
-      await kioskApi.confirmVitals();
-      await goToStep("waiting");
+      // Paso local primero para feedback inmediato; el patch no debe borrar errores luego.
+      setStep("analysis");
+      await kioskApi.patchSession({ currentStep: "analysis" });
+      const result = await Promise.race([
+        kioskApi.assess(),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(
+            () => reject(new Error("El análisis tardó demasiado. Intenta de nuevo.")),
+            45_000,
+          );
+        }),
+      ]);
+      setAssessment(result.assessment);
+      if (result.meetingUrl) {
+        setAppointment((prev) =>
+          prev ? { ...prev, meetingUrl: result.meetingUrl } : prev,
+        );
+      }
+      await goToStep(result.step);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      const msg = err instanceof Error ? err.message : "Error en el análisis";
+      setStep("summary");
+      try {
+        await kioskApi.patchSession({ currentStep: "summary" });
+      } catch {
+        /* la UI ya volvió a resumen */
+      }
+      // Importante: setError DESPUÉS de cualquier goToStep/patch que limpie errores.
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -306,7 +604,13 @@ export function PatientKioskWizard() {
     setPatientType(null);
     setVitalsDraft({});
     setClinical(emptyClinical());
+    setAssessment(null);
+    setSelectedService(null);
+    setPaymentOrder(null);
+    setPaymentStatus("unpaid");
     setDataConfirmed(false);
+    setClinicalError(null);
+    setHighlightSymptomGaps(false);
   }
 
   return (
@@ -317,21 +621,147 @@ export function PatientKioskWizard() {
       vitalsDraft={vitalsDraft}
       showVitalsPanel={showVitalsPanel}
     >
-      {error && <KioskError message={error} />}
+      {error && step !== "summary" && <KioskError message={error} />}
 
       {step === "welcome" && (
         <KioskCard className="text-center">
           <WelcomeIllustration />
-          {!sessionReady && (
-            <p className="mt-4 text-sm text-slate-400">Cargando estación…</p>
-          )}
-          <h2 className="mt-6 text-3xl font-bold text-slate-900 md:text-4xl">Bienvenido</h2>
-          <p className="mx-auto mt-4 max-w-md text-lg leading-relaxed text-slate-600">
-            Vamos a registrar tus datos y tomar tus signos vitales antes de tu consulta médica.
+          {!sessionReady && <p className="mt-4 text-sm text-slate-400">Cargando estación…</p>}
+          <h2 className="mt-6 text-3xl font-bold text-slate-900 md:text-4xl">Estación virtual 24/7</h2>
+          <p className="mx-auto mt-4 max-w-lg text-lg leading-relaxed text-slate-600">
+            Elige el servicio, realiza el pago y continúa con tu atención. La IA hace evaluación preliminar;
+            la receta solo se emite si el caso entra en un protocolo preautorizado por el médico responsable.
           </p>
+          <p className="mt-3 text-sm text-slate-500">Pago primero · Sin cita previa · Disponible todo el año</p>
           <div className="mt-10 flex justify-center">
             <KioskPrimaryButton disabled={busy} onClick={handleStart}>
-              Iniciar
+              Iniciar atención
+            </KioskPrimaryButton>
+          </div>
+        </KioskCard>
+      )}
+
+      {step === "service" && (
+        <KioskCard>
+          <h2 className="text-2xl font-bold text-slate-900">Selecciona el servicio</h2>
+          <p className="mt-2 text-slate-600">
+            Revisa el precio y las condiciones. El cobro se realiza antes de iniciar la atención clínica.
+          </p>
+          <div className="mt-8 space-y-3">
+            {services.length === 0 && (
+              <p className="text-sm text-slate-500">No hay servicios configurados. Contacta a soporte.</p>
+            )}
+            {services.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                disabled={busy}
+                onClick={() => selectService(service)}
+                className="flex w-full items-start justify-between gap-4 rounded-2xl border-2 border-slate-100 bg-gradient-to-b from-white to-slate-50/80 px-5 py-5 text-left transition hover:border-[#1d6eb8]/40"
+              >
+                <div>
+                  <p className="text-lg font-bold text-slate-900">{service.name}</p>
+                  {service.description && (
+                    <p className="mt-1 text-sm text-slate-500">{service.description}</p>
+                  )}
+                </div>
+                <p className="shrink-0 text-lg font-semibold text-[#1d6eb8]">
+                  {formatMoney(service.amountCents, service.currency)}
+                </p>
+              </button>
+            ))}
+          </div>
+          <div className="mt-8 flex flex-wrap gap-3 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
+            <KioskSecondaryButton
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await resetKiosk();
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+            >
+              Volver al inicio
+            </KioskSecondaryButton>
+          </div>
+        </KioskCard>
+      )}
+
+      {step === "payment" && paymentOrder && (
+        <KioskCard>
+          <h2 className="text-2xl font-bold text-slate-900">Pago en terminal</h2>
+          <p className="mt-2 text-slate-600">
+            Acerca tu tarjeta al terminal Nayax VPOS Touch. Solo con pago aprobado se abre la sesión clínica.
+          </p>
+          <div className="mt-6 rounded-2xl border border-[#1d6eb8]/20 bg-[#f0f7ff]/60 p-5">
+            <p className="text-sm text-slate-500">Concepto</p>
+            <p className="text-lg font-semibold text-slate-900">{paymentOrder.concept}</p>
+            <p className="mt-4 text-sm text-slate-500">Importe</p>
+            <p className="text-3xl font-bold text-[#1d6eb8]">
+              {formatMoney(paymentOrder.amountCents, paymentOrder.currency)}
+            </p>
+            <p className="mt-4 text-sm text-slate-500">Referencia</p>
+            <p className="font-mono text-sm text-slate-800">{paymentOrder.reference}</p>
+            <p className="mt-3 text-xs text-slate-500">
+              Estado: <span className="font-semibold">{paymentStatus}</span>
+            </p>
+          </div>
+          <p className="mt-4 text-xs leading-relaxed text-slate-500">
+            No se guardan datos de tarjeta. El comprobante financiero queda separado del expediente clínico.
+            Integración Nayax lista a nivel de orden; hoy puedes simular la respuesta del terminal.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack} disabled={busy}>
+              ← Cambiar servicio
+            </KioskSecondaryButton>
+            <KioskSecondaryButton
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await resetKiosk();
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+            >
+              Volver al inicio
+            </KioskSecondaryButton>
+            <KioskSecondaryButton onClick={rejectPaymentDemo} disabled={busy}>
+              Simular rechazo
+            </KioskSecondaryButton>
+            <KioskPrimaryButton onClick={approvePaymentDemo} disabled={busy}>
+              {busy ? "Confirmando…" : "Simular pago aprobado (Nayax)"}
+            </KioskPrimaryButton>
+          </div>
+        </KioskCard>
+      )}
+
+      {step === "payment" && !paymentOrder && (
+        <KioskCard>
+          <h2 className="text-2xl font-bold text-slate-900">Pago no disponible</h2>
+          <p className="mt-2 text-slate-600">
+            No se encontró la orden de pago de esta sesión. Puedes elegir el servicio de nuevo o reiniciar.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack} disabled={busy}>
+              ← Cambiar servicio
+            </KioskSecondaryButton>
+            <KioskPrimaryButton
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await resetKiosk();
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Volver al inicio
             </KioskPrimaryButton>
           </div>
         </KioskCard>
@@ -339,12 +769,14 @@ export function PatientKioskWizard() {
 
       {step === "identification" && (
         <KioskCard>
-          <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Identificación del paciente</h2>
-          <p className="mt-2 text-slate-600">Selecciona la opción que corresponda.</p>
+          <h2 className="text-2xl font-bold text-slate-900 md:text-3xl">Identificación</h2>
+          <p className="mt-2 text-slate-600">
+            Pago confirmado. Continúa con tu identificación. No necesitas cita previa.
+          </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             <BigChoice
               title="Soy paciente nuevo"
-              subtitle="Primera visita a MaindHealth"
+              subtitle="Alta de expediente en este momento"
               icon="✨"
               onClick={async () => {
                 setPatientType("new");
@@ -354,7 +786,7 @@ export function PatientKioskWizard() {
             />
             <BigChoice
               title="Ya tengo expediente"
-              subtitle="Tengo cita programada hoy"
+              subtitle="Buscar y reutilizar mis datos"
               icon="📋"
               onClick={async () => {
                 setPatientType("returning");
@@ -363,34 +795,18 @@ export function PatientKioskWizard() {
               }}
             />
           </div>
+          <div className="mt-8 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
+          </div>
         </KioskCard>
       )}
 
       {step === "registration" && patientType === "returning" && (
         <KioskCard>
-          <h2 className="text-2xl font-bold text-slate-900">Confirma tu identidad</h2>
-          <p className="mt-2 text-slate-600">Selecciona tu cita o busca por teléfono, correo o expediente.</p>
-          <div className="mt-6 space-y-2">
-            {todayAppointments.map((appt) => (
-              <button
-                key={appt.id}
-                type="button"
-                onClick={() => selectAppointment(appt)}
-                className={`w-full rounded-xl border-2 px-5 py-4 text-left transition ${
-                  appointmentId === appt.id
-                    ? "border-[#1d6eb8] bg-[#f0f7ff] shadow-sm"
-                    : "border-slate-100 bg-slate-50/50 hover:border-slate-200"
-                }`}
-              >
-                <span className="text-base font-semibold text-slate-900">{appt.patientName}</span>
-                <span className="text-slate-500"> · {appt.chartNumber}</span>
-                <p className="mt-1 text-sm text-slate-500">
-                  {new Date(appt.startAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-                  {" · "}Dr(a). {appt.doctorName}
-                </p>
-              </button>
-            ))}
-          </div>
+          <h2 className="text-2xl font-bold text-slate-900">Buscar expediente</h2>
+          <p className="mt-2 text-slate-600">
+            Ingresa teléfono, correo, CURP o número de expediente. No se requiere cita previa.
+          </p>
           <form onSubmit={handleLookup} className="mt-8 grid gap-4 sm:grid-cols-2">
             <input name="chartNumber" placeholder="Número de expediente" className={kioskInputClassName} />
             <input name="phone" placeholder="Teléfono" className={kioskInputClassName} />
@@ -398,7 +814,7 @@ export function PatientKioskWizard() {
             <input name="curp" placeholder="CURP" className={kioskInputClassName} />
             <div className="sm:col-span-2">
               <KioskPrimaryButton type="submit" disabled={busy}>
-                Buscar expediente
+                {busy ? "Buscando…" : "Buscar y continuar"}
               </KioskPrimaryButton>
             </div>
           </form>
@@ -410,13 +826,16 @@ export function PatientKioskWizard() {
               onContinue={async () => goToStep("clinical")}
             />
           )}
+          <div className="mt-8 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
+          </div>
         </KioskCard>
       )}
 
       {step === "registration" && patientType === "new" && (
         <KioskCard>
-          <h2 className="text-2xl font-bold text-slate-900">Registro de paciente nuevo</h2>
-          <p className="mt-2 text-slate-600">Completa tus datos para crear tu expediente.</p>
+          <h2 className="text-2xl font-bold text-slate-900">Alta de paciente</h2>
+          <p className="mt-2 text-slate-600">Completa tus datos para crear tu expediente ahora mismo.</p>
           <form onSubmit={handleRegister} className="mt-6 grid gap-4 sm:grid-cols-2">
             <Field label="Nombre *" name="firstName" required />
             <Field label="Apellido paterno *" name="lastNamePaternal" required />
@@ -435,19 +854,8 @@ export function PatientKioskWizard() {
             <Field label="Contacto de emergencia" name="emergencyContactName" />
             <Field label="Tel. emergencia" name="emergencyContactPhone" />
             <div className="sm:col-span-2">
-              <label className={kioskLabelClassName}>Médico para la consulta *</label>
-              <select name="doctorId" required className={kioskInputClassName}>
-                <option value="">Seleccionar médico…</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
               <KioskPrimaryButton type="submit" disabled={busy}>
-                {busy ? "Guardando…" : "Continuar"}
+                {busy ? "Guardando…" : "Crear expediente y continuar"}
               </KioskPrimaryButton>
             </div>
           </form>
@@ -459,53 +867,82 @@ export function PatientKioskWizard() {
               onContinue={async () => goToStep("clinical")}
             />
           )}
+          <div className="mt-8 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
+          </div>
         </KioskCard>
       )}
 
       {step === "clinical" && (
         <KioskCard>
-          <h2 className="text-2xl font-bold text-slate-900">Formulario clínico inicial</h2>
-          <p className="mt-1 text-slate-600">Responde con sinceridad. Toca Sí o No en cada pregunta.</p>
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className={kioskLabelClassName}>Motivo de consulta hoy *</label>
-              <textarea
-                rows={2}
-                value={clinical.chiefComplaint}
-                onChange={(e) => setClinical({ ...clinical, chiefComplaint: e.target.value })}
-                className={kioskInputClassName}
-                placeholder="Describe brevemente por qué vienes hoy"
-              />
+          <h2 className="text-2xl font-bold text-slate-900">Síntomas y antecedentes</h2>
+          <p className="mt-1 text-slate-600">
+            Selecciona lo que sientes. No necesitas escribir: el sistema arma el motivo de consulta.
+          </p>
+          <div className="mt-6 space-y-6">
+            <SymptomGuide
+              value={clinical.symptomSelection}
+              highlightIncomplete={highlightSymptomGaps}
+              onChange={(symptomSelection) => {
+                setClinical({
+                  ...clinical,
+                  symptomSelection,
+                  chiefComplaint: buildChiefComplaintFromSelection(symptomSelection),
+                });
+                if (highlightSymptomGaps || clinicalError) {
+                  const gaps = getSymptomSelectionGaps(symptomSelection);
+                  if (gaps.length === 0) {
+                    setHighlightSymptomGaps(false);
+                    setClinicalError(null);
+                    setError(null);
+                  } else if (highlightSymptomGaps) {
+                    setClinicalError(gaps.join(" · "));
+                  }
+                }
+              }}
+            />
+
+            <div className="border-t border-slate-100 pt-6">
+              <p className="mb-3 text-sm font-semibold text-slate-800">Antecedentes</p>
+              <div className="space-y-3">
+                <YesNo label="¿Tienes diabetes?" checked={clinical.hasDiabetes} onChange={(v) => setClinical({ ...clinical, hasDiabetes: v })} />
+                <YesNo label="¿Tienes hipertensión?" checked={clinical.hasHypertension} onChange={(v) => setClinical({ ...clinical, hasHypertension: v })} />
+                <YesNo label="¿Tienes asma?" checked={clinical.hasAsthma} onChange={(v) => setClinical({ ...clinical, hasAsthma: v })} />
+                <YesNo label="¿Enfermedades del corazón?" checked={clinical.hasHeartDisease} onChange={(v) => setClinical({ ...clinical, hasHeartDisease: v })} />
+                <YesNo label="¿Alergia a medicamentos?" checked={clinical.hasAllergies} onChange={(v) => setClinical({ ...clinical, hasAllergies: v })} />
+                {clinical.hasAllergies && (
+                  <input
+                    value={clinical.allergyDetails}
+                    onChange={(e) => setClinical({ ...clinical, allergyDetails: e.target.value })}
+                    placeholder="¿Cuáles medicamentos?"
+                    className={kioskInputClassName}
+                  />
+                )}
+                <div>
+                  <label className={kioskLabelClassName}>¿Tomas medicamentos actualmente?</label>
+                  <textarea
+                    rows={2}
+                    value={clinical.currentMedications}
+                    onChange={(e) => setClinical({ ...clinical, currentMedications: e.target.value })}
+                    className={kioskInputClassName}
+                    placeholder="Nombre y dosis, si aplica"
+                  />
+                </div>
+              </div>
             </div>
-            <YesNo label="¿Tienes diabetes?" checked={clinical.hasDiabetes} onChange={(v) => setClinical({ ...clinical, hasDiabetes: v })} />
-            <YesNo label="¿Tienes hipertensión?" checked={clinical.hasHypertension} onChange={(v) => setClinical({ ...clinical, hasHypertension: v })} />
-            <YesNo label="¿Tienes asma?" checked={clinical.hasAsthma} onChange={(v) => setClinical({ ...clinical, hasAsthma: v })} />
-            <YesNo label="¿Enfermedades del corazón?" checked={clinical.hasHeartDisease} onChange={(v) => setClinical({ ...clinical, hasHeartDisease: v })} />
-            <YesNo label="¿Alergia a medicamentos?" checked={clinical.hasAllergies} onChange={(v) => setClinical({ ...clinical, hasAllergies: v })} />
-            {clinical.hasAllergies && (
-              <input
-                value={clinical.allergyDetails}
-                onChange={(e) => setClinical({ ...clinical, allergyDetails: e.target.value })}
-                placeholder="¿Cuáles medicamentos?"
-                className={kioskInputClassName}
-              />
-            )}
-            <div>
-              <label className={kioskLabelClassName}>¿Tomas medicamentos actualmente?</label>
-              <textarea
-                rows={2}
-                value={clinical.currentMedications}
-                onChange={(e) => setClinical({ ...clinical, currentMedications: e.target.value })}
-                className={kioskInputClassName}
-                placeholder="Nombre y dosis, si aplica"
-              />
-            </div>
+
             <div className="rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
               {STATION_CONSENT_TEXT}
             </div>
             <input
               value={clinical.consentSignerName}
-              onChange={(e) => setClinical({ ...clinical, consentSignerName: e.target.value })}
+              onChange={(e) => {
+                setClinical({ ...clinical, consentSignerName: e.target.value });
+                if (clinicalError) {
+                  setClinicalError(null);
+                  setError(null);
+                }
+              }}
               placeholder="Nombre completo para consentimiento"
               className={kioskInputClassName}
             />
@@ -514,15 +951,32 @@ export function PatientKioskWizard() {
                 type="checkbox"
                 className="h-5 w-5 rounded border-slate-300 text-[#1d6eb8]"
                 checked={clinical.consentAccepted}
-                onChange={(e) => setClinical({ ...clinical, consentAccepted: e.target.checked })}
+                onChange={(e) => {
+                  setClinical({ ...clinical, consentAccepted: e.target.checked });
+                  if (clinicalError) {
+                    setClinicalError(null);
+                    setError(null);
+                  }
+                }}
               />
               <span className="text-sm font-medium text-slate-700">Acepto el consentimiento informado</span>
             </label>
           </div>
-          <div className="mt-8">
-            <KioskPrimaryButton disabled={busy} onClick={submitClinical}>
-              Continuar
-            </KioskPrimaryButton>
+          <div className="sticky bottom-0 z-10 -mx-6 mt-8 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur md:-mx-8 md:px-8">
+            {clinicalError && (
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p className="font-semibold">No se puede continuar aún</p>
+                <p className="mt-1 leading-relaxed">{clinicalError}</p>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <KioskSecondaryButton onClick={goBack} disabled={busy}>
+                ← Atrás
+              </KioskSecondaryButton>
+              <KioskPrimaryButton disabled={busy} onClick={() => void submitClinical()}>
+                {busy ? "Guardando…" : "Continuar"}
+              </KioskPrimaryButton>
+            </div>
           </div>
         </KioskCard>
       )}
@@ -531,7 +985,8 @@ export function PatientKioskWizard() {
         <KioskCard>
           <h2 className="text-2xl font-bold text-slate-900">Preparación para signos vitales</h2>
           <p className="mt-3 text-lg text-slate-600">
-            A continuación tomaremos tus signos vitales. Sigue las instrucciones en pantalla paso a paso.
+            Tomaremos tus signos vitales. La IA los interpretará junto con tus síntomas para definir el
+            tratamiento.
           </p>
           <ul className="mt-8 space-y-3">
             {[
@@ -551,7 +1006,8 @@ export function PatientKioskWizard() {
               </li>
             ))}
           </ul>
-          <div className="mt-10">
+          <div className="mt-10 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
             <KioskPrimaryButton onClick={() => goToStep("blood_pressure")}>Comenzar</KioskPrimaryButton>
           </div>
         </KioskCard>
@@ -564,9 +1020,10 @@ export function PatientKioskWizard() {
           title="Presión arterial"
           instruction="Coloca tu brazo en el equipo de presión arterial y permanece quieto hasta que termine la lectura."
           illustration="blood_pressure"
-          deviceStatus={
-            deviceStatus === "reading" ? "reading" : vitalsDraft.systolicPressure ? "done" : "waiting"
-          }
+          deviceStatus={resolveVitalUiStatus(
+            deviceStatus,
+            Boolean(vitalsDraft.systolicPressure && vitalsDraft.diastolicPressure),
+          )}
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}
           onContinue={async () => {
             if (!vitalsDraft.systolicPressure) {
@@ -574,9 +1031,11 @@ export function PatientKioskWizard() {
               return;
             }
             setError(null);
+            setDeviceStatus("waiting");
             await goToStep("oxygen");
           }}
-          onBack={() => goToStep("preparation")}
+          onBack={goBack}
+          onRetry={() => clearVitalFields(VITAL_FIELDS.blood_pressure)}
         />
       )}
 
@@ -585,21 +1044,39 @@ export function PatientKioskWizard() {
           stepNumber={2}
           totalSteps={4}
           title="Oxigenación y pulso"
-          instruction="Coloca tu dedo en el sensor del oxímetro y espera unos segundos sin moverte."
+          instruction="Coloca tu dedo en el oxímetro (debe verse SpO₂ en la pantalla del aparato). El kiosko leerá automáticamente; si falla, pulsa Leer oxímetro."
           illustration="oxygen"
-          deviceStatus={
-            deviceStatus === "reading" ? "reading" : vitalsDraft.oxygenSaturation ? "done" : "waiting"
+          deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.oxygenSaturation))}
+          statusMessage={
+            oxygenStatus ||
+            (vitalsDraft.oxygenSaturation
+              ? `SpO₂ ${vitalsDraft.oxygenSaturation}% · FC ${vitalsDraft.heartRate ?? "—"} lpm`
+              : undefined)
           }
-          onSimulate={() => simulateReading({ oxygenSaturation: "98", heartRate: vitalsDraft.heartRate ?? "72" })}
+          onCapture={() => void captureOximeter()}
+          captureLabel="Leer oxímetro"
+          onSimulate={() =>
+            simulateReading({
+              oxygenSaturation: "98",
+              heartRate: vitalsDraft.heartRate ?? "72",
+            })
+          }
           onContinue={async () => {
             if (!vitalsDraft.oxygenSaturation) {
-              setError("Espera la lectura de SpO₂");
+              setError("Espera la lectura de SpO₂ o pulsa Leer oxímetro");
               return;
             }
             setError(null);
+            setOxygenStatus("");
+            setDeviceStatus("waiting");
             await goToStep("weight_height");
           }}
-          onBack={() => goToStep("blood_pressure")}
+          onBack={goBack}
+          onRetry={async () => {
+            await clearVitalFields(["oxygenSaturation", "heartRate"]);
+            setOxygenStatus("");
+            await captureOximeter();
+          }}
         />
       )}
 
@@ -610,9 +1087,10 @@ export function PatientKioskWizard() {
           title="Peso y altura"
           instruction="Sube a la estación de medición y permanece erguido hasta completar la lectura."
           illustration="weight_height"
-          deviceStatus={
-            deviceStatus === "reading" ? "reading" : vitalsDraft.weight ? "done" : "waiting"
-          }
+          deviceStatus={resolveVitalUiStatus(
+            deviceStatus,
+            Boolean(vitalsDraft.weight && vitalsDraft.height),
+          )}
           onSimulate={() => simulateReading({ weight: "81.4", height: "1.76", bmi: "26.3" })}
           onContinue={async () => {
             if (!vitalsDraft.weight || !vitalsDraft.height) {
@@ -620,9 +1098,11 @@ export function PatientKioskWizard() {
               return;
             }
             setError(null);
+            setDeviceStatus("waiting");
             await goToStep("temperature");
           }}
-          onBack={() => goToStep("oxygen")}
+          onBack={goBack}
+          onRetry={() => clearVitalFields(VITAL_FIELDS.weight_height)}
         />
       )}
 
@@ -633,9 +1113,7 @@ export function PatientKioskWizard() {
           title="Temperatura"
           instruction="Permanece frente al sensor de temperatura según las instrucciones del equipo."
           illustration="temperature"
-          deviceStatus={
-            deviceStatus === "reading" ? "reading" : vitalsDraft.temperature ? "done" : "waiting"
-          }
+          deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.temperature))}
           onSimulate={() => simulateReading({ temperature: "36.7" })}
           onContinue={async () => {
             if (!vitalsDraft.temperature) {
@@ -643,58 +1121,229 @@ export function PatientKioskWizard() {
               return;
             }
             setError(null);
+            setDeviceStatus("idle");
             await goToStep("summary");
           }}
-          onBack={() => goToStep("weight_height")}
+          onBack={goBack}
+          onRetry={() => clearVitalFields(VITAL_FIELDS.temperature)}
         />
       )}
 
       {step === "summary" && (
         <KioskCard>
           <h2 className="text-2xl font-bold text-slate-900">Resumen de signos vitales</h2>
-          <p className="mt-2 text-slate-600">Revisa que todo esté correcto antes de confirmar.</p>
+          <p className="mt-2 text-slate-600">
+            Revisa que todo esté correcto. Al continuar, la IA analizará síntomas y signos vitales.
+          </p>
           <VitalsSummaryGrid draft={vitalsDraft} />
+          {error && (
+            <div className="mt-6">
+              <KioskError message={error} />
+            </div>
+          )}
           <div className="mt-8 flex flex-wrap gap-3 border-t border-slate-100 pt-6">
-            <KioskPrimaryButton disabled={busy} onClick={confirmVitals}>
-              Confirmar
-            </KioskPrimaryButton>
-            <KioskSecondaryButton onClick={() => goToStep("blood_pressure")}>
-              Repetir medición
+            <KioskSecondaryButton onClick={goBack} disabled={busy}>
+              ← Atrás
             </KioskSecondaryButton>
+            <KioskSecondaryButton
+              disabled={busy}
+              onClick={async () => {
+                await clearVitalFields([
+                  ...VITAL_FIELDS.blood_pressure,
+                  ...VITAL_FIELDS.oxygen,
+                  ...VITAL_FIELDS.weight_height,
+                  ...VITAL_FIELDS.temperature,
+                  "heartRate",
+                ]);
+                await goToStep("blood_pressure");
+              }}
+            >
+              Repetir mediciones
+            </KioskSecondaryButton>
+            <KioskPrimaryButton disabled={busy} onClick={() => void runAnalysis()}>
+              {busy ? "Analizando…" : "Analizar con IA"}
+            </KioskPrimaryButton>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="text-sm font-medium text-[#1d6eb8] underline-offset-2 hover:underline"
+              onClick={() => goToStep("registration")}
+            >
+              Corregir datos personales
+            </button>
+            <span className="text-slate-300">·</span>
+            <button
+              type="button"
+              className="text-sm font-medium text-[#1d6eb8] underline-offset-2 hover:underline"
+              onClick={() => goToStep("clinical")}
+            >
+              Corregir síntomas
+            </button>
           </div>
         </KioskCard>
       )}
 
-      {step === "waiting" && appointment && (
+      {step === "analysis" && (
+        <KioskCard className="text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#f0f7ff] text-3xl">
+            🧠
+          </div>
+          <h2 className="mt-6 text-2xl font-bold text-slate-900">Analizando tu caso</h2>
+          <p className="mx-auto mt-3 max-w-md text-lg text-slate-600">
+            La inteligencia artificial está interpretando tus síntomas y signos vitales para determinar el
+            diagnóstico orientativo y el tratamiento.
+          </p>
+          <p className="mt-6 animate-pulse text-sm font-medium text-[#1d6eb8]">Procesando…</p>
+        </KioskCard>
+      )}
+
+      {step === "result" && assessment && (
+        <KioskCard>
+          <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+            {assessment.prescriptionAuthorized
+              ? "Atención por protocolo preautorizado"
+              : "Evaluación preliminar completada"}
+          </p>
+          <h2 className="mt-2 text-2xl font-bold text-slate-900">{assessment.diagnosis}</h2>
+          <p className="mt-3 text-slate-600">{assessment.summary}</p>
+          {assessment.protocolName && (
+            <p className="mt-3 text-sm text-slate-500">
+              Protocolo: <strong>{assessment.protocolCode}</strong> — {assessment.protocolName}
+            </p>
+          )}
+          {assessment.responsibleDoctorName && (
+            <p className="mt-1 text-sm text-slate-500">
+              Médico responsable: {assessment.responsibleDoctorName}
+              {assessment.responsibleDoctorLicense
+                ? ` · Cédula ${assessment.responsibleDoctorLicense}`
+                : ""}
+            </p>
+          )}
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <h3 className="text-sm font-semibold text-slate-800">Plan de tratamiento</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                {displayTreatmentPlan(assessment.treatmentPlan, assessment.medications)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <h3 className="text-sm font-semibold text-slate-800">Indicaciones</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                {normalizeAssessmentText(
+                  assessment.instructions,
+                  "Sigue las indicaciones del protocolo y regresa si aparecen signos de alarma.",
+                )}
+              </p>
+            </div>
+          </div>
+
+          {assessment.medications.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-800">Medicamentos del protocolo</h3>
+              <ul className="mt-3 space-y-2">
+                {assessment.medications.map((med) => (
+                  <li
+                    key={`${med.medication}-${med.dose}`}
+                    className="rounded-xl border border-[#1d6eb8]/15 bg-[#f0f7ff]/60 px-4 py-3"
+                  >
+                    <p className="font-semibold text-slate-900">{med.medication}</p>
+                    <p className="text-sm text-slate-600">
+                      {[med.dose, med.frequency, med.duration, med.route].filter(Boolean).join(" · ")}
+                    </p>
+                    {med.instructions && (
+                      <p className="mt-1 text-xs text-slate-500">{med.instructions}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {assessment.prescriptionId && (
+            <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">Receta emitida bajo protocolo</p>
+                {assessment.prescriptionFolio && (
+                  <p className="text-xs text-emerald-800">Folio {assessment.prescriptionFolio}</p>
+                )}
+              </div>
+              <DownloadPrescriptionButton
+                prescriptionId={assessment.prescriptionId}
+                folio={assessment.prescriptionFolio}
+              />
+            </div>
+          )}
+
+          <div className="mt-8 flex justify-center border-t border-slate-100 pt-6">
+            <KioskPrimaryButton onClick={resetKiosk}>Finalizar</KioskPrimaryButton>
+          </div>
+        </KioskCard>
+      )}
+
+      {step === "waiting" && (
         <KioskCard className="text-center">
           <WaitingIllustration />
-          <h2 className="mt-6 text-2xl font-bold text-slate-900">Espera de consulta</h2>
+          <h2 className="mt-6 text-2xl font-bold text-slate-900">Conexión con médico en vivo</h2>
           <p className="mx-auto mt-4 max-w-md text-lg text-slate-600">
-            Tus signos vitales han sido registrados correctamente.
+            La IA detectó un cuadro que requiere evaluación médica personalizada. Permanece en la estación;
+            un médico se conectará contigo.
           </p>
-          <p className="mt-3 text-slate-600">
-            En breve iniciarás tu consulta con{" "}
-            <strong className="text-[#1a4d7c]">Dr(a). {appointment.doctorName}</strong>
+          {assessment?.redFlags && assessment.redFlags.length > 0 && (
+            <ul className="mx-auto mt-6 max-w-md space-y-2 text-left">
+              {assessment.redFlags.map((flag) => (
+                <li
+                  key={flag}
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                >
+                  {flag}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-6 animate-pulse text-sm font-medium text-[#1d6eb8]">
+            Esperando médico en línea…
           </p>
-          <p className="mt-4 inline-flex rounded-full bg-[#f0f7ff] px-4 py-2 text-sm font-medium text-[#1d6eb8]">
-            Cita:{" "}
-            {new Date(appointment.startAt).toLocaleTimeString("es-MX", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-          <div className="mt-10 flex justify-center">
-            <KioskPrimaryButton onClick={() => goToStep("consultation")}>
-              Ir a teleconsulta
-            </KioskPrimaryButton>
+          {appointment?.meetingUrl ? (
+            <div className="mt-8 flex justify-center">
+              <KioskPrimaryButton onClick={() => goToStep("consultation")}>
+                Entrar a teleconsulta
+              </KioskPrimaryButton>
+            </div>
+          ) : (
+            <p className="mt-4 text-xs text-slate-400">
+              La sala de video se habilitará cuando el médico esté disponible.
+            </p>
+          )}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 pt-6">
+            <KioskSecondaryButton
+              onClick={async () => {
+                setAssessment(null);
+                setError(null);
+                await goToStep("summary");
+              }}
+            >
+              ← Volver al resumen
+            </KioskSecondaryButton>
+            <KioskSecondaryButton
+              onClick={async () => {
+                setAssessment(null);
+                setError(null);
+                await goToStep("clinical");
+              }}
+            >
+              Corregir síntomas
+            </KioskSecondaryButton>
+            <KioskPrimaryButton onClick={resetKiosk}>Finalizar y salir</KioskPrimaryButton>
           </div>
         </KioskCard>
       )}
 
       {step === "consultation" && appointment?.meetingUrl && (
         <KioskCard>
-          <h2 className="text-xl font-bold text-slate-900">Inicio de teleconsulta</h2>
-          <p className="mt-1 text-sm text-slate-500">Tu médico te atenderá por videollamada.</p>
+          <h2 className="text-xl font-bold text-slate-900">Teleconsulta en vivo</h2>
+          <p className="mt-1 text-sm text-slate-500">El médico realizará una evaluación más profunda.</p>
           <div className="mt-4 overflow-hidden rounded-2xl ring-1 ring-slate-200">
             <DailyVideoRoom meetingUrl={appointment.meetingUrl} title="Consulta médica" />
           </div>
@@ -711,8 +1360,7 @@ export function PatientKioskWizard() {
       {step === "consultation" && !appointment?.meetingUrl && (
         <KioskCard className="text-center">
           <WaitingIllustration />
-          <p className="mt-4 text-lg text-slate-600">El médico aún no ha abierto la sala de videollamada.</p>
-          <p className="mt-2 text-sm text-slate-500">Permanece en espera; te avisaremos cuando esté lista.</p>
+          <p className="mt-4 text-lg text-slate-600">La sala de videollamada aún no está lista.</p>
           <div className="mt-6">
             <KioskSecondaryButton onClick={() => goToStep("waiting")}>Volver a espera</KioskSecondaryButton>
           </div>
@@ -809,7 +1457,17 @@ function YesNo({ label, checked, onChange }: { label: string; checked: boolean; 
   );
 }
 
-function Field({ label, name, type = "text", required }: { label: string; name: string; type?: string; required?: boolean }) {
+function Field({
+  label,
+  name,
+  type = "text",
+  required,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  required?: boolean;
+}) {
   return (
     <div>
       <label className={kioskLabelClassName}>{label}</label>
