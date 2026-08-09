@@ -11,7 +11,10 @@ export type DailyRoom = {
 
 export async function createDailyRoom(appointmentId: number): Promise<DailyRoom | null> {
   const apiKey = process.env.VIDEO_API_KEY ?? process.env.DAILY_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error("[daily] VIDEO_API_KEY no configurada");
+    return null;
+  }
 
   const roomName = `maindhealth-appt-${appointmentId}-${Date.now().toString(36)}`;
 
@@ -24,10 +27,12 @@ export async function createDailyRoom(appointmentId: number): Promise<DailyRoom 
       },
       body: JSON.stringify({
         name: roomName,
-        privacy: "private",
+        privacy: "public",
         properties: {
           enable_chat: true,
           enable_screenshare: true,
+          start_video_off: false,
+          start_audio_off: false,
           exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
         },
       }),

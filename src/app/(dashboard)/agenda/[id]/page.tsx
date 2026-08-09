@@ -69,6 +69,12 @@ export default async function AppointmentDetailPage({
 
   if (!row) notFound();
 
+  let meetingUrl = row.meetingUrl;
+  if (row.modality === "teleconsulta" && !meetingUrl) {
+    const { ensureAppointmentMeetingUrl } = await import("@/lib/video/ensure-meeting");
+    meetingUrl = await ensureAppointmentMeetingUrl(appointmentId);
+  }
+
   const vitals = await db
     .select()
     .from(vitalSignsTable)
@@ -112,12 +118,23 @@ export default async function AppointmentDetailPage({
           <Info label="Tipo" value={row.typeName} />
           <Info label="Modalidad" value={row.modality} />
           <Info label="Motivo" value={row.reason} className="sm:col-span-2" />
-          {row.meetingUrl && row.modality === "teleconsulta" && (
+          {meetingUrl && row.modality === "teleconsulta" && (
             <div className="sm:col-span-2">
               <dt className="text-slate-500">Videollamada</dt>
               <dd className="mt-2">
-                <DailyVideoRoom meetingUrl={row.meetingUrl} title="Sala de teleconsulta" />
+                <DailyVideoRoom meetingUrl={meetingUrl} title="Sala de teleconsulta" />
               </dd>
+            </div>
+          )}
+          {row.modality === "teleconsulta" && !meetingUrl && (
+            <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+              No hay sala de video todavía. Recarga esta página o revisa la configuración de Daily.co.
+            </div>
+          )}
+          {row.modality !== "teleconsulta" && (
+            <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+              Modalidad actual: <strong>{row.modality}</strong>. Para probar la cámara, la cita debe ser{" "}
+              <strong>teleconsulta</strong>.
             </div>
           )}
         </dl>

@@ -66,6 +66,13 @@ export default async function ConsultationByAppointmentPage({
 
   if (!appointment) notFound();
 
+  // Create Daily room on demand for teleconsulta appointments missing a meeting URL.
+  let meetingUrl = appointment.meetingUrl;
+  if (appointment.modality === "teleconsulta" && !meetingUrl) {
+    const { ensureAppointmentMeetingUrl } = await import("@/lib/video/ensure-meeting");
+    meetingUrl = await ensureAppointmentMeetingUrl(appointmentId);
+  }
+
   const intake = await getVisitIntakeByAppointment(appointmentId);
   if (!intake) redirect(`/estacion/flujo?cita=${appointmentId}`);
 
@@ -131,9 +138,9 @@ export default async function ConsultationByAppointmentPage({
         description={`${patientName} · ${appointment.patientChart}`}
         backHref={`/agenda/${appointmentId}`}
         action={
-          appointment.meetingUrl ? (
+          appointment.meetingUrl || meetingUrl ? (
             <a
-              href={appointment.meetingUrl}
+              href={(meetingUrl ?? appointment.meetingUrl)!}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-lg border border-teal-200 bg-white px-4 py-2 text-sm text-teal-800 hover:bg-teal-50"
@@ -144,9 +151,27 @@ export default async function ConsultationByAppointmentPage({
         }
       />
 
-      {appointment.meetingUrl && appointment.modality === "teleconsulta" && (
+      {(meetingUrl ?? appointment.meetingUrl) && appointment.modality === "teleconsulta" && (
         <section className="mb-6">
-          <DailyVideoRoom meetingUrl={appointment.meetingUrl} title="Teleconsulta en vivo" />
+          <DailyVideoRoom
+            meetingUrl={(meetingUrl ?? appointment.meetingUrl)!}
+            title="Teleconsulta en vivo"
+          />
+        </section>
+      )}
+
+      {appointment.modality === "teleconsulta" && !(meetingUrl ?? appointment.meetingUrl) && (
+        <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No se pudo crear la sala de videollamada. Revisa la configuración de Daily.co
+          (`VIDEO_API_KEY`) o abre de nuevo esta consulta.
+        </section>
+      )}
+
+      {appointment.modality !== "teleconsulta" && (
+        <section className="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Esta cita es modalidad <strong>{appointment.modality}</strong>, no teleconsulta.
+          Por eso no aparece videollamada. Crea una cita nueva con modalidad{" "}
+          <strong>teleconsulta</strong> para probar la cámara.
         </section>
       )}
 
