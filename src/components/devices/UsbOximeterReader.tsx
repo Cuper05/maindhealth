@@ -265,7 +265,7 @@ async function pickSiliconLabsPort(onProgress: (msg: string) => void): Promise<S
 async function readCms50DPlus(onProgress: (msg: string) => void): Promise<{ spo2: number; hr: number }> {
   const port = await pickSiliconLabsPort(onProgress);
 
-  onProgress("Leyendo @ 19200… mantén el dedo");
+  onProgress("USB @ 19200 — cuenta atrás activa, mantén el dedo");
   const fast = await readAtBaud(port, 19200, 15000, onProgress);
   if (fast) return fast;
 
@@ -330,8 +330,8 @@ export function UsbOximeterReader({
     <section className={`${cardClassName} mt-6 border-teal-200 bg-teal-50/40`}>
       <h2 className="mb-2 font-medium text-slate-900">Lectura automática USB (CMS50D+)</h2>
       <p className="mb-4 text-sm text-slate-600">
-        Antes: cierra otras pestañas de esta página y no uses el .bat. Luego: oxímetro encendido +
-        dedo + botón → <strong>Silicon Labs CP210x</strong>.
+        Actualizado: debe verse cuenta atrás (15s, 14s…). Cierra otras pestañas, no uses el .bat,
+        oxímetro encendido + dedo + botón → <strong>Silicon Labs CP210x</strong>.
       </p>
       <FormAlert error={error || undefined} success={status && !error ? status : undefined} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
