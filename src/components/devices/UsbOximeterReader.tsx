@@ -62,7 +62,7 @@ export function UsbOximeterReader({
         const msg = bridgeErr instanceof Error ? bridgeErr.message : "";
         if (msg.includes("Failed to fetch") || msg.includes("abort") || msg.includes("NetworkError")) {
           throw new Error(
-            "No está corriendo el servicio local del oxímetro. Abre iniciar-servicio-oximetro.bat y déjalo abierto, luego reintenta aquí.",
+            "No se pudo contactar el servicio local (127.0.0.1:3927). Cierra y vuelve a abrir iniciar-servicio-oximetro.bat, recarga esta página y reintenta. Si Chrome pide permiso de red local, acéptalo.",
           );
         }
         throw bridgeErr;
