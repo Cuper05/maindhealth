@@ -498,6 +498,9 @@ async function main() {
   }
 
   console.log("Seed completado");
+  const { seedStationCommerce } = await import("../src/lib/kiosk/seed-commerce");
+  await seedStationCommerce();
+  console.log("Comercio de estación (servicios, médico responsable, protocolos) listo");
   process.exit(0);
 }
 

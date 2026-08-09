@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   patientsTable,
   stationKioskSessionsTable,
+  stationPaymentOrdersTable,
   type KioskStep,
 } from "@/lib/db/schema";
 import { getKioskAppointmentContext } from "@/lib/queries/kiosk";
@@ -39,7 +40,27 @@ async function loadSession(token: string) {
     ? await getKioskAppointmentContext(session.appointmentId)
     : null;
 
-  return { session, patient, appointment };
+  let paymentOrder = null;
+  if (session.paymentOrderId) {
+    const [order] = await db
+      .select({
+        id: stationPaymentOrdersTable.id,
+        reference: stationPaymentOrdersTable.reference,
+        amountCents: stationPaymentOrdersTable.amountCents,
+        currency: stationPaymentOrdersTable.currency,
+        concept: stationPaymentOrdersTable.concept,
+        status: stationPaymentOrdersTable.status,
+        provider: stationPaymentOrdersTable.provider,
+        approvedAt: stationPaymentOrdersTable.approvedAt,
+        providerReference: stationPaymentOrdersTable.providerReference,
+        serviceId: stationPaymentOrdersTable.serviceId,
+      })
+      .from(stationPaymentOrdersTable)
+      .where(eq(stationPaymentOrdersTable.id, session.paymentOrderId));
+    paymentOrder = order ?? null;
+  }
+
+  return { session, patient, appointment, paymentOrder };
 }
 
 export async function GET() {
@@ -60,14 +81,19 @@ export async function GET() {
       patientType: data.session.patientType,
       patientId: data.session.patientId,
       appointmentId: data.session.appointmentId,
+      serviceId: data.session.serviceId,
+      paymentOrderId: data.session.paymentOrderId,
+      paymentStatus: data.session.paymentStatus,
       deviceStatus: data.session.deviceStatus,
       vitalsDraft: data.session.vitalsDraft ?? {},
       clinicalDraft: data.session.clinicalDraft ?? {},
+      assessmentDraft: data.session.assessmentDraft ?? null,
       vitalSignId: data.session.vitalSignId,
       status: data.session.status,
     },
     patient: data.patient,
     appointment: data.appointment,
+    paymentOrder: data.paymentOrder,
   });
 }
 
@@ -94,10 +120,14 @@ export async function PATCH(request: Request) {
   if (body.currentStep) updates.currentStep = body.currentStep as KioskStep;
   if (body.patientId !== undefined) updates.patientId = body.patientId;
   if (body.appointmentId !== undefined) updates.appointmentId = body.appointmentId;
+  if (body.serviceId !== undefined) updates.serviceId = body.serviceId;
+  if (body.paymentOrderId !== undefined) updates.paymentOrderId = body.paymentOrderId;
+  if (body.paymentStatus !== undefined) updates.paymentStatus = body.paymentStatus;
   if (body.patientType !== undefined) updates.patientType = body.patientType;
   if (body.deviceStatus !== undefined) updates.deviceStatus = body.deviceStatus;
   if (body.vitalsDraft !== undefined) updates.vitalsDraft = body.vitalsDraft;
   if (body.clinicalDraft !== undefined) updates.clinicalDraft = body.clinicalDraft;
+  if (body.assessmentDraft !== undefined) updates.assessmentDraft = body.assessmentDraft;
   if (body.vitalSignId !== undefined) updates.vitalSignId = body.vitalSignId;
   if (body.status !== undefined) updates.status = body.status;
 

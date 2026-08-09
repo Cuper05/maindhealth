@@ -13,9 +13,17 @@ export function mergeVitalsDraft(
   current: KioskVitalsDraft | null | undefined,
   patch: Partial<KioskVitalsDraft>,
 ): KioskVitalsDraft {
-  const merged = { ...(current ?? {}), ...patch };
+  const merged: KioskVitalsDraft = { ...(current ?? {}) };
+  for (const [key, value] of Object.entries(patch) as [keyof KioskVitalsDraft, string | undefined | null][]) {
+    if (value === null || value === "") {
+      delete merged[key];
+    } else if (value !== undefined) {
+      merged[key] = value;
+    }
+  }
   const bmi = computeBmiFromDraft(merged);
   if (bmi) merged.bmi = bmi;
+  else delete merged.bmi;
   return merged;
 }
 

@@ -2,6 +2,8 @@ import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 
 export const KIOSK_STEP_ORDER: KioskStep[] = [
   "welcome",
+  "service",
+  "payment",
   "identification",
   "registration",
   "clinical",
@@ -11,22 +13,28 @@ export const KIOSK_STEP_ORDER: KioskStep[] = [
   "weight_height",
   "temperature",
   "summary",
+  "analysis",
+  "result",
   "waiting",
   "consultation",
 ];
 
 export const KIOSK_STEP_SHORT: Record<KioskStep, string> = {
   welcome: "Bienvenida",
+  service: "Servicio",
+  payment: "Pago",
   identification: "Identificación",
   registration: "Datos",
-  clinical: "Clínico",
+  clinical: "Síntomas",
   preparation: "Preparación",
   blood_pressure: "Presión",
   oxygen: "Oxígeno",
   weight_height: "Peso",
   temperature: "Temp.",
   summary: "Resumen",
-  waiting: "Espera",
+  analysis: "Análisis IA",
+  result: "Resultado",
+  waiting: "Médico",
   consultation: "Consulta",
 };
 
