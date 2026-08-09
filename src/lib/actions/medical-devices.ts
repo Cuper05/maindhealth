@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   actionError,
   actionSuccess,
@@ -102,7 +103,8 @@ export async function updateMedicalDevice(
   revalidatePath("/dispositivos");
   revalidatePath(`/dispositivos/${deviceId}`);
 
-  return actionSuccess({});
+  // Redirect with flag so the success banner survives revalidation/remount.
+  redirect(`/dispositivos/${deviceId}?updated=1`);
 }
 
 export async function updateDeviceMaintenance(
@@ -142,5 +144,5 @@ export async function updateDeviceMaintenance(
   revalidatePath("/dispositivos");
   revalidatePath(`/dispositivos/${deviceId}`);
 
-  return actionSuccess({});
+  redirect(`/dispositivos/${deviceId}?maintained=1`);
 }

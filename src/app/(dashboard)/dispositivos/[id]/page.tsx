@@ -8,19 +8,22 @@ import { getDeviceTypes } from "@/lib/queries/catalogs";
 import { getDeviceReadings } from "@/lib/queries/device-readings";
 import { getActivePatients } from "@/lib/queries/catalogs";
 import { DeviceReadingForm } from "@/components/forms/DeviceReadingForm";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { FormAlert, PageHeader } from "@/components/ui/PageHeader";
 import { DeviceEditor } from "@/components/forms/DeviceEditor";
 import { cardClassName } from "@/lib/ui/classes";
 
 export default async function DispositivoDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ updated?: string; maintained?: string }>;
 }) {
   const session = await requireSession();
   if (!session?.role || !can(session.role, "config:view")) redirect("/dispositivos");
 
   const { id } = await params;
+  const query = await searchParams;
   const deviceId = Number(id);
   if (!Number.isFinite(deviceId)) notFound();
 
@@ -60,6 +63,13 @@ export default async function DispositivoDetailPage({
       : Promise.resolve([]),
   ]);
 
+  const successMessage =
+    query.updated === "1"
+      ? "Cambios guardados correctamente."
+      : query.maintained === "1"
+        ? "Mantenimiento registrado correctamente."
+        : undefined;
+
   return (
     <div>
       <PageHeader
@@ -67,6 +77,11 @@ export default async function DispositivoDetailPage({
         description={[row.brand, row.model].filter(Boolean).join(" ") || "Sin marca/modelo"}
         backHref="/dispositivos"
       />
+      {successMessage ? (
+        <div className="mb-6">
+          <FormAlert success={successMessage} />
+        </div>
+      ) : null}
       <DeviceEditor device={row} deviceTypes={deviceTypes} />
 
       {supportsVitalReadings && can(session.role, "readings:write") && (

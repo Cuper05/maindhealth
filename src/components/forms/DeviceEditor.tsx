@@ -56,7 +56,6 @@ export function DeviceEditor({
         <h2 className="mb-4 font-medium text-slate-900">Datos del equipo</h2>
         <FormAlert
           error={editState && !editState.ok ? editState.error : undefined}
-          success={editState?.ok ? "Equipo actualizado" : undefined}
         />
         <form action={editAction} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -91,7 +90,6 @@ export function DeviceEditor({
         <h2 className="mb-4 font-medium text-slate-900">Mantenimiento rápido</h2>
         <FormAlert
           error={maintState && !maintState.ok ? maintState.error : undefined}
-          success={maintState?.ok ? "Mantenimiento registrado" : undefined}
         />
         <form action={maintAction} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
