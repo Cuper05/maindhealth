@@ -10,6 +10,7 @@ import { getActivePatients } from "@/lib/queries/catalogs";
 import { DeviceReadingForm } from "@/components/forms/DeviceReadingForm";
 import { FormAlert, PageHeader } from "@/components/ui/PageHeader";
 import { DeviceEditor } from "@/components/forms/DeviceEditor";
+import { UsbOximeterReader } from "@/components/devices/UsbOximeterReader";
 import { cardClassName } from "@/lib/ui/classes";
 
 export default async function DispositivoDetailPage({
@@ -52,6 +53,9 @@ export default async function DispositivoDetailPage({
   // Solo equipos clínicos miden signos vitales (baumanómetro, oxímetro, etc.).
   // Tecnológicos/soporte (cámara, micrófono, PC) no muestran captura de lecturas.
   const supportsVitalReadings = row.typeCategory === "clinico";
+  const isUsbOximeter =
+    supportsVitalReadings &&
+    /oxim|spo2|cms50/i.test(`${row.typeName} ${row.model ?? ""} ${row.brand ?? ""}`);
 
   const [deviceTypes, readings, patients] = await Promise.all([
     getDeviceTypes(),
@@ -62,6 +66,11 @@ export default async function DispositivoDetailPage({
       ? getActivePatients()
       : Promise.resolve([]),
   ]);
+
+  const patientOptions = patients.map((p) => ({
+    id: p.id,
+    label: `${p.chartNumber} — ${p.firstName} ${p.lastNamePaternal}`,
+  }));
 
   const successMessage =
     query.updated === "1"
@@ -86,14 +95,12 @@ export default async function DispositivoDetailPage({
       ) : null}
       <DeviceEditor device={row} deviceTypes={deviceTypes} />
 
+      {isUsbOximeter && can(session.role, "readings:write") && (
+        <UsbOximeterReader deviceId={deviceId} patients={patientOptions} />
+      )}
+
       {supportsVitalReadings && can(session.role, "readings:write") && (
-        <DeviceReadingForm
-          deviceId={deviceId}
-          patients={patients.map((p) => ({
-            id: p.id,
-            label: `${p.chartNumber} — ${p.firstName} ${p.lastNamePaternal}`,
-          }))}
-        />
+        <DeviceReadingForm deviceId={deviceId} patients={patientOptions} />
       )}
 
       {supportsVitalReadings && can(session.role, "readings:view") && (

@@ -18,8 +18,8 @@ export function DeviceReadingForm({
     <section className={`${cardClassName} mt-6`}>
       <h2 className="mb-2 font-medium text-slate-900">Registrar lectura del equipo</h2>
       <p className="mb-4 text-sm text-slate-600">
-        Esta sección es <strong>manual</strong>: lee el valor en la pantalla del equipo
-        (ej. SpO2 del oxímetro) y escríbelo aquí. No se conecta sola al aparato.
+        Respaldo <strong>manual</strong> (solo si USB falla). Para el oxímetro usa primero
+        <strong> Lectura automática USB</strong> arriba.
       </p>
       <FormAlert
         error={state && !state.ok ? state.error : undefined}
