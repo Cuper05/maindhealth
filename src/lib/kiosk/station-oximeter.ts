@@ -10,34 +10,17 @@ export type StationOximeterSample = {
   hr: number;
 };
 
-export async function bridgeOximeterHealthy(): Promise<boolean> {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 1500);
-    const res = await fetch(`${BRIDGE_URL}/health`, { signal: ctrl.signal });
-    clearTimeout(t);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 export async function readStationOximeter(
   onProgress?: (msg: string) => void,
 ): Promise<StationOximeterSample> {
   onProgress?.("Contactando servicio local del oxímetro…");
 
-  const healthy = await bridgeOximeterHealthy();
-  if (!healthy) {
-    throw new Error(
-      "No está el servicio local (127.0.0.1:3927). Abre iniciar-servicio-oximetro.bat y déjalo abierto.",
-    );
-  }
-
-  onProgress?.("Leyendo oxímetro… mantén el dedo firme");
+  // Un solo POST /read (como en dispositivos). No abortar un health corto:
+  // Chrome puede mostrar el diálogo de red local y el usuario necesita tiempo.
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
+  const timer = setTimeout(() => ctrl.abort(), 30000);
   try {
+    onProgress?.("Leyendo oxímetro… mantén el dedo firme");
     const res = await fetch(`${BRIDGE_URL}/read`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -67,7 +50,7 @@ export async function readStationOximeter(
     const msg = err instanceof Error ? err.message : String(err);
     if (/Failed to fetch|NetworkError|abort/i.test(msg)) {
       throw new Error(
-        "Chrome no pudo hablar con el servicio local. Abre iniciar-servicio-oximetro.bat y, si pide permiso de red local, elige Permitir.",
+        "No se pudo contactar 127.0.0.1:3927. Abre iniciar-servicio-oximetro.bat, pulsa de nuevo Leer oxímetro y, si Chrome pide red local, elige Permitir.",
       );
     }
     throw err instanceof Error ? err : new Error(msg);

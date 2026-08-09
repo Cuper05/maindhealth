@@ -22,6 +22,7 @@ export function VitalStepScreen({
   onRetry,
   onCapture,
   captureLabel = "Leer dispositivo",
+  capturing = false,
 }: {
   stepNumber: number;
   totalSteps: number;
@@ -36,8 +37,10 @@ export function VitalStepScreen({
   onRetry?: () => void;
   onCapture?: () => void;
   captureLabel?: string;
+  /** Solo true mientras esta captura está en curso (no el poll/sesión vieja). */
+  capturing?: boolean;
 }) {
-  const canCapture = Boolean(onCapture) && deviceStatus !== "reading" && deviceStatus !== "done";
+  const showCapture = Boolean(onCapture) && deviceStatus !== "done";
 
   return (
     <KioskCard className="overflow-hidden">
@@ -48,7 +51,7 @@ export function VitalStepScreen({
           </p>
           <h2 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">{title}</h2>
         </div>
-        <StatusPill status={deviceStatus} />
+        <StatusPill status={capturing ? "reading" : deviceStatus} />
       </div>
 
       <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">{instruction}</p>
@@ -56,21 +59,26 @@ export function VitalStepScreen({
         <p className="mt-2 text-base font-medium text-[#1d6eb8]">{statusMessage}</p>
       ) : null}
 
-      {onCapture && canCapture ? (
+      {showCapture ? (
         <div className="mt-6">
           <button
             type="button"
             onClick={onCapture}
-            className="flex w-full min-h-[64px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-xl font-bold text-white shadow-lg shadow-teal-900/20 transition hover:bg-teal-800 active:scale-[0.99]"
+            disabled={capturing}
+            className="flex w-full min-h-[72px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-xl font-bold text-white shadow-lg shadow-teal-900/20 transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60"
           >
-            {captureLabel}
+            {capturing ? "Leyendo oxímetro…" : captureLabel}
           </button>
+          <p className="mt-2 text-center text-sm text-slate-500">
+            Necesitas el servicio local abierto (iniciar-servicio-oximetro.bat). Si Chrome pide red
+            local, elige Permitir.
+          </p>
         </div>
       ) : null}
 
       <div className="relative mt-8 overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white py-6 ring-1 ring-slate-100">
         <VitalIllustration type={illustration} />
-        {deviceStatus === "reading" && (
+        {capturing && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-[1px]">
             <div className="rounded-2xl bg-white px-6 py-4 shadow-lg">
               <p className="animate-pulse text-center font-medium text-[#1d6eb8]">
@@ -79,7 +87,7 @@ export function VitalStepScreen({
             </div>
           </div>
         )}
-        {deviceStatus === "done" && (
+        {deviceStatus === "done" && !capturing && (
           <div className="mt-2 flex justify-center">
             <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-emerald-600">
@@ -100,7 +108,7 @@ export function VitalStepScreen({
         )}
         <KioskPrimaryButton
           onClick={onContinue}
-          disabled={deviceStatus === "reading" || (Boolean(onCapture) && deviceStatus !== "done")}
+          disabled={capturing || (Boolean(onCapture) && deviceStatus !== "done")}
         >
           Continuar
         </KioskPrimaryButton>

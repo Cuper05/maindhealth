@@ -167,6 +167,7 @@ export function PatientKioskWizard() {
   const [sessionReady, setSessionReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [oxygenStatus, setOxygenStatus] = useState<string>("");
+  const [oxygenCapturing, setOxygenCapturing] = useState(false);
   const oxygenCaptureLock = useRef(false);
 
   const showVitalsPanel = VITAL_STEPS.includes(step) || step === "summary" || step === "analysis";
@@ -244,7 +245,9 @@ export function PatientKioskWizard() {
         setPatientType((data.session.patientType as "new" | "returning") ?? null);
         setAppointmentId(data.session.appointmentId ?? null);
         setVitalsDraft(data.session.vitalsDraft ?? {});
-        setDeviceStatus(data.session.deviceStatus ?? "idle");
+        // "reading" persistido ocultaba el botón de oxímetro para siempre.
+        const restoredStatus = data.session.deviceStatus ?? "idle";
+        setDeviceStatus(restoredStatus === "reading" ? "waiting" : restoredStatus);
         setClinical(clinicalFromDraft(data.session.clinicalDraft));
         if (data.session.assessmentDraft) setAssessment(data.session.assessmentDraft);
         setPaymentStatus(data.session.paymentStatus ?? "unpaid");
@@ -530,6 +533,7 @@ export function PatientKioskWizard() {
     if (oxygenCaptureLock.current) return;
     oxygenCaptureLock.current = true;
     setError(null);
+    setOxygenCapturing(true);
     setDeviceStatus("reading");
     setOxygenStatus("Iniciando lectura del oxímetro…");
     try {
@@ -548,21 +552,21 @@ export function PatientKioskWizard() {
       setOxygenStatus(msg);
       setError(msg);
     } finally {
+      setOxygenCapturing(false);
       oxygenCaptureLock.current = false;
     }
   }, []);
 
-  // No auto-leer al entrar: Chrome exige un clic (permiso de red local a 127.0.0.1).
+  // Al entrar a oxígeno sin SpO2, siempre idle (nunca quedarse en "reading" de sesión vieja).
   useEffect(() => {
     if (step !== "oxygen") return;
     if (vitalsDraft.oxygenSaturation) {
       setDeviceStatus("done");
       return;
     }
-    setDeviceStatus((prev) => (prev === "reading" ? prev : "idle"));
-    setOxygenStatus(
-      "Pon el dedo en el oxímetro (pantalla con números) y pulsa Leer oxímetro. Si Chrome pide red local, elige Permitir.",
-    );
+    setOxygenCapturing(false);
+    setDeviceStatus("idle");
+    setOxygenStatus("Pulsa el botón verde «Leer oxímetro ahora».");
   }, [step, vitalsDraft.oxygenSaturation]);
 
   async function runAnalysis() {
@@ -1063,6 +1067,7 @@ export function PatientKioskWizard() {
           }
           onCapture={() => void captureOximeter()}
           captureLabel="Leer oxímetro ahora"
+          capturing={oxygenCapturing}
           onSimulate={() =>
             simulateReading({
               oxygenSaturation: "98",
