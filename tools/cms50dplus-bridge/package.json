@@ -8,7 +8,8 @@
     "ports": "node bridge.mjs --list-ports",
     "start": "node bridge.mjs",
     "once": "node bridge.mjs --once",
-    "simulate": "node bridge.mjs --simulate --once"
+    "simulate": "node bridge.mjs --simulate --once",
+    "service": "node server.mjs"
   },
   "dependencies": {
     "serialport": "^13.0.0"
