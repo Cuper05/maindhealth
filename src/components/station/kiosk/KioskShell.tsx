@@ -4,6 +4,15 @@ import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { KIOSK_STEP_ORDER, KIOSK_STEP_SHORT, StatusPill } from "./KioskTheme";
 import { VitalsPanel } from "./VitalsPanel";
 import type { VitalsDraft } from "./kiosk-api";
+import { KioskOnScreenKeyboard, useKioskVirtualKeyboard } from "./KioskOnScreenKeyboard";
+
+const KEYBOARD_STEPS: KioskStep[] = [
+  "registration",
+  "clinical",
+  "identification",
+  "payment",
+  "service",
+];
 
 export function KioskShell({
   step,
@@ -26,6 +35,9 @@ export function KioskShell({
   const status = (["idle", "waiting", "reading", "done", "retry"].includes(deviceStatus)
     ? deviceStatus
     : "idle") as "idle" | "waiting" | "reading" | "done" | "retry";
+
+  const keyboardEnabled = KEYBOARD_STEPS.includes(step);
+  const { open: keyboardOpen, target, close } = useKioskVirtualKeyboard(keyboardEnabled);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef3f9]">
@@ -97,7 +109,11 @@ export function KioskShell({
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:flex-row md:p-8">
+      <div
+        className={`mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:flex-row md:p-8 ${
+          keyboardOpen ? "pb-[340px]" : ""
+        }`}
+      >
         <main className="min-w-0 flex-1">{children}</main>
         {showVitalsPanel && (
           <div className="w-full shrink-0 md:w-80 lg:w-72">
@@ -108,7 +124,10 @@ export function KioskShell({
         )}
       </div>
 
-      <footer className="border-t border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur">
+      <footer
+        className="border-t border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur"
+        style={{ marginBottom: keyboardOpen ? "var(--kiosk-keyboard-height, 300px)" : undefined }}
+      >
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <StatusPill status={status} />
           <div className="flex flex-wrap items-center gap-3">
@@ -127,6 +146,8 @@ export function KioskShell({
           </div>
         </div>
       </footer>
+
+      <KioskOnScreenKeyboard open={keyboardOpen} target={target} onClose={close} />
     </div>
   );
 }

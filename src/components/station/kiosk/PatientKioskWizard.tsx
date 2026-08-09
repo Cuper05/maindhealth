@@ -17,6 +17,7 @@ import {
 import { VitalStepScreen } from "./VitalStepScreen";
 import { VitalsSummaryGrid } from "./VitalsPanel";
 import { KioskShell } from "./KioskShell";
+import { kioskTextFieldProps } from "./KioskOnScreenKeyboard";
 import { SymptomGuide } from "./SymptomGuide";
 import { DownloadPrescriptionButton } from "./DownloadPrescriptionButton";
 import {
@@ -880,10 +881,30 @@ export function PatientKioskWizard() {
             Ingresa teléfono, correo, CURP o número de expediente. No se requiere cita previa.
           </p>
           <form onSubmit={handleLookup} className="mt-8 grid gap-4 sm:grid-cols-2">
-            <input name="chartNumber" placeholder="Número de expediente" className={kioskInputClassName} />
-            <input name="phone" placeholder="Teléfono" className={kioskInputClassName} />
-            <input name="email" placeholder="Correo electrónico" className={kioskInputClassName} />
-            <input name="curp" placeholder="CURP" className={kioskInputClassName} />
+            <input
+              name="chartNumber"
+              placeholder="Número de expediente"
+              {...kioskTextFieldProps}
+              className={kioskInputClassName}
+            />
+            <input
+              name="phone"
+              placeholder="Teléfono"
+              {...kioskTextFieldProps}
+              className={kioskInputClassName}
+            />
+            <input
+              name="email"
+              placeholder="Correo electrónico"
+              {...kioskTextFieldProps}
+              className={kioskInputClassName}
+            />
+            <input
+              name="curp"
+              placeholder="CURP"
+              {...kioskTextFieldProps}
+              className={kioskInputClassName}
+            />
             <div className="sm:col-span-2">
               <KioskPrimaryButton type="submit" disabled={busy}>
                 {busy ? "Buscando…" : "Buscar y continuar"}
@@ -987,6 +1008,7 @@ export function PatientKioskWizard() {
                     value={clinical.allergyDetails}
                     onChange={(e) => setClinical({ ...clinical, allergyDetails: e.target.value })}
                     placeholder="¿Cuáles medicamentos?"
+                    {...kioskTextFieldProps}
                     className={kioskInputClassName}
                   />
                 )}
@@ -996,6 +1018,7 @@ export function PatientKioskWizard() {
                     rows={2}
                     value={clinical.currentMedications}
                     onChange={(e) => setClinical({ ...clinical, currentMedications: e.target.value })}
+                    {...kioskTextFieldProps}
                     className={kioskInputClassName}
                     placeholder="Nombre y dosis, si aplica"
                   />
@@ -1016,6 +1039,7 @@ export function PatientKioskWizard() {
                 }
               }}
               placeholder="Nombre completo para consentimiento"
+              {...kioskTextFieldProps}
               className={kioskInputClassName}
             />
             <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
@@ -1034,7 +1058,7 @@ export function PatientKioskWizard() {
               <span className="text-sm font-medium text-slate-700">Acepto el consentimiento informado</span>
             </label>
           </div>
-          <div className="sticky bottom-0 z-10 -mx-6 mt-8 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur md:-mx-8 md:px-8">
+          <div className="sticky bottom-[var(--kiosk-keyboard-height,0px)] z-10 -mx-6 mt-8 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur md:-mx-8 md:px-8">
             {clinicalError && (
               <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
                 <p className="font-semibold">No se puede continuar aún</p>
@@ -1541,10 +1565,17 @@ function Field({
   type?: string;
   required?: boolean;
 }) {
+  const usesVirtualKeyboard = !["date", "datetime-local", "month", "week", "time"].includes(type);
   return (
     <div>
       <label className={kioskLabelClassName}>{label}</label>
-      <input name={name} type={type} required={required} className={kioskInputClassName} />
+      <input
+        name={name}
+        type={type}
+        required={required}
+        {...(usesVirtualKeyboard ? kioskTextFieldProps : {})}
+        className={kioskInputClassName}
+      />
     </div>
   );
 }

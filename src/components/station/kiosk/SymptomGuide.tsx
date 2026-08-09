@@ -16,6 +16,7 @@ import {
   type SymptomPrimaryCode,
   type SymptomSelection,
 } from "@/lib/kiosk/symptom-catalog";
+import { kioskTextFieldProps } from "./KioskOnScreenKeyboard";
 
 function toggleInList<T extends string>(list: T[], code: T): T[] {
   return list.includes(code) ? list.filter((c) => c !== code) : [...list, code];
@@ -246,6 +247,7 @@ export function SymptomGuide({
           <input
             value={value.otherText ?? ""}
             onChange={(e) => onChange({ ...value, otherText: e.target.value })}
+            {...kioskTextFieldProps}
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm focus:border-[#1d6eb8] focus:outline-none focus:ring-2 focus:ring-[#1d6eb8]/20"
             placeholder="Ej. comezón, inflamación…"
           />
