@@ -28,7 +28,20 @@ type SerialPortLike = {
 };
 
 const SILICON_LABS_VID = 0x10c4;
-const START_CMD = new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
+
+/** Mismas órdenes que el puente Node que ya leyó este CMS50D+. */
+const REALTIME_CMDS = [
+  new Uint8Array([0x7d, 0x81, 0xa6, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+  new Uint8Array([0x7d, 0x81, 0xa2, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+  new Uint8Array([0x7d, 0x81, 0xa7, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+  new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+  new Uint8Array([0x7d, 0x81, 0xa0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+];
+const PING_CMD = new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function parseClassic5(buffer: Uint8Array) {
   const readings: { spo2: number; hr: number }[] = [];
@@ -48,7 +61,24 @@ function parseClassic5(buffer: Uint8Array) {
   return readings;
 }
 
-function stableOf(window: { spo2: number; hr: number }[], need = 3) {
+function parseLoose(buffer: Uint8Array) {
+  const readings: { spo2: number; hr: number }[] = [];
+  for (let i = 0; i < buffer.length - 8; i++) {
+    if (buffer[i] !== 0x01 && buffer[i] !== 0x81) continue;
+    for (let a = i + 1; a < i + 8 && a < buffer.length; a++) {
+      for (let b = a + 1; b < i + 9 && b < buffer.length; b++) {
+        const spo2 = buffer[a]!;
+        const hr = buffer[b]!;
+        if (spo2 >= 85 && spo2 <= 100 && hr >= 40 && hr <= 180) {
+          readings.push({ spo2, hr });
+        }
+      }
+    }
+  }
+  return readings;
+}
+
+function stableOf(window: { spo2: number; hr: number }[], need = 2) {
   if (window.length < need) return null;
   const recent = window.slice(-need);
   const spo2 = recent.map((r) => r.spo2);
@@ -59,17 +89,13 @@ function stableOf(window: { spo2: number; hr: number }[], need = 3) {
   return { spo2: avg(spo2), hr: avg(hr) };
 }
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 async function ensureClosed(port: SerialPortLike) {
   try {
     await port.close();
   } catch {
     /* already closed */
   }
-  await sleep(250);
+  await sleep(300);
 }
 
 async function openPort(port: SerialPortLike, baudRate: number) {
@@ -85,9 +111,9 @@ async function openPort(port: SerialPortLike, baudRate: number) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/Failed to open|open serial port/i.test(msg)) {
+    if (/Failed to open|open serial port|Access denied/i.test(msg)) {
       throw new Error(
-        "Puerto USB ocupado o bloqueado. Cierra TODAS las ventanas negras del oxímetro (.bat), cierra otras pestañas de MaindHealth, desconecta y vuelve a conectar el USB, luego reintenta y elige Silicon Labs CP210x.",
+        "Puerto USB ocupado. Cierra esta pestaña, vuelve a abrirla, o desconecta/reconecta el USB del oxímetro. No uses ningún .bat. Luego elige Silicon Labs CP210x.",
       );
     }
     throw err;
@@ -99,6 +125,10 @@ async function openPort(port: SerialPortLike, baudRate: number) {
   }
 }
 
+/**
+ * Lee sin colgarse: reader.read() bloquea para siempre si no hay datos.
+ * Aquí se combina con un tick para respetar el timeout.
+ */
 async function readAtBaud(
   port: SerialPortLike,
   baudRate: number,
@@ -113,21 +143,55 @@ async function readAtBaud(
     throw new Error("No se pudo usar el puerto USB.");
   }
 
+  let readPromise: Promise<ReadableStreamReadResult<Uint8Array>> | null = null;
+
   try {
-    await writer.write(START_CMD);
+    for (const cmd of REALTIME_CMDS) {
+      await writer.write(cmd);
+      await sleep(50);
+    }
+
     const window: { spo2: number; hr: number }[] = [];
     let leftover = new Uint8Array(0);
     let bytes = 0;
     const deadline = Date.now() + maxMs;
-    let lastPing = 0;
+    let lastPing = Date.now();
+    let lastStatus = 0;
 
     while (Date.now() < deadline) {
-      if (Date.now() - lastPing > 700) {
-        await writer.write(START_CMD);
+      if (Date.now() - lastPing > 800) {
+        await writer.write(PING_CMD);
         lastPing = Date.now();
       }
 
-      const { value, done } = await reader.read();
+      if (!readPromise) {
+        readPromise = reader.read().finally(() => {
+          readPromise = null;
+        });
+      }
+
+      const raced = await Promise.race([
+        readPromise.then((r) => ({ kind: "data" as const, r })),
+        sleep(250).then(() => ({ kind: "tick" as const })),
+      ]);
+
+      if (raced.kind === "tick") {
+        if (Date.now() - lastStatus > 700) {
+          lastStatus = Date.now();
+          const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+          if (window.length > 0) {
+            const last = window[window.length - 1]!;
+            onProgress(`SpO2 ${last.spo2}% · FC ${last.hr} (${window.length}) · ${left}s`);
+          } else if (bytes > 0) {
+            onProgress(`Datos USB ${bytes} bytes @ ${baudRate} · ${left}s · mantén el dedo`);
+          } else {
+            onProgress(`Esperando datos @ ${baudRate} · ${left}s · dedo firme`);
+          }
+        }
+        continue;
+      }
+
+      const { value, done } = raced.r;
       if (done) break;
       if (!value?.length) continue;
 
@@ -137,22 +201,26 @@ async function readAtBaud(
       merged.set(value, leftover.length);
       leftover = merged.length > 8192 ? merged.slice(merged.length - 4096) : merged;
 
-      for (const reading of parseClassic5(leftover)) window.push(reading);
-
-      if (window.length > 0) {
-        const last = window[window.length - 1]!;
-        onProgress(`SpO2 ${last.spo2}% · FC ${last.hr} (${window.length} muestras)`);
-      } else if (bytes > 0) {
-        onProgress(`Recibiendo datos… ${bytes} bytes`);
-      } else {
-        onProgress(`Esperando señal @ ${baudRate}…`);
+      for (const reading of [...parseClassic5(leftover), ...parseLoose(leftover)]) {
+        window.push(reading);
       }
 
-      const stable = stableOf(window, 3);
+      const stable = stableOf(window, 2);
       if (stable) return stable;
+    }
+
+    if (bytes === 0) {
+      onProgress(`Sin datos @ ${baudRate}. ¿Oxímetro encendido y dedo puesto?`);
+    } else {
+      onProgress(`Hubo ${bytes} bytes @ ${baudRate} pero sin SpO2 estable`);
     }
     return null;
   } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* ignore */
+    }
     try {
       reader.releaseLock();
     } catch {
@@ -167,9 +235,7 @@ async function readAtBaud(
   }
 }
 
-async function pickSiliconLabsPort(
-  onProgress: (msg: string) => void,
-): Promise<SerialPortLike> {
+async function pickSiliconLabsPort(onProgress: (msg: string) => void): Promise<SerialPortLike> {
   const nav = navigator as Navigator & {
     serial?: {
       getPorts: () => Promise<SerialPortLike[]>;
@@ -182,16 +248,14 @@ async function pickSiliconLabsPort(
     throw new Error("Usa Chrome o Edge (no Firefox) para lectura USB.");
   }
 
-  // Prefer a fresh picker so we don't reuse a stuck handle.
   onProgress("Elige Silicon Labs CP210x (no Intel)…");
   try {
     return await nav.serial.requestPort({ filters: [{ usbVendorId: SILICON_LABS_VID }] });
   } catch (err) {
-    // User cancelled filtered picker — try known ports, then unfiltered.
     const known = await nav.serial.getPorts();
     const silicon = known.find((p) => p.getInfo?.().usbVendorId === SILICON_LABS_VID);
     if (silicon) return silicon;
-    if (err instanceof Error && /No port selected|NotFoundError/i.test(err.message)) {
+    if (err instanceof Error && /No port selected|NotFoundError/i.test(err.name + err.message)) {
       throw new Error("No elegiste el puerto. Pulsa de nuevo y elige Silicon Labs CP210x.");
     }
     return nav.serial.requestPort();
@@ -199,40 +263,18 @@ async function pickSiliconLabsPort(
 }
 
 async function readCms50DPlus(onProgress: (msg: string) => void): Promise<{ spo2: number; hr: number }> {
-  let port = await pickSiliconLabsPort(onProgress);
+  const port = await pickSiliconLabsPort(onProgress);
 
-  const tryRead = async () => {
-    onProgress("Leyendo @ 19200… mantén el dedo 5–10 s");
-    const fast = await readAtBaud(port, 19200, 12000, onProgress);
-    if (fast) return fast;
+  onProgress("Leyendo @ 19200… mantén el dedo");
+  const fast = await readAtBaud(port, 19200, 15000, onProgress);
+  if (fast) return fast;
 
-    onProgress("Reintentando @ 115200…");
-    const slow = await readAtBaud(port, 115200, 8000, onProgress);
-    if (slow) return slow;
-    return null;
-  };
-
-  try {
-    const sample = await tryRead();
-    if (sample) return sample;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    if (!/ocupado|bloqueado|Failed to open/i.test(msg)) throw err;
-    onProgress("Puerto bloqueado. Vuelve a elegir Silicon Labs…");
-    try {
-      await port.forget?.();
-    } catch {
-      /* ignore */
-    }
-    await sleep(500);
-    port = await pickSiliconLabsPort(onProgress);
-    const sample = await tryRead();
-    if (sample) return sample;
-    throw err;
-  }
+  onProgress("Reintentando @ 115200…");
+  const slow = await readAtBaud(port, 115200, 12000, onProgress);
+  if (slow) return slow;
 
   throw new Error(
-    "No hubo lectura a tiempo. Oxímetro encendido, dedo firme, Silicon Labs CP210x.",
+    "No hubo lectura válida. Enciende el oxímetro, pon el dedo 10 s, cierra otras pestañas, desconecta/reconecta USB y reintenta con Silicon Labs CP210x.",
   );
 }
 
@@ -288,8 +330,8 @@ export function UsbOximeterReader({
     <section className={`${cardClassName} mt-6 border-teal-200 bg-teal-50/40`}>
       <h2 className="mb-2 font-medium text-slate-900">Lectura automática USB (CMS50D+)</h2>
       <p className="mb-4 text-sm text-slate-600">
-        1) Cierra cualquier ventana negra del oxímetro (.bat). 2) Oxímetro encendido + dedo. 3) Este
-        botón. 4) Elige <strong>Silicon Labs CP210x</strong> (no Intel).
+        Antes: cierra otras pestañas de esta página y no uses el .bat. Luego: oxímetro encendido +
+        dedo + botón → <strong>Silicon Labs CP210x</strong>.
       </p>
       <FormAlert error={error || undefined} success={status && !error ? status : undefined} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
