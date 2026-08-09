@@ -46,10 +46,18 @@ export default async function DispositivoDetailPage({
 
   if (!row) notFound();
 
+  // Solo equipos clínicos miden signos vitales (baumanómetro, oxímetro, etc.).
+  // Tecnológicos/soporte (cámara, micrófono, PC) no muestran captura de lecturas.
+  const supportsVitalReadings = row.typeCategory === "clinico";
+
   const [deviceTypes, readings, patients] = await Promise.all([
     getDeviceTypes(),
-    getDeviceReadings(deviceId),
-    can(session.role, "readings:write") ? getActivePatients() : Promise.resolve([]),
+    supportsVitalReadings && can(session.role, "readings:view")
+      ? getDeviceReadings(deviceId)
+      : Promise.resolve([]),
+    supportsVitalReadings && can(session.role, "readings:write")
+      ? getActivePatients()
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -61,7 +69,7 @@ export default async function DispositivoDetailPage({
       />
       <DeviceEditor device={row} deviceTypes={deviceTypes} />
 
-      {can(session.role, "readings:write") && (
+      {supportsVitalReadings && can(session.role, "readings:write") && (
         <DeviceReadingForm
           deviceId={deviceId}
           patients={patients.map((p) => ({
@@ -71,7 +79,7 @@ export default async function DispositivoDetailPage({
         />
       )}
 
-      {can(session.role, "readings:view") && (
+      {supportsVitalReadings && can(session.role, "readings:view") && (
         <section className={`${cardClassName} mt-6`}>
           <h2 className="mb-4 font-medium text-slate-900">Lecturas recientes</h2>
           {readings.length === 0 ? (
