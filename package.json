@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@daily-co/daily-js": "^0.91.0",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "iron-session": "^8.0.4",

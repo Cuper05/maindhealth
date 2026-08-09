@@ -1442,7 +1442,11 @@ export function PatientKioskWizard() {
           <h2 className="text-xl font-bold text-slate-900">Teleconsulta en vivo</h2>
           <p className="mt-1 text-sm text-slate-500">El médico realizará una evaluación más profunda.</p>
           <div className="mt-4 overflow-hidden rounded-2xl ring-1 ring-slate-200">
-            <DailyVideoRoom meetingUrl={appointment.meetingUrl} title="Consulta médica" />
+            <DailyVideoRoom
+              meetingUrl={appointment.meetingUrl}
+              title="Consulta médica"
+              userName={patient?.name || clinical.consentSignerName || "Paciente"}
+            />
           </div>
           <button
             type="button"
