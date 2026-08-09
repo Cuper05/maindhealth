@@ -91,11 +91,11 @@ export function VitalStepScreen({
         {onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
-        {showCapture && (
+        {onCapture && showCapture ? (
           <KioskPrimaryButton onClick={onCapture} disabled={deviceStatus === "reading"}>
             {captureLabel}
           </KioskPrimaryButton>
-        )}
+        ) : null}
         <KioskPrimaryButton
           onClick={onContinue}
           disabled={deviceStatus === "reading" || (Boolean(onCapture) && deviceStatus !== "done")}
