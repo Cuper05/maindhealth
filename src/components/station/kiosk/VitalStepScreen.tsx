@@ -34,11 +34,10 @@ export function VitalStepScreen({
   onSimulate: () => void;
   onBack?: () => void;
   onRetry?: () => void;
-  /** Lectura real del equipo de estación (oxímetro, etc.). */
   onCapture?: () => void;
   captureLabel?: string;
 }) {
-  const showCapture = Boolean(onCapture) && deviceStatus !== "reading" && deviceStatus !== "done";
+  const canCapture = Boolean(onCapture) && deviceStatus !== "reading" && deviceStatus !== "done";
 
   return (
     <KioskCard className="overflow-hidden">
@@ -55,6 +54,18 @@ export function VitalStepScreen({
       <p className="mt-4 max-w-xl text-lg leading-relaxed text-slate-600">{instruction}</p>
       {statusMessage ? (
         <p className="mt-2 text-base font-medium text-[#1d6eb8]">{statusMessage}</p>
+      ) : null}
+
+      {onCapture && canCapture ? (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={onCapture}
+            className="flex w-full min-h-[64px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-xl font-bold text-white shadow-lg shadow-teal-900/20 transition hover:bg-teal-800 active:scale-[0.99]"
+          >
+            {captureLabel}
+          </button>
+        </div>
       ) : null}
 
       <div className="relative mt-8 overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white py-6 ring-1 ring-slate-100">
@@ -82,16 +93,11 @@ export function VitalStepScreen({
 
       <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-6">
         {onBack && (
-          <KioskSecondaryButton onClick={onBack}>
-            ← Atrás
-          </KioskSecondaryButton>
+          <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>
         )}
         {onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
-        {onCapture && showCapture ? (
-          <KioskPrimaryButton onClick={onCapture}>{captureLabel}</KioskPrimaryButton>
-        ) : null}
         <KioskPrimaryButton
           onClick={onContinue}
           disabled={deviceStatus === "reading" || (Boolean(onCapture) && deviceStatus !== "done")}

@@ -284,6 +284,8 @@ export function PatientKioskWizard() {
 
   useEffect(() => {
     if (!appointmentId || !VITAL_STEPS.includes(step)) return;
+    // Oxígeno se lee con el servicio local (botón); el poll ocultaba el botón al poner "reading".
+    if (step === "oxygen") return;
     const timer = setInterval(async () => {
       try {
         const { draft } = await kioskApi.pollReadings(appointmentId);
@@ -291,8 +293,8 @@ export function PatientKioskWizard() {
         setVitalsDraft((prev) => {
           const next = { ...prev, ...draft };
           const complete = vitalsCompleteForStep(step, next);
-          setDeviceStatus(complete ? "done" : "reading");
-          void kioskApi.patchVitals(draft, complete ? "done" : "reading");
+          if (complete) setDeviceStatus("done");
+          void kioskApi.patchVitals(draft, complete ? "done" : "waiting");
           return next;
         });
       } catch {
@@ -1037,7 +1039,7 @@ export function PatientKioskWizard() {
               return;
             }
             setError(null);
-            setDeviceStatus("waiting");
+            setDeviceStatus("idle");
             await goToStep("oxygen");
           }}
           onBack={goBack}
@@ -1050,17 +1052,17 @@ export function PatientKioskWizard() {
           stepNumber={2}
           totalSteps={4}
           title="Oxigenación y pulso"
-          instruction="1) Oxímetro encendido con dedo. 2) Pulsa Leer oxímetro. 3) Si Chrome pide acceso a red local, elige Permitir. (Necesitas iniciar-servicio-oximetro.bat abierto.)"
+          instruction="Oxímetro encendido + dedo (números en pantalla). Luego pulsa el botón grande Leer oxímetro. Si Chrome pide red local, elige Permitir."
           illustration="oxygen"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.oxygenSaturation))}
           statusMessage={
             oxygenStatus ||
             (vitalsDraft.oxygenSaturation
               ? `SpO₂ ${vitalsDraft.oxygenSaturation}% · FC ${vitalsDraft.heartRate ?? "—"} lpm`
-              : undefined)
+              : "Listo para leer — pulsa el botón de abajo")
           }
           onCapture={() => void captureOximeter()}
-          captureLabel="Leer oxímetro"
+          captureLabel="Leer oxímetro ahora"
           onSimulate={() =>
             simulateReading({
               oxygenSaturation: "98",
@@ -1069,18 +1071,18 @@ export function PatientKioskWizard() {
           }
           onContinue={async () => {
             if (!vitalsDraft.oxygenSaturation) {
-              setError("Pulsa Leer oxímetro primero (dedo en el aparato).");
+              setError("Pulsa «Leer oxímetro ahora» primero.");
               return;
             }
             setError(null);
             setOxygenStatus("");
-            setDeviceStatus("waiting");
+            setDeviceStatus("idle");
             await goToStep("weight_height");
           }}
           onBack={goBack}
           onRetry={async () => {
             await clearVitalFields(["oxygenSaturation", "heartRate"]);
-            setOxygenStatus("");
+            setOxygenStatus("Pulsa Leer oxímetro ahora");
             setDeviceStatus("idle");
           }}
         />
