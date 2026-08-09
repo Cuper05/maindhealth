@@ -1,0 +1,16 @@
+{
+  "name": "cms50dplus-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "USB bridge: CONTEC CMS50D+ -> MaindHealth device ingest API",
+  "scripts": {
+    "ports": "node bridge.mjs --list-ports",
+    "start": "node bridge.mjs",
+    "once": "node bridge.mjs --once",
+    "simulate": "node bridge.mjs --simulate --once"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
+  }
+}
