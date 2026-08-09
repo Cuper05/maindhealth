@@ -92,9 +92,7 @@ export function VitalStepScreen({
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
         {onCapture && showCapture ? (
-          <KioskPrimaryButton onClick={onCapture} disabled={deviceStatus === "reading"}>
-            {captureLabel}
-          </KioskPrimaryButton>
+          <KioskPrimaryButton onClick={onCapture}>{captureLabel}</KioskPrimaryButton>
         ) : null}
         <KioskPrimaryButton
           onClick={onContinue}
