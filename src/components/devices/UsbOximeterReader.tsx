@@ -32,24 +32,18 @@ function parseClassic5(buffer: Uint8Array) {
   return readings;
 }
 
-function stableOf(window: { spo2: number; hr: number }[], need = 5) {
+function stableOf(window: { spo2: number; hr: number }[], need = 3) {
   if (window.length < need) return null;
   const recent = window.slice(-need);
   const spo2 = recent.map((r) => r.spo2);
   const hr = recent.map((r) => r.hr);
   if (Math.max(...spo2) - Math.min(...spo2) > 3) return null;
-  if (Math.max(...hr) - Math.min(...hr) > 12) return null;
+  if (Math.max(...hr) - Math.min(...hr) > 15) return null;
   const avg = (arr: number[]) => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
   return { spo2: avg(spo2), hr: avg(hr) };
 }
 
-const START_CMDS = [
-  new Uint8Array([0x7d, 0x81, 0xa6, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
-  new Uint8Array([0x7d, 0x81, 0xa2, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
-  new Uint8Array([0x7d, 0x81, 0xa7, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
-  new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
-  new Uint8Array([0x7d, 0x81, 0xa0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
-];
+const START_CMD = new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
 
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
@@ -58,6 +52,7 @@ async function sleep(ms: number) {
 async function readAtBaud(
   port: SerialPortLike,
   baudRate: number,
+  maxMs: number,
   onProgress: (msg: string) => void,
 ): Promise<{ spo2: number; hr: number } | null> {
   await port.open({ baudRate, bufferSize: 8192 });
@@ -69,38 +64,22 @@ async function readAtBaud(
   }
 
   try {
-    for (const cmd of START_CMDS) {
-      await writer.write(cmd);
-      await sleep(40);
-    }
-
+    await writer.write(START_CMD);
     const window: { spo2: number; hr: number }[] = [];
     let leftover = new Uint8Array(0);
     let bytes = 0;
-    const deadline = Date.now() + 22000;
+    const deadline = Date.now() + maxMs;
     let lastPing = 0;
 
     while (Date.now() < deadline) {
-      if (Date.now() - lastPing > 900) {
-        await writer.write(START_CMDS[3]!);
+      if (Date.now() - lastPing > 700) {
+        await writer.write(START_CMD);
         lastPing = Date.now();
       }
 
-      let value: Uint8Array | undefined;
-      try {
-        const result = await reader.read();
-        if (result.done) break;
-        value = result.value;
-      } catch (err) {
-        throw new Error(
-          `Error de lectura USB: ${err instanceof Error ? err.message : "desconocido"}`,
-        );
-      }
-
-      if (!value?.length) {
-        onProgress(`Escuchando @ ${baudRate}… bytes=${bytes}, muestras=${window.length}. Mantén el dedo.`);
-        continue;
-      }
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value?.length) continue;
 
       bytes += value.length;
       const merged = new Uint8Array(leftover.length + value.length);
@@ -108,24 +87,20 @@ async function readAtBaud(
       merged.set(value, leftover.length);
       leftover = merged.length > 8192 ? merged.slice(merged.length - 4096) : merged;
 
-      for (const reading of parseClassic5(leftover)) {
-        window.push(reading);
-      }
+      for (const reading of parseClassic5(leftover)) window.push(reading);
 
       if (window.length > 0) {
         const last = window[window.length - 1]!;
-        onProgress(
-          `@ ${baudRate}: SpO2 ${last.spo2}% FC ${last.hr} · muestras ${window.length} · bytes ${bytes}`,
-        );
+        onProgress(`SpO2 ${last.spo2}% · FC ${last.hr} (${window.length} muestras)`);
+      } else if (bytes > 0) {
+        onProgress(`Recibiendo datos… ${bytes} bytes. Mantén el dedo firme.`);
       } else {
-        onProgress(`@ ${baudRate}: recibiendo datos (${bytes} bytes). Ponte/ajusta el dedo…`);
+        onProgress("Esperando señal del oxímetro…");
       }
 
-      const stable = stableOf(window, 5);
+      const stable = stableOf(window, 3);
       if (stable) return stable;
     }
-
-    onProgress(`Sin lectura estable @ ${baudRate} (bytes=${bytes}, muestras=${window.length})`);
     return null;
   } finally {
     try {
@@ -152,29 +127,31 @@ async function readCms50DPlus(onProgress: (msg: string) => void): Promise<{ spo2
       requestPort: (options?: {
         filters?: Array<{ usbVendorId: number }>;
       }) => Promise<SerialPortLike>;
-      getPorts?: () => Promise<SerialPortLike[]>;
     };
   };
   if (!nav.serial) {
-    throw new Error("Este navegador no soporta USB Serial. Usa Chrome o Edge.");
+    throw new Error("Usa Chrome o Edge para lectura USB.");
   }
 
-  onProgress("Elige el puerto Silicon Labs CP210x / COM del oxímetro…");
-  const port = await nav.serial.requestPort({
-    filters: [{ usbVendorId: 0x10c4 }], // Silicon Labs
-  }).catch(async () => {
-    // Si el filtro no muestra nada, permitir cualquier puerto
-    return nav.serial!.requestPort();
-  });
-
-  for (const baud of [19200, 115200]) {
-    onProgress(`Probando baud ${baud}…`);
-    const sample = await readAtBaud(port, baud, onProgress);
-    if (sample) return sample;
+  onProgress("Elige Silicon Labs CP210x…");
+  let port: SerialPortLike;
+  try {
+    port = await nav.serial.requestPort({ filters: [{ usbVendorId: 0x10c4 }] });
+  } catch {
+    port = await nav.serial.requestPort();
   }
+
+  // Este CMS50D+ respondió en 19200 en la estación.
+  onProgress("Leyendo @ 19200… mantén el dedo 5–10 s");
+  const fast = await readAtBaud(port, 19200, 12000, onProgress);
+  if (fast) return fast;
+
+  onProgress("Reintentando @ 115200…");
+  const slow = await readAtBaud(port, 115200, 8000, onProgress);
+  if (slow) return slow;
 
   throw new Error(
-    "No se obtuvo lectura estable. Verifica: oxímetro encendido, dedo bien puesto, puerto Silicon Labs (no Intel SOL), y que ningún otro programa use el COM.",
+    "No hubo lectura a tiempo. Oxímetro encendido, dedo firme, puerto Silicon Labs, y cierra el .bat si estaba abierto.",
   );
 }
 
@@ -195,10 +172,10 @@ export function UsbOximeterReader({
   async function onRead() {
     setError("");
     setBusy(true);
-    setStatus("Preparando lectura USB…");
+    setStatus("Iniciando…");
     try {
       const sample = await readCms50DPlus((msg) => setStatus(msg));
-      setStatus(`Lectura estable: SpO2 ${sample.spo2}% · FC ${sample.hr}. Guardando en el sistema…`);
+      setStatus(`Listo: SpO2 ${sample.spo2}% · FC ${sample.hr}. Guardando…`);
       startTransition(async () => {
         try {
           const result = await recordUsbOximeterReading({
@@ -227,8 +204,7 @@ export function UsbOximeterReader({
     <section className={`${cardClassName} mt-6 border-teal-200 bg-teal-50/40`}>
       <h2 className="mb-2 font-medium text-slate-900">Lectura automática USB (CMS50D+)</h2>
       <p className="mb-4 text-sm text-slate-600">
-        1) Oxímetro encendido &nbsp; 2) Dedo puesto &nbsp; 3) Pulsa el botón &nbsp; 4) Elige
-        <strong> Silicon Labs CP210x</strong> (no el puerto Intel).
+        Dedo puesto → botón → elige <strong>Silicon Labs CP210x</strong>. Tarda unos segundos.
       </p>
       <FormAlert error={error || undefined} success={status && !error ? status : undefined} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -257,11 +233,6 @@ export function UsbOximeterReader({
         >
           {busy || pending ? "Leyendo…" : "Leer oxímetro por USB"}
         </button>
-        {!canSerial ? (
-          <p className="mt-2 text-sm text-amber-800">
-            Abre MaindHealth en Chrome o Edge para usar USB.
-          </p>
-        ) : null}
       </div>
     </section>
   );
