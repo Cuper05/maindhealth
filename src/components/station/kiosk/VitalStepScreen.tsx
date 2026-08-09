@@ -38,9 +38,7 @@ export function VitalStepScreen({
   onCapture?: () => void;
   captureLabel?: string;
 }) {
-  const showCapture =
-    Boolean(onCapture) &&
-    (deviceStatus === "idle" || deviceStatus === "waiting" || deviceStatus === "retry");
+  const showCapture = Boolean(onCapture) && deviceStatus !== "reading" && deviceStatus !== "done";
 
   return (
     <KioskCard className="overflow-hidden">

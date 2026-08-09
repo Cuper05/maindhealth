@@ -107,9 +107,11 @@ const VITAL_FIELDS: Record<string, (keyof VitalsDraft)[]> = {
 function resolveVitalUiStatus(
   deviceStatus: string,
   hasReading: boolean,
-): "waiting" | "reading" | "done" {
+): "idle" | "waiting" | "reading" | "done" | "retry" {
   if (hasReading) return "done";
   if (deviceStatus === "reading") return "reading";
+  if (deviceStatus === "retry") return "retry";
+  if (deviceStatus === "idle") return "idle";
   return "waiting";
 }
 
@@ -548,14 +550,18 @@ export function PatientKioskWizard() {
     }
   }, []);
 
+  // No auto-leer al entrar: Chrome exige un clic (permiso de red local a 127.0.0.1).
   useEffect(() => {
     if (step !== "oxygen") return;
     if (vitalsDraft.oxygenSaturation) {
       setDeviceStatus("done");
       return;
     }
-    void captureOximeter();
-  }, [step, captureOximeter, vitalsDraft.oxygenSaturation]);
+    setDeviceStatus((prev) => (prev === "reading" ? prev : "idle"));
+    setOxygenStatus(
+      "Pon el dedo en el oxímetro (pantalla con números) y pulsa Leer oxímetro. Si Chrome pide red local, elige Permitir.",
+    );
+  }, [step, vitalsDraft.oxygenSaturation]);
 
   async function runAnalysis() {
     setBusy(true);
@@ -1044,7 +1050,7 @@ export function PatientKioskWizard() {
           stepNumber={2}
           totalSteps={4}
           title="Oxigenación y pulso"
-          instruction="Coloca tu dedo en el oxímetro (debe verse SpO₂ en la pantalla del aparato). El kiosko leerá automáticamente; si falla, pulsa Leer oxímetro."
+          instruction="1) Oxímetro encendido con dedo. 2) Pulsa Leer oxímetro. 3) Si Chrome pide acceso a red local, elige Permitir. (Necesitas iniciar-servicio-oximetro.bat abierto.)"
           illustration="oxygen"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.oxygenSaturation))}
           statusMessage={
@@ -1063,7 +1069,7 @@ export function PatientKioskWizard() {
           }
           onContinue={async () => {
             if (!vitalsDraft.oxygenSaturation) {
-              setError("Espera la lectura de SpO₂ o pulsa Leer oxímetro");
+              setError("Pulsa Leer oxímetro primero (dedo en el aparato).");
               return;
             }
             setError(null);
@@ -1075,7 +1081,7 @@ export function PatientKioskWizard() {
           onRetry={async () => {
             await clearVitalFields(["oxygenSaturation", "heartRate"]);
             setOxygenStatus("");
-            await captureOximeter();
+            setDeviceStatus("idle");
           }}
         />
       )}
