@@ -47,7 +47,8 @@ export const KIOSK_STEP_LABELS: Record<KioskStep, string> = {
   analysis: "Análisis IA",
   result: "Resultado",
   waiting: "Espera médico",
-  consultation: "Teleconsulta",
+  /** Legacy step: video runs on Dell `/estacion/sala`, not on the touch kiosk. */
+  consultation: "Espera (pantalla principal)",
 };
 
 export type KioskAssessmentDraft = {

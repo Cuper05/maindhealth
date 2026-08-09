@@ -19,7 +19,7 @@ export default async function EstacionPage() {
     <div>
       <PageHeader
         title="Estación de telemedicina"
-        description="Cola de teleconsulta, panel del día y protocolo de llegada."
+        description="Cola de teleconsulta en esta PC (Dell: cámara y audífonos). El kiosk táctil solo captura datos y signos."
         action={
           <div className="flex flex-wrap gap-2">
             <a
@@ -28,7 +28,7 @@ export default async function EstacionPage() {
               rel="noopener noreferrer"
               className="rounded-lg border border-[#1d6eb8] bg-[#f0f7ff] px-4 py-2 text-sm font-medium text-[#1a4d7c] hover:bg-[#e0efff]"
             >
-              Pantalla paciente
+              Kiosk táctil (datos / signos)
             </a>
             {session?.role && can(session.role, "intake:write") ? (
               <Link href="/estacion/flujo" className={buttonPrimaryClassName}>
@@ -41,6 +41,14 @@ export default async function EstacionPage() {
 
       {waitingDoctor.length > 0 && (
         <section className="mb-8">
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-semibold">Acción en esta PC (Dell)</p>
+            <p className="mt-1">
+              Hay pacientes esperando teleconsulta. Entra a la sala aquí (cámara/audífonos). El
+              médico remoto se une desde su agenda o consulta. No uses el kiosk táctil ViewSonic
+              para video.
+            </p>
+          </div>
           <h2 className="mb-3 text-lg font-semibold text-slate-900">
             Pacientes esperando teleconsulta ({waitingDoctor.length})
           </h2>
@@ -69,20 +77,33 @@ export default async function EstacionPage() {
                         {item.redFlags.slice(0, 3).join(" · ")}
                       </p>
                     )}
+                    <p className="mt-2 text-xs text-slate-500">
+                      {item.meetingUrl
+                        ? "Sala Daily lista — únete en esta PC."
+                        : "Sala Daily pendiente — se creará al entrar."}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col flex-wrap gap-2 sm:items-end">
                     <Link
-                      href={`/consultas/cita/${item.appointmentId}`}
-                      className={buttonPrimaryClassName}
+                      href={`/estacion/sala/${item.appointmentId}`}
+                      className={`${buttonPrimaryClassName} text-center`}
                     >
-                      Atender / entrar a sala
+                      Entrar a videoconsulta en esta PC
                     </Link>
-                    <Link
-                      href={`/agenda/${item.appointmentId}`}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Ver cita
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/consultas/cita/${item.appointmentId}`}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        Expediente / médico remoto
+                      </Link>
+                      <Link
+                        href={`/agenda/${item.appointmentId}`}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        Ver cita
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </article>

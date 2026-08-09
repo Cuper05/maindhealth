@@ -45,7 +45,7 @@ export async function notifyDoctorsStationTeleconsulta(input: {
       userId: doctor.id,
       type: "videollamada_lista",
       title: `Estación: teleconsulta — ${patientName}`,
-      body: `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."}`,
+      body: `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Video en PC Dell de estación (no en kiosk táctil).`,
       href,
       referenceKey,
     };

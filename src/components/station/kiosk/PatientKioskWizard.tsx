@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
 import { STATION_CONSENT_TEXT } from "@/lib/station/copy";
 import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
@@ -258,6 +257,12 @@ export function PatientKioskWizard() {
         if (restoredStep === "analysis") {
           restoredStep = "summary";
           await kioskApi.patchSession({ currentStep: "summary" });
+        }
+        // La videoconsulta NO corre en el kiosk táctil (sin cámara/mic).
+        // Si quedó en "consultation" por una sesión vieja, volver a espera con instrucciones.
+        if (restoredStep === "consultation") {
+          restoredStep = "waiting";
+          await kioskApi.patchSession({ currentStep: "waiting" });
         }
         if (restoredStep !== "welcome") setStep(restoredStep);
         setPatientType((data.session.patientType as "new" | "returning") ?? null);
@@ -1379,14 +1384,26 @@ export function PatientKioskWizard() {
         </KioskCard>
       )}
 
-      {step === "waiting" && (
+      {(step === "waiting" || step === "consultation") && (
         <KioskCard className="text-center">
           <WaitingIllustration />
-          <h2 className="mt-6 text-2xl font-bold text-slate-900">Conexión con médico en vivo</h2>
-          <p className="mx-auto mt-4 max-w-md text-lg text-slate-600">
-            Ya avisamos al médico responsable. Permanece en la estación; cuando esté listo podrás
-            entrar a la videollamada.
+          <h2 className="mt-6 text-2xl font-bold text-slate-900">Médico notificado</h2>
+          <p className="mx-auto mt-4 max-w-lg text-lg text-slate-600">
+            La videoconsulta continúa en la <strong>pantalla principal</strong> (Dell), donde están
+            la cámara y los audífonos.
           </p>
+          <div className="mx-auto mt-6 max-w-md rounded-xl border border-[#1d6eb8]/25 bg-[#f0f7ff] px-4 py-4 text-left text-sm text-[#1a4d7c]">
+            <p className="font-semibold">Instrucciones para el personal</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                En la PC Dell abre <strong>Estación</strong> → el paciente en espera.
+              </li>
+              <li>
+                Pulsa <strong>Entrar a videoconsulta en esta PC</strong> y permite cámara/micrófono.
+              </li>
+              <li>El médico remoto se une desde su agenda o consulta.</li>
+            </ol>
+          </div>
           {assessment?.redFlags && assessment.redFlags.length > 0 && (
             <ul className="mx-auto mt-6 max-w-md space-y-2 text-left">
               {assessment.redFlags.map((flag) => (
@@ -1400,17 +1417,15 @@ export function PatientKioskWizard() {
             </ul>
           )}
           <p className="mt-6 animate-pulse text-sm font-medium text-[#1d6eb8]">
-            Médico notificado · Esperando conexión…
+            Médico notificado · Esperando atención en pantalla principal…
           </p>
           {appointment?.meetingUrl ? (
-            <div className="mt-8 flex justify-center">
-              <KioskPrimaryButton onClick={() => goToStep("consultation")}>
-                Entrar a teleconsulta
-              </KioskPrimaryButton>
-            </div>
+            <p className="mt-3 text-xs text-emerald-700">
+              Sala de video lista en la estación Dell. No uses cámara en esta pantalla táctil.
+            </p>
           ) : (
-            <p className="mt-4 text-xs text-slate-400">
-              Preparando la sala de video… Si tarda, un miembro del staff puede ayudar.
+            <p className="mt-3 text-xs text-slate-400">
+              Preparando la sala de video… El staff la abrirá en la pantalla principal.
             </p>
           )}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 pt-6">
@@ -1433,37 +1448,6 @@ export function PatientKioskWizard() {
               Corregir síntomas
             </KioskSecondaryButton>
             <KioskPrimaryButton onClick={resetKiosk}>Finalizar y salir</KioskPrimaryButton>
-          </div>
-        </KioskCard>
-      )}
-
-      {step === "consultation" && appointment?.meetingUrl && (
-        <KioskCard>
-          <h2 className="text-xl font-bold text-slate-900">Teleconsulta en vivo</h2>
-          <p className="mt-1 text-sm text-slate-500">El médico realizará una evaluación más profunda.</p>
-          <div className="mt-4 overflow-hidden rounded-2xl ring-1 ring-slate-200">
-            <DailyVideoRoom
-              meetingUrl={appointment.meetingUrl}
-              title="Consulta médica"
-              userName={patient?.name || clinical.consentSignerName || "Paciente"}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={resetKiosk}
-            className="mt-6 text-sm text-slate-500 hover:text-[#1d6eb8]"
-          >
-            Finalizar y atender siguiente paciente
-          </button>
-        </KioskCard>
-      )}
-
-      {step === "consultation" && !appointment?.meetingUrl && (
-        <KioskCard className="text-center">
-          <WaitingIllustration />
-          <p className="mt-4 text-lg text-slate-600">La sala de videollamada aún no está lista.</p>
-          <div className="mt-6">
-            <KioskSecondaryButton onClick={() => goToStep("waiting")}>Volver a espera</KioskSecondaryButton>
           </div>
         </KioskCard>
       )}

@@ -307,7 +307,7 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
         type: "videollamada_lista",
         referenceKey,
         title: `Estación: teleconsulta — ${name}`,
-        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""}`,
+        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""} Video en PC Dell de estación (no en kiosk táctil).`,
         href: `/consultas/cita/${row.appointmentId}`,
       });
     }
