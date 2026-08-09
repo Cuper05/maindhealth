@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { KIOSK_STEP_ORDER, KIOSK_STEP_SHORT, StatusPill } from "./KioskTheme";
 import { VitalsPanel } from "./VitalsPanel";
@@ -13,6 +14,15 @@ const KEYBOARD_STEPS: KioskStep[] = [
   "payment",
   "service",
 ];
+
+const LOGO_LONG_PRESS_MS = 1800;
+
+/** Force a fresh document load (useful after deploy; Edge kiosk has no Ctrl+F5). */
+function reloadKioskApp() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("v", String(Date.now()));
+  window.location.replace(url.toString());
+}
 
 export function KioskShell({
   step,
@@ -38,6 +48,22 @@ export function KioskShell({
 
   const keyboardEnabled = KEYBOARD_STEPS.includes(step);
   const { open: keyboardOpen, target, close } = useKioskVirtualKeyboard(keyboardEnabled);
+  const logoPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearLogoPress() {
+    if (logoPressTimer.current) {
+      clearTimeout(logoPressTimer.current);
+      logoPressTimer.current = null;
+    }
+  }
+
+  function startLogoPress() {
+    clearLogoPress();
+    logoPressTimer.current = setTimeout(() => {
+      logoPressTimer.current = null;
+      reloadKioskApp();
+    }, LOGO_LONG_PRESS_MS);
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef3f9]">
@@ -45,9 +71,18 @@ export function KioskShell({
         <div className="mx-auto max-w-7xl px-4 py-4 md:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-sm font-bold backdrop-blur">
+              <button
+                type="button"
+                aria-label="Mantén pulsado para recargar la app"
+                title="Personal: mantén pulsado ~2 s para recargar"
+                onPointerDown={startLogoPress}
+                onPointerUp={clearLogoPress}
+                onPointerLeave={clearLogoPress}
+                onPointerCancel={clearLogoPress}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-sm font-bold backdrop-blur select-none touch-manipulation"
+              >
                 MH
-              </div>
+              </button>
               <div>
                 <p className="text-xs font-medium uppercase tracking-widest text-blue-200">
                   MaindHealth · Estación
@@ -140,6 +175,14 @@ export function KioskShell({
                 Nueva atención (borrar sesión)
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={reloadKioskApp}
+              className="text-xs font-medium text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+              title="Personal: recarga la app tras un deploy"
+            >
+              Recargar app
+            </button>
             <p className="text-xs text-slate-400">
               Sigue las instrucciones en pantalla · Personal disponible si necesitas ayuda
             </p>
