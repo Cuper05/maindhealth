@@ -16,6 +16,7 @@ import {
   type ClinicalAssessment,
 } from "@/lib/kiosk/ai-assessment";
 import { getActiveResponsiblePhysician } from "@/lib/kiosk/commerce";
+import { notifyDoctorsStationTeleconsulta } from "@/lib/kiosk/notify-escalation";
 import { isVitalsComplete } from "@/lib/kiosk/vitals";
 import { buildPrescriptionFolio } from "@/lib/prescriptions/folio";
 import { createDailyRoom } from "@/lib/video/daily";
@@ -178,17 +179,36 @@ async function escalateToDoctor(params: {
     }
   }
 
+  const doctorId = responsible?.doctorId ?? appointment.doctorId;
   const inProgress = await getAppointmentStatusByCode("in_progress");
   await db
     .update(appointmentsTable)
     .set({
+      doctorId,
+      // Pasa a teleconsulta para que agenda/consulta muestren la sala Daily.
+      modality: "teleconsulta",
       meetingUrl: meetingUrl ?? appointment.meetingUrl,
       meetingRoomName: meetingRoomName ?? appointment.meetingRoomName,
       appointmentStatusId: inProgress?.id ?? appointment.appointmentStatusId,
-      notes: `${appointment.notes ?? ""}\nEscalado: ${assessment.redFlags.join("; ") || "fuera de protocolo"}`.trim(),
+      notes: `${appointment.notes ?? ""}\nEscalado estación IA → teleconsulta: ${assessment.redFlags.join("; ") || "fuera de protocolo"}`.trim(),
       updatedAt: new Date(),
     })
     .where(eq(appointmentsTable.id, appointment.id));
+
+  const notifyIds = [doctorId, appointment.doctorId, responsible?.doctorId].filter(
+    (id): id is number => typeof id === "number" && id > 0,
+  );
+  try {
+    await notifyDoctorsStationTeleconsulta({
+      appointmentId: appointment.id,
+      patientId: appointment.patientId,
+      doctorUserIds: notifyIds,
+      redFlags: assessment.redFlags,
+      meetingUrl: meetingUrl ?? null,
+    });
+  } catch {
+    // No bloquear la atención si falla el aviso
+  }
 
   const assessmentDraft: KioskAssessmentDraft = {
     ...assessment,

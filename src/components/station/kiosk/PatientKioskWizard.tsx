@@ -1360,8 +1360,8 @@ export function PatientKioskWizard() {
           <WaitingIllustration />
           <h2 className="mt-6 text-2xl font-bold text-slate-900">Conexión con médico en vivo</h2>
           <p className="mx-auto mt-4 max-w-md text-lg text-slate-600">
-            La IA detectó un cuadro que requiere evaluación médica personalizada. Permanece en la estación;
-            un médico se conectará contigo.
+            Ya avisamos al médico responsable. Permanece en la estación; cuando esté listo podrás
+            entrar a la videollamada.
           </p>
           {assessment?.redFlags && assessment.redFlags.length > 0 && (
             <ul className="mx-auto mt-6 max-w-md space-y-2 text-left">
@@ -1376,7 +1376,7 @@ export function PatientKioskWizard() {
             </ul>
           )}
           <p className="mt-6 animate-pulse text-sm font-medium text-[#1d6eb8]">
-            Esperando médico en línea…
+            Médico notificado · Esperando conexión…
           </p>
           {appointment?.meetingUrl ? (
             <div className="mt-8 flex justify-center">
@@ -1386,7 +1386,7 @@ export function PatientKioskWizard() {
             </div>
           ) : (
             <p className="mt-4 text-xs text-slate-400">
-              La sala de video se habilitará cuando el médico esté disponible.
+              Preparando la sala de video… Si tarda, un miembro del staff puede ayudar.
             </p>
           )}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 pt-6">

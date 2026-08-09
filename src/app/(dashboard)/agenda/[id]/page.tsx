@@ -118,7 +118,7 @@ export default async function AppointmentDetailPage({
           <Info label="Tipo" value={row.typeName} />
           <Info label="Modalidad" value={row.modality} />
           <Info label="Motivo" value={row.reason} className="sm:col-span-2" />
-          {meetingUrl && row.modality === "teleconsulta" && (
+          {meetingUrl && (
             <div className="sm:col-span-2">
               <dt className="text-slate-500">Videollamada</dt>
               <dd className="mt-2">
@@ -131,10 +131,14 @@ export default async function AppointmentDetailPage({
               No hay sala de video todavía. Recarga esta página o revisa la configuración de Daily.co.
             </div>
           )}
-          {row.modality !== "teleconsulta" && (
+          {!meetingUrl && row.modality !== "teleconsulta" && (
             <div className="sm:col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-              Modalidad actual: <strong>{row.modality}</strong>. Para probar la cámara, la cita debe ser{" "}
-              <strong>teleconsulta</strong>.
+              Modalidad actual: <strong>{row.modality}</strong>. Sin sala de videollamada.
+            </div>
+          )}
+          {meetingUrl && row.modality !== "teleconsulta" && (
+            <div className="sm:col-span-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+              Hay sala de video aunque la modalidad original era <strong>{row.modality}</strong>.
             </div>
           )}
         </dl>

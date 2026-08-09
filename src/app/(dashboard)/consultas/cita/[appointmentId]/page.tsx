@@ -151,27 +151,22 @@ export default async function ConsultationByAppointmentPage({
         }
       />
 
-      {(meetingUrl ?? appointment.meetingUrl) && appointment.modality === "teleconsulta" && (
+      {(meetingUrl ?? appointment.meetingUrl) ? (
         <section className="mb-6">
           <DailyVideoRoom
             meetingUrl={(meetingUrl ?? appointment.meetingUrl)!}
             title="Teleconsulta en vivo"
           />
         </section>
-      )}
-
-      {appointment.modality === "teleconsulta" && !(meetingUrl ?? appointment.meetingUrl) && (
+      ) : appointment.modality === "teleconsulta" ? (
         <section className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           No se pudo crear la sala de videollamada. Revisa la configuración de Daily.co
           (`VIDEO_API_KEY`) o abre de nuevo esta consulta.
         </section>
-      )}
-
-      {appointment.modality !== "teleconsulta" && (
+      ) : (
         <section className="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          Esta cita es modalidad <strong>{appointment.modality}</strong>, no teleconsulta.
-          Por eso no aparece videollamada. Crea una cita nueva con modalidad{" "}
-          <strong>teleconsulta</strong> para probar la cámara.
+          Esta cita es modalidad <strong>{appointment.modality}</strong> y aún no tiene sala de
+          videollamada.
         </section>
       )}
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { getTodayStationAppointments } from "@/lib/queries/visit-intake";
+import { getWaitingDoctorStationSessions } from "@/lib/queries/station-waiting";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buttonPrimaryClassName, cardClassName } from "@/lib/ui/classes";
 
@@ -11,30 +12,24 @@ export default async function EstacionPage() {
   if (!can(session?.role, "intake:view")) redirect("/");
 
   const appointments = await getTodayStationAppointments();
+  const waitingDoctor = await getWaitingDoctorStationSessions();
   const pending = appointments.filter((a) => !a.intakeComplete).length;
 
   return (
     <div>
       <PageHeader
         title="Estación de telemedicina"
-        description="Panel del día y acceso al protocolo guiado de llegada."
+        description="Cola de teleconsulta, panel del día y protocolo de llegada."
         action={
           <div className="flex flex-wrap gap-2">
             <a
-              href="https://maindhealth.vercel.app/estacion/paciente"
+              href="https://health.maindsteel.com.mx/estacion/paciente?nueva=1"
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-lg border border-[#1d6eb8] bg-[#f0f7ff] px-4 py-2 text-sm font-medium text-[#1a4d7c] hover:bg-[#e0efff]"
             >
-              Pantalla paciente (producción)
+              Pantalla paciente
             </a>
-            <Link
-              href="/estacion/paciente"
-              target="_blank"
-              className="rounded-lg border border-teal-600 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-800 hover:bg-teal-100"
-            >
-              Pantalla paciente (local)
-            </Link>
             {session?.role && can(session.role, "intake:write") ? (
               <Link href="/estacion/flujo" className={buttonPrimaryClassName}>
                 Iniciar protocolo staff
@@ -44,10 +39,66 @@ export default async function EstacionPage() {
         }
       />
 
+      {waitingDoctor.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-slate-900">
+            Pacientes esperando teleconsulta ({waitingDoctor.length})
+          </h2>
+          <div className="space-y-3">
+            {waitingDoctor.map((item) => (
+              <article
+                key={item.sessionId}
+                className={`${cardClassName} border-amber-200 bg-amber-50/40`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {item.patientName}{" "}
+                      <span className="text-sm font-normal text-slate-500">
+                        ({item.chartNumber})
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Asignado a Dr(a). {item.doctorName} · {item.modality}
+                    </p>
+                    {item.summary && (
+                      <p className="mt-1 text-sm text-slate-500 line-clamp-2">{item.summary}</p>
+                    )}
+                    {item.redFlags.length > 0 && (
+                      <p className="mt-2 text-xs font-medium text-amber-800">
+                        {item.redFlags.slice(0, 3).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/consultas/cita/${item.appointmentId}`}
+                      className={buttonPrimaryClassName}
+                    >
+                      Atender / entrar a sala
+                    </Link>
+                    <Link
+                      href={`/agenda/${item.appointmentId}`}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      Ver cita
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <StatCard label="Citas hoy" value={appointments.length} />
         <StatCard label="Intake pendiente" value={pending} highlight={pending > 0} />
-        <StatCard label="Listos para triage" value={appointments.length - pending} />
+        <StatCard
+          label="Esperando médico"
+          value={waitingDoctor.length}
+          highlight={waitingDoctor.length > 0}
+        />
       </div>
 
       <div className="space-y-3">

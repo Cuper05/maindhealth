@@ -20,6 +20,7 @@ import {
   medicalDevicesTable,
   notificationsTable,
   patientsTable,
+  stationKioskSessionsTable,
   vitalSignsTable,
   usersTable,
 } from "@/lib/db/schema";
@@ -265,6 +266,49 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
         title: `${device.typeName} requiere atención`,
         body: `${DEVICE_STATUS_LABELS[device.status as DeviceStatus]}${device.serialNumber ? ` · ${device.serialNumber}` : ""}`,
         href: `/dispositivos/${device.id}`,
+      });
+    }
+  }
+
+  // Pacientes de estación IA esperando teleconsulta (médico responsable o asignado).
+  if (role === "doctor" || role === "admin" || can(role, "consultations:view")) {
+    const waitConditions = [eq(stationKioskSessionsTable.status, "waiting_doctor")];
+    if (role === "doctor") {
+      waitConditions.push(eq(appointmentsTable.doctorId, userId));
+    }
+
+    const waiting = await db
+      .select({
+        appointmentId: appointmentsTable.id,
+        meetingUrl: appointmentsTable.meetingUrl,
+        firstName: patientsTable.firstName,
+        lastNamePaternal: patientsTable.lastNamePaternal,
+        lastNameMaternal: patientsTable.lastNameMaternal,
+        chartNumber: patientsTable.chartNumber,
+        assessmentDraft: stationKioskSessionsTable.assessmentDraft,
+      })
+      .from(stationKioskSessionsTable)
+      .innerJoin(
+        appointmentsTable,
+        eq(stationKioskSessionsTable.appointmentId, appointmentsTable.id),
+      )
+      .innerJoin(patientsTable, eq(appointmentsTable.patientId, patientsTable.id))
+      .where(and(...waitConditions));
+
+    for (const row of waiting) {
+      if (!row.appointmentId) continue;
+      const referenceKey = `estacion-teleconsulta:${row.appointmentId}`;
+      activeKeys.push(referenceKey);
+      const name = formatPersonName(row);
+      const flags =
+        (row.assessmentDraft?.redFlags ?? []).slice(0, 3).join("; ") || "Revisión médica remota";
+      await ensureNotification({
+        userId,
+        type: "videollamada_lista",
+        referenceKey,
+        title: `Estación: teleconsulta — ${name}`,
+        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""}`,
+        href: `/consultas/cita/${row.appointmentId}`,
       });
     }
   }
