@@ -11,6 +11,7 @@ export function KioskShell({
   deviceStatus,
   vitalsDraft,
   showVitalsPanel,
+  onNewSession,
   children,
 }: {
   step: KioskStep;
@@ -18,6 +19,7 @@ export function KioskShell({
   deviceStatus: string;
   vitalsDraft: VitalsDraft;
   showVitalsPanel: boolean;
+  onNewSession?: () => void;
   children: React.ReactNode;
 }) {
   const stepIndex = KIOSK_STEP_ORDER.indexOf(step);
@@ -43,7 +45,18 @@ export function KioskShell({
                 </h1>
               </div>
             </div>
-            <p className="text-sm text-blue-100">{KIOSK_STEP_SHORT[step]}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-blue-100">{KIOSK_STEP_SHORT[step]}</p>
+              {onNewSession && step !== "welcome" ? (
+                <button
+                  type="button"
+                  onClick={onNewSession}
+                  className="rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20"
+                >
+                  Nueva atención
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-5 overflow-x-auto pb-1">
@@ -98,9 +111,20 @@ export function KioskShell({
       <footer className="border-t border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <StatusPill status={status} />
-          <p className="text-xs text-slate-400">
-            Sigue las instrucciones en pantalla · Personal disponible si necesitas ayuda
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            {onNewSession && step !== "welcome" ? (
+              <button
+                type="button"
+                onClick={onNewSession}
+                className="text-sm font-medium text-[#1d6eb8] underline-offset-2 hover:underline"
+              >
+                Nueva atención (borrar sesión)
+              </button>
+            ) : null}
+            <p className="text-xs text-slate-400">
+              Sigue las instrucciones en pantalla · Personal disponible si necesitas ayuda
+            </p>
+          </div>
         </div>
       </footer>
     </div>

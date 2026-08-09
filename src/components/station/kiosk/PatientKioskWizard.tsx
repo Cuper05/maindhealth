@@ -233,6 +233,23 @@ export function PatientKioskWizard() {
 
   const loadSession = useCallback(async () => {
     try {
+      // ?nueva=1 fuerza borrar la cookie/sesión (útil en pruebas de estación)
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("nueva") === "1" || params.get("reset") === "1") {
+          await kioskApi.resetSession();
+          params.delete("nueva");
+          params.delete("reset");
+          const qs = params.toString();
+          window.history.replaceState(
+            {},
+            "",
+            `${window.location.pathname}${qs ? `?${qs}` : ""}`,
+          );
+          return;
+        }
+      }
+
       const data = await kioskApi.getSession();
       if (data.session) {
         let restoredStep = data.session.currentStep as KioskStep;
@@ -326,6 +343,21 @@ export function PatientKioskWizard() {
     setBusy(true);
     setError(null);
     try {
+      // Asegura no arrastrar paciente/vitals de una sesión anterior en memoria.
+      setPatient(null);
+      setAppointment(null);
+      setAppointmentId(null);
+      setPatientType(null);
+      setVitalsDraft({});
+      setClinical(emptyClinical());
+      setAssessment(null);
+      setSelectedService(null);
+      setPaymentOrder(null);
+      setPaymentStatus("unpaid");
+      setDataConfirmed(false);
+      setDeviceStatus("idle");
+      setOxygenStatus("");
+      setOxygenCapturing(false);
       await kioskApi.startSession();
       await goToStep("service");
     } catch (e) {
@@ -608,21 +640,32 @@ export function PatientKioskWizard() {
   }
 
   async function resetKiosk() {
-    await kioskApi.resetSession();
-    setStep("welcome");
-    setPatient(null);
-    setAppointment(null);
-    setAppointmentId(null);
-    setPatientType(null);
-    setVitalsDraft({});
-    setClinical(emptyClinical());
-    setAssessment(null);
-    setSelectedService(null);
-    setPaymentOrder(null);
-    setPaymentStatus("unpaid");
-    setDataConfirmed(false);
-    setClinicalError(null);
-    setHighlightSymptomGaps(false);
+    setBusy(true);
+    setError(null);
+    try {
+      await kioskApi.resetSession();
+      setStep("welcome");
+      setPatient(null);
+      setAppointment(null);
+      setAppointmentId(null);
+      setPatientType(null);
+      setVitalsDraft({});
+      setClinical(emptyClinical());
+      setAssessment(null);
+      setSelectedService(null);
+      setPaymentOrder(null);
+      setPaymentStatus("unpaid");
+      setDataConfirmed(false);
+      setClinicalError(null);
+      setHighlightSymptomGaps(false);
+      setDeviceStatus("idle");
+      setOxygenStatus("");
+      setOxygenCapturing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo reiniciar la sesión");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -632,6 +675,9 @@ export function PatientKioskWizard() {
       deviceStatus={deviceStatus}
       vitalsDraft={vitalsDraft}
       showVitalsPanel={showVitalsPanel}
+      onNewSession={() => {
+        void resetKiosk();
+      }}
     >
       {error && step !== "summary" && <KioskError message={error} />}
 
@@ -645,10 +691,24 @@ export function PatientKioskWizard() {
             la receta solo se emite si el caso entra en un protocolo preautorizado por el médico responsable.
           </p>
           <p className="mt-3 text-sm text-slate-500">Pago primero · Sin cita previa · Disponible todo el año</p>
-          <div className="mt-10 flex justify-center">
-            <KioskPrimaryButton disabled={busy} onClick={handleStart}>
+          {patient ? (
+            <div className="mx-auto mt-6 max-w-md rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Hay una sesión anterior de <strong>{patient.name}</strong>. Usa{" "}
+              <button type="button" className="font-semibold underline" onClick={() => void resetKiosk()}>
+                Nueva atención
+              </button>{" "}
+              para empezar de cero, o continúa con Iniciar atención (se crea sesión nueva).
+            </div>
+          ) : null}
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <KioskPrimaryButton disabled={busy || !sessionReady} onClick={handleStart}>
               Iniciar atención
             </KioskPrimaryButton>
+            {patient ? (
+              <KioskSecondaryButton disabled={busy} onClick={() => void resetKiosk()}>
+                Nueva atención
+              </KioskSecondaryButton>
+            ) : null}
           </div>
         </KioskCard>
       )}
