@@ -27,6 +27,7 @@ type SerialPortLike = {
   getInfo?: () => { usbVendorId?: number; usbProductId?: number };
 };
 
+const BRIDGE_URL = "http://127.0.0.1:3927";
 const SILICON_LABS_VID = 0x10c4;
 
 /** Mismas órdenes que el puente Node que ya leyó este CMS50D+. */
@@ -38,6 +39,7 @@ const REALTIME_CMDS = [
   new Uint8Array([0x7d, 0x81, 0xa0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
 ];
 const PING_CMD = new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
+const KEEP_CMD = new Uint8Array([0x7d, 0x81, 0xaf, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -56,6 +58,37 @@ function parseClassic5(buffer: Uint8Array) {
     if (b4 >= 70 && b4 <= 100 && b3 >= 30 && b3 <= 250) {
       readings.push({ spo2: b4, hr: b3 });
       i += 4;
+    }
+  }
+  return readings;
+}
+
+/** Protocolo v7 (9 bytes, bits de sync). */
+function parseV7(buffer: Uint8Array) {
+  const readings: { spo2: number; hr: number }[] = [];
+  for (let i = 0; i < buffer.length - 8; i++) {
+    if (buffer[i]! & 0x80) continue;
+    if (!(buffer[i + 1]! & 0x80)) continue;
+    let syncOk = true;
+    for (let j = 2; j < 9; j++) {
+      if (!(buffer[i + j]! & 0x80)) {
+        syncOk = false;
+        break;
+      }
+    }
+    if (!syncOk) continue;
+    if (buffer[i] !== 0x01) continue;
+    const high = buffer[i + 1]!;
+    const pkg: number[] = [];
+    for (let j = 0; j < 7; j++) {
+      let b = buffer[i + 2 + j]! & 0x7f;
+      if (high & (1 << j)) b |= 0x80;
+      pkg.push(b);
+    }
+    const hr = pkg[3]!;
+    const spo2 = pkg[4]!;
+    if (spo2 >= 70 && spo2 <= 100 && hr >= 30 && hr <= 250 && spo2 !== 0x7f && hr !== 0xff) {
+      readings.push({ spo2, hr });
     }
   }
   return readings;
@@ -113,22 +146,20 @@ async function openPort(port: SerialPortLike, baudRate: number) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/Failed to open|open serial port|Access denied/i.test(msg)) {
       throw new Error(
-        "Puerto USB ocupado. Cierra esta pestaña, vuelve a abrirla, o desconecta/reconecta el USB del oxímetro. No uses ningún .bat. Luego elige Silicon Labs CP210x.",
+        "Puerto USB ocupado. Cierra otras pestañas del oxímetro, o deja solo el servicio local (iniciar-servicio-oximetro.bat). Desconecta/reconecta USB si sigue bloqueado.",
       );
     }
     throw err;
   }
   try {
+    await port.setSignals?.({ dataTerminalReady: false, requestToSend: false });
+    await sleep(80);
     await port.setSignals?.({ dataTerminalReady: true, requestToSend: false });
   } catch {
     /* optional */
   }
 }
 
-/**
- * Lee sin colgarse: reader.read() bloquea para siempre si no hay datos.
- * Aquí se combina con un tick para respetar el timeout.
- */
 async function readAtBaud(
   port: SerialPortLike,
   baudRate: number,
@@ -159,8 +190,9 @@ async function readAtBaud(
     let lastStatus = 0;
 
     while (Date.now() < deadline) {
-      if (Date.now() - lastPing > 800) {
+      if (Date.now() - lastPing > 700) {
         await writer.write(PING_CMD);
+        await writer.write(KEEP_CMD);
         lastPing = Date.now();
       }
 
@@ -176,7 +208,7 @@ async function readAtBaud(
       ]);
 
       if (raced.kind === "tick") {
-        if (Date.now() - lastStatus > 700) {
+        if (Date.now() - lastStatus > 500) {
           lastStatus = Date.now();
           const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
           if (window.length > 0) {
@@ -185,7 +217,7 @@ async function readAtBaud(
           } else if (bytes > 0) {
             onProgress(`Datos USB ${bytes} bytes @ ${baudRate} · ${left}s · mantén el dedo`);
           } else {
-            onProgress(`Esperando datos @ ${baudRate} · ${left}s · dedo firme`);
+            onProgress(`0 bytes @ ${baudRate} · ${left}s · ¿oxímetro ENCENDIDO + dedo?`);
           }
         }
         continue;
@@ -201,7 +233,11 @@ async function readAtBaud(
       merged.set(value, leftover.length);
       leftover = merged.length > 8192 ? merged.slice(merged.length - 4096) : merged;
 
-      for (const reading of [...parseClassic5(leftover), ...parseLoose(leftover)]) {
+      for (const reading of [
+        ...parseClassic5(leftover),
+        ...parseV7(leftover),
+        ...parseLoose(leftover),
+      ]) {
         window.push(reading);
       }
 
@@ -210,7 +246,7 @@ async function readAtBaud(
     }
 
     if (bytes === 0) {
-      onProgress(`Sin datos @ ${baudRate}. ¿Oxímetro encendido y dedo puesto?`);
+      onProgress(`Sin datos @ ${baudRate} (0 bytes). Enciende el oxímetro y pon el dedo.`);
     } else {
       onProgress(`Hubo ${bytes} bytes @ ${baudRate} pero sin SpO2 estable`);
     }
@@ -262,19 +298,99 @@ async function pickSiliconLabsPort(onProgress: (msg: string) => void): Promise<S
   }
 }
 
-async function readCms50DPlus(onProgress: (msg: string) => void): Promise<{ spo2: number; hr: number }> {
+async function tryLocalBridge(
+  onProgress: (msg: string) => void,
+): Promise<{ spo2: number; hr: number; via: "bridge" } | null> {
+  onProgress("Servicio local 127.0.0.1:3927…");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 25000);
+  try {
+    const res = await fetch(`${BRIDGE_URL}/read`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+    });
+    const data = (await res.json()) as {
+      ok?: boolean;
+      oxygenSaturation?: number;
+      heartRate?: number;
+      error?: string;
+      bytes?: number;
+    };
+    if (!res.ok || !data.ok) {
+      onProgress(
+        data.error ||
+          `Servicio local sin lectura (bytes=${data.bytes ?? "?"}). Probando Web Serial…`,
+      );
+      return null;
+    }
+    if (
+      typeof data.oxygenSaturation === "number" &&
+      typeof data.heartRate === "number" &&
+      data.oxygenSaturation >= 70 &&
+      data.oxygenSaturation <= 100
+    ) {
+      return { spo2: data.oxygenSaturation, hr: data.heartRate, via: "bridge" };
+    }
+    return null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Failed to fetch|NetworkError|abort/i.test(msg)) {
+      onProgress("Servicio local no disponible → Web Serial");
+      return null;
+    }
+    if (/private|local network|Permission/i.test(msg)) {
+      onProgress(
+        "Chrome bloqueó red local. Permite acceso a red local para este sitio, o usa Web Serial.",
+      );
+      return null;
+    }
+    onProgress(`Puente: ${msg}. Probando Web Serial…`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function bridgeHealthy(): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 1200);
+    const res = await fetch(`${BRIDGE_URL}/health`, { signal: ctrl.signal });
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function readCms50DPlus(onProgress: (msg: string) => void): Promise<{
+  spo2: number;
+  hr: number;
+  via: "bridge" | "web-serial";
+}> {
+  // Prefer local Node service (owns COM4). Do NOT open Web Serial while bridge is up.
+  const localUp = await bridgeHealthy();
+  if (localUp) {
+    const fromBridge = await tryLocalBridge(onProgress);
+    if (fromBridge) return fromBridge;
+    throw new Error(
+      "El servicio local está activo pero no obtuvo SpO2. Enciende el oxímetro, pon el dedo (debe verse en la pantalla del aparato) y reintenta. Si el servicio no debe usarse, cierra iniciar-servicio-oximetro.bat y usa solo Web Serial.",
+    );
+  }
+
+  onProgress("Web Serial @ 19200 — verás 0 bytes o N bytes en vivo");
   const port = await pickSiliconLabsPort(onProgress);
 
-  onProgress("USB @ 19200 — cuenta atrás activa, mantén el dedo");
   const fast = await readAtBaud(port, 19200, 15000, onProgress);
-  if (fast) return fast;
+  if (fast) return { ...fast, via: "web-serial" };
 
   onProgress("Reintentando @ 115200…");
   const slow = await readAtBaud(port, 115200, 12000, onProgress);
-  if (slow) return slow;
+  if (slow) return { ...slow, via: "web-serial" };
 
   throw new Error(
-    "No hubo lectura válida. Enciende el oxímetro, pon el dedo 10 s, cierra otras pestañas, desconecta/reconecta USB y reintenta con Silicon Labs CP210x.",
+    "0 bytes o sin SpO2 estable. 1) Oxímetro ENCENDIDO (pantalla con números) 2) Dedo 10 s 3) Cierra otras pestañas USB 4) Mejor: abre iniciar-servicio-oximetro.bat y deja esa ventana abierta, luego pulsa de nuevo.",
   );
 }
 
@@ -297,11 +413,10 @@ export function UsbOximeterReader({
     setBusy(true);
     setStatus("Iniciando…");
     try {
-      if (!canSerial) {
-        throw new Error("Abre esta página en Chrome o Edge.");
-      }
       const sample = await readCms50DPlus((msg) => setStatus(msg));
-      setStatus(`Listo: SpO2 ${sample.spo2}% · FC ${sample.hr}. Guardando…`);
+      setStatus(
+        `Listo (${sample.via}): SpO2 ${sample.spo2}% · FC ${sample.hr}. Guardando…`,
+      );
       startTransition(async () => {
         try {
           const result = await recordUsbOximeterReading({
@@ -314,6 +429,8 @@ export function UsbOximeterReader({
           if (result && "error" in result) {
             setError(result.error);
             setStatus("");
+          } else {
+            setStatus(`Guardado: SpO2 ${sample.spo2}% · FC ${sample.hr} (${sample.via})`);
           }
         } finally {
           setBusy(false);
@@ -330,8 +447,11 @@ export function UsbOximeterReader({
     <section className={`${cardClassName} mt-6 border-teal-200 bg-teal-50/40`}>
       <h2 className="mb-2 font-medium text-slate-900">Lectura automática USB (CMS50D+)</h2>
       <p className="mb-4 text-sm text-slate-600">
-        Actualizado: debe verse cuenta atrás (15s, 14s…). Cierra otras pestañas, no uses el .bat,
-        oxímetro encendido + dedo + botón → <strong>Silicon Labs CP210x</strong>.
+        Estación: deja abierto{" "}
+        <code className="rounded bg-white/80 px-1">iniciar-servicio-oximetro.bat</code> (puerto
+        3927). El botón usa ese servicio primero; si no está, usa Web Serial. Oxímetro{" "}
+        <strong>encendido</strong> + dedo (debe verse SpO2 en la pantalla del aparato).
+        {canSerial ? "" : " Este navegador no soporta Web Serial; usa el .bat del servicio."}
       </p>
       <FormAlert error={error || undefined} success={status && !error ? status : undefined} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">

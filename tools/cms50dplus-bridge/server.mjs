@@ -4,6 +4,7 @@
  * sin depender de Web Serial en el navegador.
  *
  *   node server.mjs
+ *   (dejar la ventana abierta)
  */
 
 import http from "node:http";
@@ -25,8 +26,57 @@ function parseClassic5(buffer) {
     const b4 = buffer[i + 4];
     if (b1 & 0x80 || b2 & 0x80 || b3 & 0x80 || b4 & 0x80) continue;
     if (b4 >= 70 && b4 <= 100 && b3 >= 30 && b3 <= 250) {
-      readings.push({ spo2: b4, hr: b3 });
+      readings.push({ spo2: b4, hr: b3, format: "classic5" });
       i += 4;
+    }
+  }
+  return readings;
+}
+
+/** Protocolo v7: trama 9 bytes con bits de sincronización. */
+function parseV7(buffer) {
+  const readings = [];
+  for (let i = 0; i < buffer.length - 8; i++) {
+    if (buffer[i] & 0x80) continue;
+    if (!(buffer[i + 1] & 0x80)) continue;
+    let syncOk = true;
+    for (let j = 2; j < 9; j++) {
+      if (!(buffer[i + j] & 0x80)) {
+        syncOk = false;
+        break;
+      }
+    }
+    if (!syncOk) continue;
+    const packageType = buffer[i];
+    if (packageType !== 0x01) continue;
+    const high = buffer[i + 1];
+    const pkg = [];
+    for (let j = 0; j < 7; j++) {
+      let b = buffer[i + 2 + j] & 0x7f;
+      if (high & (1 << j)) b |= 0x80;
+      pkg.push(b);
+    }
+    const hr = pkg[3];
+    const spo2 = pkg[4];
+    if (spo2 >= 70 && spo2 <= 100 && hr >= 30 && hr <= 250 && spo2 !== 0x7f && hr !== 0xff) {
+      readings.push({ spo2, hr, format: "v7" });
+    }
+  }
+  return readings;
+}
+
+function parseLoose(buffer) {
+  const readings = [];
+  for (let i = 0; i < buffer.length - 8; i++) {
+    if (buffer[i] !== 0x01 && buffer[i] !== 0x81) continue;
+    for (let a = i + 1; a < i + 8 && a < buffer.length; a++) {
+      for (let b = a + 1; b < i + 9 && b < buffer.length; b++) {
+        const spo2 = buffer[a];
+        const hr = buffer[b];
+        if (spo2 >= 85 && spo2 <= 100 && hr >= 40 && hr <= 180) {
+          readings.push({ spo2, hr, format: "loose" });
+        }
+      }
     }
   }
   return readings;
@@ -42,6 +92,19 @@ function stableOf(window, need = 3) {
   const avg = (arr) => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
   return { spo2: avg(spo2), hr: avg(hr) };
 }
+
+function realtimeCommands() {
+  return [
+    Buffer.from([0x7d, 0x81, 0xa6, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa2, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa7, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+  ];
+}
+
+const START_CMD = Buffer.from([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
+const KEEP_CMD = Buffer.from([0x7d, 0x81, 0xaf, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
 
 async function pickPort() {
   if (DEFAULT_SERIAL_PATH) return DEFAULT_SERIAL_PATH;
@@ -71,36 +134,65 @@ function openPort(path, baudRate) {
   });
 }
 
-async function readOnce(maxMs = 12000) {
+function setSignals(port, dtr, rts) {
+  return new Promise((resolve) => {
+    port.set({ dtr, rts }, () => resolve());
+  });
+}
+
+async function readOnce(maxMs = 15000) {
   const path = await pickPort();
   if (!path) {
-    throw new Error("No hay puerto COM del oxímetro (Silicon Labs).");
+    throw Object.assign(new Error("No hay puerto COM del oxímetro (Silicon Labs)."), {
+      code: "NO_PORT",
+      bytes: 0,
+    });
   }
 
-  const startCmd = Buffer.from([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
+  let lastBytes = 0;
+  let lastBaud = BAUDS[0];
 
   for (const baudRate of BAUDS) {
+    lastBaud = baudRate;
     const port = await openPort(path, baudRate);
     try {
-      port.write(startCmd);
+      await setSignals(port, false, false);
+      await new Promise((r) => setTimeout(r, 80));
+      await setSignals(port, true, false);
+      await new Promise((r) => setTimeout(r, 120));
+
+      for (const cmd of realtimeCommands()) {
+        port.write(cmd);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
       const window = [];
       let buffer = Buffer.alloc(0);
+      let bytes = 0;
+
       const sample = await new Promise((resolve) => {
         const timer = setTimeout(() => {
           cleanup();
           resolve(null);
         }, maxMs);
 
-        const ping = setInterval(() => port.write(startCmd), 700);
+        const ping = setInterval(() => {
+          port.write(START_CMD);
+          port.write(KEEP_CMD);
+        }, 700);
 
         const onData = (chunk) => {
+          bytes += chunk.length;
+          lastBytes = bytes;
           buffer = Buffer.concat([buffer, chunk]);
           if (buffer.length > 8192) buffer = buffer.subarray(buffer.length - 4096);
-          for (const r of parseClassic5(buffer)) window.push(r);
+          for (const r of [...parseClassic5(buffer), ...parseV7(buffer), ...parseLoose(buffer)]) {
+            window.push(r);
+          }
           const stable = stableOf(window, 3);
           if (stable) {
             cleanup();
-            resolve({ ...stable, port: path, baudRate });
+            resolve({ ...stable, port: path, baudRate, bytes, format: window[window.length - 1]?.format });
           }
         };
 
@@ -115,17 +207,34 @@ async function readOnce(maxMs = 12000) {
 
       await new Promise((r) => port.close(() => r()));
       if (sample) return sample;
+      console.log(`[read] ${path} @ ${baudRate}: bytes=${bytes} (sin SpO2 estable)`);
     } catch (err) {
       try {
         await new Promise((r) => port.close(() => r()));
       } catch {
         /* ignore */
       }
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/Access denied|cannot open|ENOENT|busy/i.test(msg)) {
+        throw Object.assign(
+          new Error(
+            "COM ocupado. Cierra Chrome/Edge con el puerto USB, cierra leer-oximetro.bat y reintenta.",
+          ),
+          { code: "PORT_BUSY", bytes: 0, port: path },
+        );
+      }
       throw err;
     }
   }
 
-  throw new Error("Sin lectura estable. Oxímetro encendido y dedo puesto.");
+  throw Object.assign(
+    new Error(
+      lastBytes === 0
+        ? `0 bytes desde ${path}. Enciende el oxímetro (pantalla con números), pon el dedo y espera 5 s. El chip USB puede verse aunque el aparato esté apagado.`
+        : `Hubo ${lastBytes} bytes @ ${lastBaud} pero sin SpO2/FC estable. Mantén el dedo firme.`,
+    ),
+    { code: lastBytes === 0 ? "NO_BYTES" : "NO_STABLE", bytes: lastBytes, port: path, baudRate: lastBaud },
+  );
 }
 
 /** CORS + Private Network Access (Chrome exige esto desde https://health… → 127.0.0.1) */
@@ -171,19 +280,31 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/read") {
+    console.log(`[${new Date().toISOString()}] POST /read`);
     try {
-      const sample = await readOnce(12000);
+      const sample = await readOnce(15000);
+      console.log(
+        `[read] OK SpO2=${sample.spo2} FC=${sample.hr} @ ${sample.baudRate} bytes=${sample.bytes}`,
+      );
       sendJson(res, 200, {
         ok: true,
         oxygenSaturation: sample.spo2,
         heartRate: sample.hr,
         port: sample.port,
         baudRate: sample.baudRate,
+        bytes: sample.bytes,
+        format: sample.format,
       });
     } catch (err) {
+      const bytes = typeof err?.bytes === "number" ? err.bytes : 0;
+      const message = err instanceof Error ? err.message : "Error de lectura";
+      console.log(`[read] FAIL bytes=${bytes}: ${message}`);
       sendJson(res, 500, {
         ok: false,
-        error: err instanceof Error ? err.message : "Error de lectura",
+        error: message,
+        bytes,
+        code: err?.code || "READ_FAIL",
+        port: err?.port,
       });
     }
     return;
@@ -192,8 +313,11 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { ok: false, error: "Not found" });
 });
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
+  const path = await pickPort();
   console.log(`CMS50D+ bridge listo en http://${HOST}:${PORT}`);
+  console.log(`Puerto preferido: ${path || "(ninguno)"}`);
   console.log("Health: GET /health");
   console.log("Leer:   POST /read");
+  console.log("Deja esta ventana ABIERTA. En Chrome permite 'red local' / local network si lo pide.");
 });

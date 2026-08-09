@@ -3,19 +3,6 @@
  *
  * Lee SpO2 / pulso por puerto serie USB y los envía a:
  *   POST /api/device-readings/ingest
- *
- * Uso:
- *   node bridge.mjs --list-ports
- *   node bridge.mjs --once
- *   node bridge.mjs --simulate --once
- *
- * Variables:
- *   MAINHEALTH_API_URL   (default https://health.maindsteel.com.mx)
- *   DEVICE_INGEST_API_KEY
- *   DEVICE_SERIAL        (default 22040300012)
- *   CMS50_PORT           (ej. COM4) — si no, auto-detecta
- *   PATIENT_ID           (opcional)
- *   APPOINTMENT_ID       (opcional)
  */
 
 import { SerialPort } from "serialport";
@@ -50,8 +37,9 @@ const config = {
   once: args.has("--once"),
   simulate: args.has("--simulate"),
   listPorts: args.has("--list-ports"),
-  baud: Number(process.env.CMS50_BAUD || getArg("--baud") || 115200),
-  stableNeeded: Number(process.env.CMS50_STABLE || 8),
+  debug: args.has("--debug"),
+  baud: Number(process.env.CMS50_BAUD || getArg("--baud") || 19200),
+  stableNeeded: Number(process.env.CMS50_STABLE || 5),
 };
 
 function log(...parts) {
@@ -62,7 +50,6 @@ async function listPorts() {
   const ports = await SerialPort.list();
   if (!ports.length) {
     log("No se encontraron puertos serie.");
-    log("Conecta el CMS50D+, enciéndelo e instala el driver CP210x si hace falta.");
     return ports;
   }
   for (const p of ports) {
@@ -81,21 +68,18 @@ function pickOximeterPort(ports) {
       blob.includes("cp210") ||
       blob.includes("silicon") ||
       blob.includes("contec") ||
-      blob.includes("usb serial") ||
-      blob.includes("usb-serial")
+      blob.includes("usb serial")
     );
   });
   if (preferred) return preferred.path;
-  // Evitar Intel AMT SOL
-  const nonAmt = ports.find((p) => !`${p.friendlyName || ""}`.toLowerCase().includes("active management"));
+  const nonAmt = ports.find(
+    (p) => !`${p.friendlyName || ""}`.toLowerCase().includes("active management"),
+  );
   return nonAmt?.path || ports[0]?.path;
 }
 
-/**
- * Parser de tramas en vivo CMS50D+ (paquete de 5 bytes, bit7 sync en byte0).
- * SpO2 = byte4, PR = byte3 (valores típicos cuando hay dedo).
- */
-function parseLivePackets(buffer) {
+/** Paquetes clásicos de 5 bytes (bit7 sync). */
+function parseClassic5(buffer) {
   const readings = [];
   for (let i = 0; i < buffer.length - 4; i++) {
     const b0 = buffer[i];
@@ -104,32 +88,83 @@ function parseLivePackets(buffer) {
     const b2 = buffer[i + 2];
     const b3 = buffer[i + 3];
     const b4 = buffer[i + 4];
-    // bytes 1..4 suelen tener bit7 = 0 en protocolo clásico
     if (b1 & 0x80 || b2 & 0x80 || b3 & 0x80 || b4 & 0x80) continue;
     const pulseRate = b3;
     const spo2 = b4;
     if (spo2 >= 70 && spo2 <= 100 && pulseRate >= 30 && pulseRate <= 250) {
-      readings.push({ oxygenSaturation: spo2, heartRate: pulseRate });
+      readings.push({ oxygenSaturation: spo2, heartRate: pulseRate, format: "classic5" });
       i += 4;
     }
   }
   return readings;
 }
 
-/** Comando "start realtime" estilo protocolo v7 (best-effort). */
-function realtimeStartCommands() {
-  // Secuencias usadas por varias implementaciones CMS50* v7
+/** Protocolo v7: trama 9 bytes con bits de sincronización. */
+function parseV7(buffer) {
+  const readings = [];
+  for (let i = 0; i < buffer.length - 8; i++) {
+    if (buffer[i] & 0x80) continue;
+    if (!(buffer[i + 1] & 0x80)) continue;
+    let syncOk = true;
+    for (let j = 2; j < 9; j++) {
+      if (!(buffer[i + j] & 0x80)) {
+        syncOk = false;
+        break;
+      }
+    }
+    if (!syncOk) continue;
+    if (buffer[i] !== 0x01) continue;
+    const high = buffer[i + 1];
+    const pkg = [];
+    for (let j = 0; j < 7; j++) {
+      let b = buffer[i + 2 + j] & 0x7f;
+      if (high & (1 << j)) b |= 0x80;
+      pkg.push(b);
+    }
+    const hr = pkg[3];
+    const spo2 = pkg[4];
+    if (spo2 >= 70 && spo2 <= 100 && hr >= 30 && hr <= 250 && spo2 !== 0x7f && hr !== 0xff) {
+      readings.push({ oxygenSaturation: spo2, heartRate: hr, format: "v7" });
+    }
+  }
+  return readings;
+}
+
+/**
+ * Fallback: busca pares SpO2/HR razonables cerca de cabecera 0x01.
+ */
+function parseLoose(buffer) {
+  const readings = [];
+  for (let i = 0; i < buffer.length - 8; i++) {
+    if (buffer[i] !== 0x01 && buffer[i] !== 0x81) continue;
+    for (let a = i + 1; a < i + 8 && a < buffer.length; a++) {
+      for (let b = a + 1; b < i + 9 && b < buffer.length; b++) {
+        const spo2 = buffer[a];
+        const hr = buffer[b];
+        if (spo2 >= 85 && spo2 <= 100 && hr >= 40 && hr <= 180) {
+          readings.push({ oxygenSaturation: spo2, heartRate: hr, format: "loose" });
+        }
+      }
+    }
+  }
+  return readings;
+}
+
+function realtimeCommands() {
   return [
-    Buffer.from([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    // stop store / stop real / request device / start real (variantes v7)
+    Buffer.from([0x7d, 0x81, 0xa6, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa2, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
     Buffer.from([0x7d, 0x81, 0xa7, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
+    Buffer.from([0x7d, 0x81, 0xa0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]),
   ];
 }
 
 async function postReading(sample) {
   if (!config.apiKey) {
-    throw new Error("Falta DEVICE_INGEST_API_KEY (env o Documents/maindhealth-device-ingest-key.txt)");
+    throw new Error("Falta DEVICE_INGEST_API_KEY");
   }
-
   const body = {
     serialNumber: config.serialNumber,
     oxygenSaturation: String(sample.oxygenSaturation),
@@ -148,16 +183,8 @@ async function postReading(sample) {
     body: JSON.stringify(body),
   });
   const text = await res.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    json = { raw: text };
-  }
-  if (!res.ok) {
-    throw new Error(`API ${res.status}: ${text}`);
-  }
-  return json;
+  if (!res.ok) throw new Error(`API ${res.status}: ${text}`);
+  return JSON.parse(text);
 }
 
 function stableSample(window) {
@@ -165,87 +192,118 @@ function stableSample(window) {
   const recent = window.slice(-config.stableNeeded);
   const spo2 = recent.map((r) => r.oxygenSaturation);
   const hr = recent.map((r) => r.heartRate);
-  const spo2Ok = Math.max(...spo2) - Math.min(...spo2) <= 2;
-  const hrOk = Math.max(...hr) - Math.min(...hr) <= 8;
-  if (!spo2Ok || !hrOk) return null;
+  if (Math.max(...spo2) - Math.min(...spo2) > 2) return null;
+  if (Math.max(...hr) - Math.min(...hr) > 10) return null;
   const avg = (arr) => Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
-  return {
-    oxygenSaturation: avg(spo2),
-    heartRate: avg(hr),
-  };
+  return { oxygenSaturation: avg(spo2), heartRate: avg(hr) };
+}
+
+function openPort(path, baudRate) {
+  const port = new SerialPort({
+    path,
+    baudRate,
+    dataBits: 8,
+    parity: "none",
+    stopBits: 1,
+    autoOpen: false,
+  });
+  return new Promise((resolve, reject) => {
+    port.open((err) => (err ? reject(err) : resolve(port)));
+  });
+}
+
+function setSignals(port, dtr, rts) {
+  return new Promise((resolve) => {
+    port.set({ dtr, rts }, () => resolve());
+  });
+}
+
+async function tryBaud(path, baudRate) {
+  log(`Probando ${path} @ ${baudRate} baud (ponte el dedo ahora)`);
+  const port = await openPort(path, baudRate);
+  let buffer = Buffer.alloc(0);
+  const window = [];
+  let bytes = 0;
+
+  await setSignals(port, false, false);
+  await new Promise((r) => setTimeout(r, 80));
+  await setSignals(port, true, false);
+  await new Promise((r) => setTimeout(r, 120));
+
+  for (const cmd of realtimeCommands()) {
+    port.write(cmd);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  // Reenviar start realtime + keepalive periódicamente
+  const ping = setInterval(() => {
+    port.write(Buffer.from([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]));
+    port.write(Buffer.from([0x7d, 0x81, 0xaf, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]));
+  }, 700);
+
+  return await new Promise((resolve) => {
+    const done = (result) => {
+      clearInterval(ping);
+      clearTimeout(timer);
+      port.removeAllListeners("data");
+      port.close(() => resolve(result));
+    };
+
+    const timer = setTimeout(() => {
+      if (config.debug) {
+        log(`Debug ${baudRate}: bytes=${bytes} tail=${buffer.subarray(Math.max(0, buffer.length - 40)).toString("hex")}`);
+      }
+      done({ ok: false, baudRate, bytes, window: window.length });
+    }, 20000);
+
+    port.on("data", (chunk) => {
+      bytes += chunk.length;
+      buffer = Buffer.concat([buffer, chunk]);
+      if (buffer.length > 8192) buffer = buffer.subarray(buffer.length - 4096);
+      if (config.debug && bytes <= chunk.length + 5) {
+        log(`RX ${baudRate}:`, chunk.subarray(0, 64).toString("hex"));
+      }
+      const readings = [...parseClassic5(buffer), ...parseV7(buffer), ...parseLoose(buffer)];
+      for (const r of readings) {
+        window.push(r);
+        if (window.length === 1 || window.length % 10 === 0) {
+          log(`señal SpO2=${r.oxygenSaturation} FC=${r.heartRate} (${r.format})`);
+        }
+      }
+      const stable = stableSample(window);
+      if (stable) done({ ok: true, sample: stable, baudRate });
+    });
+
+    port.on("error", (err) => {
+      log("Puerto error:", err.message);
+      done({ ok: false, baudRate, error: err.message, bytes });
+    });
+  });
 }
 
 async function readFromDevice() {
   const ports = await listPorts();
   const path = pickOximeterPort(ports);
   if (!path) {
-    throw new Error(
-      "No hay puerto COM del oxímetro. Conéctalo por USB, enciéndelo e instala driver CP210x.",
-    );
-  }
-  log(`Abriendo ${path} @ ${config.baud} baud`);
-
-  const port = new SerialPort({
-    path,
-    baudRate: config.baud,
-    dataBits: 8,
-    parity: "none",
-    stopBits: 1,
-    autoOpen: false,
-  });
-
-  await new Promise((resolve, reject) => {
-    port.open((err) => (err ? reject(err) : resolve()));
-  });
-
-  for (const cmd of realtimeStartCommands()) {
-    port.write(cmd);
+    throw new Error("No hay COM del oxímetro. ¿Driver CP210x y aparato encendido?");
   }
 
-  const window = [];
-  let buffer = Buffer.alloc(0);
-  let sent = false;
-
-  return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      port.close(() => {});
-      reject(
-        new Error(
-          "Timeout: no llegaron lecturas válidas. ¿Dedo en el oxímetro? ¿Driver/puerto correctos?",
-        ),
-      );
-    }, 45000);
-
-    port.on("data", async (chunk) => {
-      buffer = Buffer.concat([buffer, chunk]);
-      if (buffer.length > 4096) buffer = buffer.subarray(buffer.length - 2048);
-      const readings = parseLivePackets(buffer);
-      for (const r of readings) {
-        window.push(r);
-        if (window.length % 20 === 0) {
-          log(`señal SpO2=${r.oxygenSaturation} FC=${r.heartRate} (muestras=${window.length})`);
-        }
-      }
-      const stable = stableSample(window);
-      if (stable && !sent) {
-        sent = true;
-        clearTimeout(timeout);
-        try {
-          log(`Lectura estable SpO2=${stable.oxygenSaturation}% FC=${stable.heartRate}`);
-          const result = await postReading(stable);
-          log("Enviado a MaindHealth:", JSON.stringify(result));
-          port.close(() => resolve(stable));
-        } catch (err) {
-          port.close(() => reject(err));
-        }
-      }
-    });
-
-    port.on("error", (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-  });
+  const bauds = config.baud
+    ? [config.baud, ...[19200, 115200].filter((b) => b !== config.baud)]
+    : [19200, 115200];
+  for (const baud of bauds) {
+    const result = await tryBaud(path, baud);
+    if (result.ok) {
+      log(`Lectura estable @ ${result.baudRate}: SpO2=${result.sample.oxygenSaturation}% FC=${result.sample.heartRate}`);
+      const api = await postReading(result.sample);
+      log("Enviado a MaindHealth:", JSON.stringify(api));
+      return result.sample;
+    }
+    log(`Sin lectura válida @ ${baud} (bytes=${result.bytes || 0})`);
+  }
+  throw new Error(
+    "No se obtuvieron lecturas. Confirma: oxímetro encendido, dedo colocado, cable USB bien puesto.",
+  );
 }
 
 async function main() {
@@ -253,21 +311,15 @@ async function main() {
     await listPorts();
     return;
   }
-
   if (config.simulate) {
     const sample = { oxygenSaturation: 98, heartRate: 72 };
     log("Modo simulate:", sample);
-    const result = await postReading(sample);
-    log("Enviado a MaindHealth:", JSON.stringify(result));
+    log("Enviado a MaindHealth:", JSON.stringify(await postReading(sample)));
     return;
   }
-
   log("Iniciando puente CMS50D+ →", config.apiUrl);
   log("Serial equipo:", config.serialNumber);
   await readFromDevice();
-  if (!config.once) {
-    log("Lectura enviada. Vuelve a ejecutar para otra medición (kiosko spot-check).");
-  }
 }
 
 main().catch((err) => {
