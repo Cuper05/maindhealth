@@ -8,14 +8,25 @@ import { cardClassName, inputClassName, labelClassName } from "@/lib/ui/classes"
 type PatientOption = { id: number; label: string };
 
 type SerialPortLike = {
-  open: (options: { baudRate: number; bufferSize?: number }) => Promise<void>;
+  open: (options: {
+    baudRate: number;
+    bufferSize?: number;
+    dataBits?: number;
+    stopBits?: number;
+    parity?: string;
+    flowControl?: string;
+  }) => Promise<void>;
   close: () => Promise<void>;
+  forget?: () => Promise<void>;
+  setSignals?: (signals: {
+    dataTerminalReady?: boolean;
+    requestToSend?: boolean;
+  }) => Promise<void>;
   readable: ReadableStream<Uint8Array> | null;
   writable: WritableStream<Uint8Array> | null;
   getInfo?: () => { usbVendorId?: number; usbProductId?: number };
 };
 
-const LOCAL_BRIDGE = "http://127.0.0.1:3927";
 const SILICON_LABS_VID = 0x10c4;
 const START_CMD = new Uint8Array([0x7d, 0x81, 0xa1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80]);
 
@@ -48,18 +59,58 @@ function stableOf(window: { spo2: number; hr: number }[], need = 3) {
   return { spo2: avg(spo2), hr: avg(hr) };
 }
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function ensureClosed(port: SerialPortLike) {
+  try {
+    await port.close();
+  } catch {
+    /* already closed */
+  }
+  await sleep(250);
+}
+
+async function openPort(port: SerialPortLike, baudRate: number) {
+  await ensureClosed(port);
+  try {
+    await port.open({
+      baudRate,
+      bufferSize: 8192,
+      dataBits: 8,
+      stopBits: 1,
+      parity: "none",
+      flowControl: "none",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Failed to open|open serial port/i.test(msg)) {
+      throw new Error(
+        "Puerto USB ocupado o bloqueado. Cierra TODAS las ventanas negras del oxímetro (.bat), cierra otras pestañas de MaindHealth, desconecta y vuelve a conectar el USB, luego reintenta y elige Silicon Labs CP210x.",
+      );
+    }
+    throw err;
+  }
+  try {
+    await port.setSignals?.({ dataTerminalReady: true, requestToSend: false });
+  } catch {
+    /* optional */
+  }
+}
+
 async function readAtBaud(
   port: SerialPortLike,
   baudRate: number,
   maxMs: number,
   onProgress: (msg: string) => void,
 ): Promise<{ spo2: number; hr: number } | null> {
-  await port.open({ baudRate, bufferSize: 8192 });
+  await openPort(port, baudRate);
   const writer = port.writable?.getWriter();
   const reader = port.readable?.getReader();
   if (!writer || !reader) {
-    await port.close();
-    throw new Error("No se pudo abrir el puerto USB.");
+    await ensureClosed(port);
+    throw new Error("No se pudo usar el puerto USB.");
   }
 
   try {
@@ -112,15 +163,13 @@ async function readAtBaud(
     } catch {
       /* ignore */
     }
-    try {
-      await port.close();
-    } catch {
-      /* ignore */
-    }
+    await ensureClosed(port);
   }
 }
 
-async function readViaWebSerial(onProgress: (msg: string) => void): Promise<{ spo2: number; hr: number }> {
+async function pickSiliconLabsPort(
+  onProgress: (msg: string) => void,
+): Promise<SerialPortLike> {
   const nav = navigator as Navigator & {
     serial?: {
       getPorts: () => Promise<SerialPortLike[]>;
@@ -130,34 +179,60 @@ async function readViaWebSerial(onProgress: (msg: string) => void): Promise<{ sp
     };
   };
   if (!nav.serial) {
-    throw new Error("Usa Chrome o Edge para lectura USB.");
+    throw new Error("Usa Chrome o Edge (no Firefox) para lectura USB.");
   }
 
-  let port: SerialPortLike | undefined;
-  const known = await nav.serial.getPorts();
-  port = known.find((p) => p.getInfo?.().usbVendorId === SILICON_LABS_VID) || known[0];
-
-  if (!port) {
-    onProgress("Elige Silicon Labs CP210x (no Intel)…");
-    try {
-      port = await nav.serial.requestPort({ filters: [{ usbVendorId: SILICON_LABS_VID }] });
-    } catch {
-      port = await nav.serial.requestPort();
+  // Prefer a fresh picker so we don't reuse a stuck handle.
+  onProgress("Elige Silicon Labs CP210x (no Intel)…");
+  try {
+    return await nav.serial.requestPort({ filters: [{ usbVendorId: SILICON_LABS_VID }] });
+  } catch (err) {
+    // User cancelled filtered picker — try known ports, then unfiltered.
+    const known = await nav.serial.getPorts();
+    const silicon = known.find((p) => p.getInfo?.().usbVendorId === SILICON_LABS_VID);
+    if (silicon) return silicon;
+    if (err instanceof Error && /No port selected|NotFoundError/i.test(err.message)) {
+      throw new Error("No elegiste el puerto. Pulsa de nuevo y elige Silicon Labs CP210x.");
     }
-  } else {
-    onProgress("Usando puerto USB ya autorizado…");
+    return nav.serial.requestPort();
   }
+}
 
-  onProgress("Leyendo @ 19200… mantén el dedo 5–10 s");
-  const fast = await readAtBaud(port, 19200, 12000, onProgress);
-  if (fast) return fast;
+async function readCms50DPlus(onProgress: (msg: string) => void): Promise<{ spo2: number; hr: number }> {
+  let port = await pickSiliconLabsPort(onProgress);
 
-  onProgress("Reintentando @ 115200…");
-  const slow = await readAtBaud(port, 115200, 8000, onProgress);
-  if (slow) return slow;
+  const tryRead = async () => {
+    onProgress("Leyendo @ 19200… mantén el dedo 5–10 s");
+    const fast = await readAtBaud(port, 19200, 12000, onProgress);
+    if (fast) return fast;
+
+    onProgress("Reintentando @ 115200…");
+    const slow = await readAtBaud(port, 115200, 8000, onProgress);
+    if (slow) return slow;
+    return null;
+  };
+
+  try {
+    const sample = await tryRead();
+    if (sample) return sample;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (!/ocupado|bloqueado|Failed to open/i.test(msg)) throw err;
+    onProgress("Puerto bloqueado. Vuelve a elegir Silicon Labs…");
+    try {
+      await port.forget?.();
+    } catch {
+      /* ignore */
+    }
+    await sleep(500);
+    port = await pickSiliconLabsPort(onProgress);
+    const sample = await tryRead();
+    if (sample) return sample;
+    throw err;
+  }
 
   throw new Error(
-    "No hubo lectura a tiempo. Oxímetro encendido, dedo firme, y elige Silicon Labs CP210x (no Intel).",
+    "No hubo lectura a tiempo. Oxímetro encendido, dedo firme, Silicon Labs CP210x.",
   );
 }
 
@@ -175,62 +250,15 @@ export function UsbOximeterReader({
   const [pending, startTransition] = useTransition();
   const canSerial = useMemo(() => typeof navigator !== "undefined" && "serial" in navigator, []);
 
-  async function readFromLocalBridge(): Promise<{ spo2: number; hr: number }> {
-    setStatus("Contactando servicio local…");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
-    try {
-      const health = await fetch(`${LOCAL_BRIDGE}/health`, { signal: controller.signal });
-      if (!health.ok) throw new Error("Servicio local no responde");
-    } finally {
-      clearTimeout(timer);
-    }
-
-    setStatus("Leyendo por servicio local…");
-    const readController = new AbortController();
-    const readTimer = setTimeout(() => readController.abort(), 20000);
-    try {
-      const res = await fetch(`${LOCAL_BRIDGE}/read`, {
-        method: "POST",
-        signal: readController.signal,
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        oxygenSaturation?: number;
-        heartRate?: number;
-        error?: string;
-      };
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "El servicio local no pudo leer el oxímetro");
-      }
-      return {
-        spo2: Number(data.oxygenSaturation),
-        hr: Number(data.heartRate),
-      };
-    } finally {
-      clearTimeout(readTimer);
-    }
-  }
-
   async function onRead() {
     setError("");
     setBusy(true);
-    setStatus("Iniciando lectura…");
+    setStatus("Iniciando…");
     try {
-      let sample: { spo2: number; hr: number } | null = null;
-
-      try {
-        sample = await readFromLocalBridge();
-      } catch {
-        if (!canSerial) {
-          throw new Error(
-            "Chrome bloqueó el servicio local. En el candado del sitio → Configuración del sitio → Acceso a red local → Permitir. O usa Chrome/Edge con Web Serial.",
-          );
-        }
-        setStatus("Servicio local no disponible. Usando USB directo…");
-        sample = await readViaWebSerial((msg) => setStatus(msg));
+      if (!canSerial) {
+        throw new Error("Abre esta página en Chrome o Edge.");
       }
-
+      const sample = await readCms50DPlus((msg) => setStatus(msg));
       setStatus(`Listo: SpO2 ${sample.spo2}% · FC ${sample.hr}. Guardando…`);
       startTransition(async () => {
         try {
@@ -260,8 +288,8 @@ export function UsbOximeterReader({
     <section className={`${cardClassName} mt-6 border-teal-200 bg-teal-50/40`}>
       <h2 className="mb-2 font-medium text-slate-900">Lectura automática USB (CMS50D+)</h2>
       <p className="mb-4 text-sm text-slate-600">
-        Oxímetro encendido + dedo + este botón. Si Chrome pide permiso de red local o de puerto USB,
-        elige <strong>Permitir</strong> y <strong>Silicon Labs CP210x</strong> (no Intel).
+        1) Cierra cualquier ventana negra del oxímetro (.bat). 2) Oxímetro encendido + dedo. 3) Este
+        botón. 4) Elige <strong>Silicon Labs CP210x</strong> (no Intel).
       </p>
       <FormAlert error={error || undefined} success={status && !error ? status : undefined} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
