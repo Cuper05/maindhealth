@@ -16,7 +16,11 @@ export function DeviceReadingForm({
 
   return (
     <section className={`${cardClassName} mt-6`}>
-      <h2 className="mb-4 font-medium text-slate-900">Registrar lectura del equipo</h2>
+      <h2 className="mb-2 font-medium text-slate-900">Registrar lectura del equipo</h2>
+      <p className="mb-4 text-sm text-slate-600">
+        Esta sección es <strong>manual</strong>: lee el valor en la pantalla del equipo
+        (ej. SpO2 del oxímetro) y escríbelo aquí. No se conecta sola al aparato.
+      </p>
       <FormAlert
         error={state && !state.ok ? state.error : undefined}
         success={state?.ok ? "Lectura registrada" : undefined}
@@ -47,7 +51,7 @@ export function DeviceReadingForm({
           <input name="heartRate" className={inputClassName} placeholder="72" />
         </div>
         <div>
-          <label className={labelClassName}>SpO2</label>
+          <label className={labelClassName}>SpO2 (%) — oxímetro</label>
           <input name="oxygenSaturation" className={inputClassName} placeholder="98" />
         </div>
         <div>
@@ -65,7 +69,7 @@ export function DeviceReadingForm({
         <div className="sm:col-span-2">
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" name="syncToVitals" defaultChecked />
-            Crear captura en triage / signos vitales
+            Crear captura en triage / signos vitales (requiere paciente)
           </label>
         </div>
         <div className="sm:col-span-2">

@@ -17,7 +17,7 @@ export default async function DispositivoDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ updated?: string; maintained?: string }>;
+  searchParams: Promise<{ updated?: string; maintained?: string; reading?: string }>;
 }) {
   const session = await requireSession();
   if (!session?.role || !can(session.role, "config:view")) redirect("/dispositivos");
@@ -68,7 +68,9 @@ export default async function DispositivoDetailPage({
       ? "Cambios guardados correctamente."
       : query.maintained === "1"
         ? "Mantenimiento registrado correctamente."
-        : undefined;
+        : query.reading === "1"
+          ? "Lectura registrada correctamente."
+          : undefined;
 
   return (
     <div>

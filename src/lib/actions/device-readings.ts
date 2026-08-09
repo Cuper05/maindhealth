@@ -29,6 +29,13 @@ export async function recordDeviceReading(_prev: unknown, formData: FormData) {
   }
 
   const data = parsed.data;
+
+  if (data.syncToVitals && !data.patientId) {
+    return actionError(
+      "Para crear captura en triage debes seleccionar un paciente.",
+    );
+  }
+
   let vitalSignId: number | undefined;
 
   if (data.syncToVitals && data.patientId) {
@@ -101,5 +108,6 @@ export async function recordDeviceReading(_prev: unknown, formData: FormData) {
     revalidatePath(`/pacientes/${data.patientId}`);
     revalidatePath("/alertas");
   }
-  return actionSuccess({ readingId: reading.id, vitalSignId });
+  const { redirect } = await import("next/navigation");
+  redirect(`/dispositivos/${data.medicalDeviceId}?reading=1`);
 }
