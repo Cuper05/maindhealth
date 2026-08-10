@@ -39,17 +39,33 @@ export async function ensureAndroidChannel() {
   });
 }
 
-function projectId(): string | undefined {
+/** UUID real de EAS (`eas init` → EXPO_PUBLIC_PROJECT_ID). Sin esto no hay push. */
+function requireProjectId(): string | null {
+  const fromEnv = process.env.EXPO_PUBLIC_PROJECT_ID?.trim();
   const fromExtra = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
-  const fromEnv = process.env.EXPO_PUBLIC_PROJECT_ID;
-  const id = fromEnv || fromExtra;
-  if (!id || id === "REPLACE_WITH_EAS_PROJECT_ID") return undefined;
+  const id = (fromEnv || fromExtra || "").trim();
+  if (
+    !id ||
+    id === "REPLACE_WITH_EAS_PROJECT_ID" ||
+    id.startsWith("xxxx") ||
+    id.includes("pega-aqui")
+  ) {
+    console.warn(
+      "[push] Falta EXPO_PUBLIC_PROJECT_ID real. Ejecuta `eas init` y sigue INSTALAR-APP-REAL.md",
+    );
+    return null;
+  }
   return id;
 }
 
 export async function registerForPushAsync(): Promise<string | null> {
   if (!Device.isDevice) {
     console.warn("[push] Se necesita un dispositivo físico para push remoto");
+    return null;
+  }
+
+  const pid = requireProjectId();
+  if (!pid) {
     return null;
   }
 
@@ -66,10 +82,9 @@ export async function registerForPushAsync(): Promise<string | null> {
     return null;
   }
 
-  const pid = projectId();
-  const tokenResponse = await Notifications.getExpoPushTokenAsync(
-    pid ? { projectId: pid } : undefined,
-  );
+  const tokenResponse = await Notifications.getExpoPushTokenAsync({
+    projectId: pid,
+  });
   const token = tokenResponse.data;
 
   const platform =

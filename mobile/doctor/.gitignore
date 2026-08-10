@@ -14,3 +14,5 @@ web-build/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+expo-tunnel*.log
+ABRE-EN-EL-CELULAR.txt
