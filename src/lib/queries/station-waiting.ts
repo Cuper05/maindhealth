@@ -8,6 +8,10 @@ import {
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 
+/**
+ * Pacientes de kiosk escalados a teleconsulta (status waiting_doctor).
+ * Left-join del médico: la cola no debe desaparecer si falta el join de usuario.
+ */
 export async function getWaitingDoctorStationSessions() {
   const rows = await db
     .select({
@@ -33,7 +37,7 @@ export async function getWaitingDoctorStationSessions() {
       eq(stationKioskSessionsTable.appointmentId, appointmentsTable.id),
     )
     .innerJoin(patientsTable, eq(appointmentsTable.patientId, patientsTable.id))
-    .innerJoin(usersTable, eq(appointmentsTable.doctorId, usersTable.id))
+    .leftJoin(usersTable, eq(appointmentsTable.doctorId, usersTable.id))
     .where(eq(stationKioskSessionsTable.status, "waiting_doctor"))
     .orderBy(desc(stationKioskSessionsTable.updatedAt));
 
@@ -43,15 +47,18 @@ export async function getWaitingDoctorStationSessions() {
     patientId: row.patientId,
     chartNumber: row.chartNumber,
     patientName: formatPersonName(row),
-    doctorName: formatPersonName({
-      firstName: row.doctorFirstName,
-      lastNamePaternal: row.doctorLastNamePaternal,
-      lastNameMaternal: row.doctorLastNameMaternal,
-    }),
+    doctorName: row.doctorFirstName
+      ? formatPersonName({
+          firstName: row.doctorFirstName,
+          lastNamePaternal: row.doctorLastNamePaternal ?? "",
+          lastNameMaternal: row.doctorLastNameMaternal,
+        })
+      : "Sin asignar",
     meetingUrl: row.meetingUrl,
     modality: row.modality,
     updatedAt: row.updatedAt,
     redFlags: row.assessmentDraft?.redFlags ?? [],
     summary: row.assessmentDraft?.summary ?? null,
+    roomError: row.assessmentDraft?.roomError ?? null,
   }));
 }

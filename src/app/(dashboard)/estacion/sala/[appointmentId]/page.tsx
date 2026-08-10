@@ -50,8 +50,10 @@ export default async function EstacionSalaPage({
   if (!appointment) notFound();
 
   let meetingUrl = appointment.meetingUrl;
+  let roomEnsureFailed = false;
   if (appointment.modality === "teleconsulta" && !meetingUrl) {
     meetingUrl = await ensureAppointmentMeetingUrl(appointmentId);
+    roomEnsureFailed = !meetingUrl;
   }
 
   const patientName = formatPersonName({
@@ -113,9 +115,23 @@ export default async function EstacionSalaPage({
           />
         </section>
       ) : (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No hay sala Daily disponible. Revisa la configuración (`VIDEO_API_KEY`) o vuelve a abrir
-          desde la cola de estación.
+        <section className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950">
+          <p className="font-semibold">
+            {roomEnsureFailed
+              ? "No se pudo crear la sala Daily"
+              : "No hay sala Daily disponible"}
+          </p>
+          <p className="mt-1">
+            Revisa que `VIDEO_API_KEY` (Daily.co) esté configurada en Vercel/producción y vuelve a
+            abrir esta sala. El paciente sigue en cola de estación; el médico remoto también puede
+            intentar desde Consulta.
+          </p>
+          <Link
+            href={`/estacion/sala/${appointmentId}`}
+            className="mt-3 inline-block font-medium text-red-900 underline"
+          >
+            Reintentar crear sala
+          </Link>
         </section>
       )}
     </div>

@@ -21,17 +21,17 @@ export async function ensureAppointmentMeetingUrl(appointmentId: number): Promis
   if (row.modality !== "teleconsulta") return row.meetingUrl;
   if (row.meetingUrl) return row.meetingUrl;
 
-  const room = await createDailyRoom(appointmentId);
-  if (!room) return null;
+  const created = await createDailyRoom(appointmentId);
+  if (!created.ok) return null;
 
   await db
     .update(appointmentsTable)
     .set({
-      meetingUrl: room.url,
-      meetingRoomName: room.name,
+      meetingUrl: created.room.url,
+      meetingRoomName: created.room.name,
       updatedAt: new Date(),
     })
     .where(eq(appointmentsTable.id, appointmentId));
 
-  return room.url;
+  return created.room.url;
 }

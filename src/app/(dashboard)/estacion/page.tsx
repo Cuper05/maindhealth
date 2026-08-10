@@ -4,6 +4,7 @@ import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { getTodayStationAppointments } from "@/lib/queries/visit-intake";
 import { getWaitingDoctorStationSessions } from "@/lib/queries/station-waiting";
+import { StationTeleconsultaAutoPilot } from "@/components/station/StationTeleconsultaAutoPilot";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buttonPrimaryClassName, cardClassName } from "@/lib/ui/classes";
 
@@ -19,7 +20,7 @@ export default async function EstacionPage() {
     <div>
       <PageHeader
         title="Estación de telemedicina"
-        description="Cola de teleconsulta en esta PC (Dell: cámara y audífonos). El kiosk táctil solo captura datos y signos."
+        description="Cola de teleconsulta en esta PC (Dell: cámara y audífonos). El kiosk táctil solo captura datos y signos. Las teleconsultas se abren solas aquí."
         action={
           <div className="flex flex-wrap gap-2">
             <a
@@ -39,14 +40,27 @@ export default async function EstacionPage() {
         }
       />
 
+      <StationTeleconsultaAutoPilot
+        initialWaiting={waitingDoctor.map((item) => ({
+          sessionId: item.sessionId,
+          appointmentId: item.appointmentId,
+          patientName: item.patientName,
+          chartNumber: item.chartNumber,
+          meetingUrl: item.meetingUrl,
+          redFlags: item.redFlags,
+          summary: item.summary,
+          updatedAt: item.updatedAt,
+        }))}
+      />
+
       {waitingDoctor.length > 0 && (
         <section className="mb-8">
           <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            <p className="font-semibold">Acción en esta PC (Dell)</p>
+            <p className="font-semibold">Acción automática en esta PC (Dell)</p>
             <p className="mt-1">
-              Hay pacientes esperando teleconsulta. Entra a la sala aquí (cámara/audífonos). El
-              médico remoto se une desde su agenda o consulta. No uses el kiosk táctil ViewSonic
-              para video.
+              Al detectar un paciente en espera, esta pantalla abre la videoconsulta sola (cuenta
+              regresiva de 3 s). El médico remoto se une desde su agenda o consulta. No uses el kiosk
+              táctil ViewSonic para video.
             </p>
           </div>
           <h2 className="mb-3 text-lg font-semibold text-slate-900">
@@ -79,8 +93,8 @@ export default async function EstacionPage() {
                     )}
                     <p className="mt-2 text-xs text-slate-500">
                       {item.meetingUrl
-                        ? "Sala Daily lista — únete en esta PC."
-                        : "Sala Daily pendiente — se creará al entrar."}
+                        ? "Sala Daily lista — se abre automáticamente en esta PC."
+                        : "Sala Daily pendiente — se creará al entrar (revisa VIDEO_API_KEY si falla)."}
                     </p>
                   </div>
                   <div className="flex flex-col flex-wrap gap-2 sm:items-end">
@@ -88,7 +102,7 @@ export default async function EstacionPage() {
                       href={`/estacion/sala/${item.appointmentId}`}
                       className={`${buttonPrimaryClassName} text-center`}
                     >
-                      Entrar a videoconsulta en esta PC
+                      Abrir videoconsulta ahora
                     </Link>
                     <div className="flex flex-wrap gap-2">
                       <Link

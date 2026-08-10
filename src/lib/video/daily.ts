@@ -2,6 +2,7 @@ type DailyRoomResponse = {
   url?: string;
   name?: string;
   error?: string;
+  info?: string;
 };
 
 export type DailyRoom = {
@@ -9,11 +10,16 @@ export type DailyRoom = {
   name: string;
 };
 
-export async function createDailyRoom(appointmentId: number): Promise<DailyRoom | null> {
+export type CreateDailyRoomResult =
+  | { ok: true; room: DailyRoom }
+  | { ok: false; error: string };
+
+export async function createDailyRoom(appointmentId: number): Promise<CreateDailyRoomResult> {
   const apiKey = process.env.VIDEO_API_KEY ?? process.env.DAILY_API_KEY;
   if (!apiKey) {
-    console.error("[daily] VIDEO_API_KEY no configurada");
-    return null;
+    const error = "VIDEO_API_KEY no configurada — no se puede crear la sala Daily";
+    console.error("[daily]", error);
+    return { ok: false, error };
   }
 
   const roomName = `maindhealth-appt-${appointmentId}-${Date.now().toString(36)}`;
@@ -39,16 +45,23 @@ export async function createDailyRoom(appointmentId: number): Promise<DailyRoom 
     });
 
     if (!res.ok) {
-      console.error("[daily] room creation failed", await res.text());
-      return null;
+      const body = await res.text().catch(() => "");
+      const error = `Daily API ${res.status}: ${body.slice(0, 240) || res.statusText}`;
+      console.error("[daily] room creation failed", error);
+      return { ok: false, error };
     }
 
     const data = (await res.json()) as DailyRoomResponse;
-    if (!data.url || !data.name) return null;
-    return { url: data.url, name: data.name };
+    if (!data.url || !data.name) {
+      const error = "Daily respondió sin URL de sala";
+      console.error("[daily]", error, data);
+      return { ok: false, error };
+    }
+    return { ok: true, room: { url: data.url, name: data.name } };
   } catch (err) {
+    const error = err instanceof Error ? err.message : "Error de red al crear sala Daily";
     console.error("[daily]", err);
-    return null;
+    return { ok: false, error };
   }
 }
 

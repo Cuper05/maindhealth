@@ -626,19 +626,48 @@ export function PatientKioskWizard() {
       setAssessment(result.assessment);
       if (result.meetingUrl) {
         setAppointment((prev) =>
-          prev ? { ...prev, meetingUrl: result.meetingUrl } : prev,
+          prev
+            ? { ...prev, meetingUrl: result.meetingUrl, modality: "teleconsulta" }
+            : prev,
+        );
+      } else if (result.path === "doctor") {
+        setAppointment((prev) =>
+          prev ? { ...prev, modality: "teleconsulta" } : prev,
         );
       }
-      await goToStep(result.step);
+      // Escalación ya persistió step=waiting en servidor: no volver a summary si falla el patch.
+      setStep(result.step);
+      try {
+        await kioskApi.patchSession({ currentStep: result.step });
+      } catch {
+        /* estado de UI ya refleja el resultado del assess */
+      }
+      if (result.path === "doctor" && result.roomError) {
+        setError(
+          `Teleconsulta creada, pero la sala de video falló: ${result.roomError}. El staff debe revisar VIDEO_API_KEY en el servidor.`,
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error en el análisis";
+      // Si el servidor ya dejó la sesión en waiting_doctor, no borrar esa escalación.
+      try {
+        const data = await kioskApi.getSession();
+        if (data.session?.status === "waiting_doctor" || data.session?.currentStep === "waiting") {
+          if (data.session.assessmentDraft) setAssessment(data.session.assessmentDraft);
+          if (data.appointment) setAppointment(data.appointment);
+          setStep("waiting");
+          setError(msg);
+          return;
+        }
+      } catch {
+        /* continuar con fallback a resumen */
+      }
       setStep("summary");
       try {
         await kioskApi.patchSession({ currentStep: "summary" });
       } catch {
         /* la UI ya volvió a resumen */
       }
-      // Importante: setError DESPUÉS de cualquier goToStep/patch que limpie errores.
       setError(msg);
     } finally {
       setBusy(false);
@@ -1389,20 +1418,18 @@ export function PatientKioskWizard() {
           <WaitingIllustration />
           <h2 className="mt-6 text-2xl font-bold text-slate-900">Médico notificado</h2>
           <p className="mx-auto mt-4 max-w-lg text-lg text-slate-600">
-            La videoconsulta continúa en la <strong>pantalla principal</strong> (Dell), donde están
-            la cámara y los audífonos.
+            La videoconsulta está en la <strong>pantalla principal</strong> (Dell), donde están la
+            cámara y los audífonos. Esta pantalla táctil no usa video.
           </p>
-          <div className="mx-auto mt-6 max-w-md rounded-xl border border-[#1d6eb8]/25 bg-[#f0f7ff] px-4 py-4 text-left text-sm text-[#1a4d7c]">
-            <p className="font-semibold">Instrucciones para el personal</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
+          <div className="mx-auto mt-6 max-w-md rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left text-sm text-emerald-950">
+            <p className="font-semibold">Automático — no hay nada que pulsar aquí</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              <li>Teleconsulta creada y médicos avisados.</li>
               <li>
-                En la PC Dell abre <strong>Estación</strong> → el paciente en espera.
+                En la PC Dell (Estación) la sala de video se abre sola.
               </li>
-              <li>
-                Pulsa <strong>Entrar a videoconsulta en esta PC</strong> y permite cámara/micrófono.
-              </li>
-              <li>El médico remoto se une desde su agenda o consulta.</li>
-            </ol>
+              <li>El médico remoto se une desde su notificación o consulta.</li>
+            </ul>
           </div>
           {assessment?.redFlags && assessment.redFlags.length > 0 && (
             <ul className="mx-auto mt-6 max-w-md space-y-2 text-left">
@@ -1417,36 +1444,32 @@ export function PatientKioskWizard() {
             </ul>
           )}
           <p className="mt-6 animate-pulse text-sm font-medium text-[#1d6eb8]">
-            Médico notificado · Esperando atención en pantalla principal…
+            Médico notificado · La videoconsulta está en la pantalla principal…
           </p>
-          {appointment?.meetingUrl ? (
+          {assessment?.roomError ? (
+            <div className="mx-auto mt-4 max-w-md rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-900">
+              <p className="font-semibold">Error al crear la sala Daily</p>
+              <p className="mt-1">{assessment.roomError}</p>
+              <p className="mt-1 text-xs">
+                La teleconsulta sí quedó en cola; el staff debe corregir VIDEO_API_KEY y reabrir la
+                sala en Estación.
+              </p>
+            </div>
+          ) : appointment?.meetingUrl ? (
             <p className="mt-3 text-xs text-emerald-700">
               Sala de video lista en la estación Dell. No uses cámara en esta pantalla táctil.
             </p>
           ) : (
-            <p className="mt-3 text-xs text-slate-400">
-              Preparando la sala de video… El staff la abrirá en la pantalla principal.
+            <p className="mt-3 text-xs text-amber-700">
+              Preparando la sala de video en la pantalla principal…
             </p>
           )}
+          {error && step === "waiting" && (
+            <div className="mx-auto mt-4 max-w-md">
+              <KioskError message={error} />
+            </div>
+          )}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 border-t border-slate-100 pt-6">
-            <KioskSecondaryButton
-              onClick={async () => {
-                setAssessment(null);
-                setError(null);
-                await goToStep("summary");
-              }}
-            >
-              ← Volver al resumen
-            </KioskSecondaryButton>
-            <KioskSecondaryButton
-              onClick={async () => {
-                setAssessment(null);
-                setError(null);
-                await goToStep("clinical");
-              }}
-            >
-              Corregir síntomas
-            </KioskSecondaryButton>
             <KioskPrimaryButton onClick={resetKiosk}>Finalizar y salir</KioskPrimaryButton>
           </div>
         </KioskCard>

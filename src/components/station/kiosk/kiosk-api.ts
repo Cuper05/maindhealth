@@ -38,6 +38,7 @@ export type AssessmentPayload = {
   consultationId?: number | null;
   prescriptionId?: number | null;
   prescriptionFolio?: string | null;
+  roomError?: string | null;
 };
 
 export type StationService = {
@@ -108,6 +109,9 @@ export const kioskApi = {
       step: "result" | "waiting";
       assessment: AssessmentPayload;
       meetingUrl: string | null;
+      roomError?: string | null;
+      appointmentId?: number;
+      notified?: number;
     }>("/api/station/assess", { method: "POST" }),
   pollReadings: (appointmentId: number) =>
     kioskFetch<{ draft: VitalsDraft }>(`/api/station/readings?appointmentId=${appointmentId}`),

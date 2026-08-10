@@ -36,6 +36,7 @@ export async function notifyDoctorsStationTeleconsulta(input: {
     .from(usersTable)
     .where(and(inArray(usersTable.id, uniqueIds), eq(usersTable.active, true)));
 
+  // Médico remoto: sala/expediente en consulta. La PC Dell de estación auto-abre /estacion/sala.
   const href = `/consultas/cita/${input.appointmentId}`;
   const referenceKey = `estacion-teleconsulta:${input.appointmentId}`;
   let notified = 0;
@@ -45,7 +46,7 @@ export async function notifyDoctorsStationTeleconsulta(input: {
       userId: doctor.id,
       type: "videollamada_lista",
       title: `Estación: teleconsulta — ${patientName}`,
-      body: `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Video en PC Dell de estación (no en kiosk táctil).`,
+      body: `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Únete desde Consulta (video). En estación Dell la sala se abre sola.`,
       href,
       referenceKey,
     };

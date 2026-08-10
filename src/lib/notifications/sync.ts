@@ -270,13 +270,8 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
     }
   }
 
-  // Pacientes de estación IA esperando teleconsulta (médico responsable o asignado).
+  // Pacientes de estación IA esperando teleconsulta — todos los médicos/admin (telemedicina 24/7).
   if (role === "doctor" || role === "admin" || can(role, "consultations:view")) {
-    const waitConditions = [eq(stationKioskSessionsTable.status, "waiting_doctor")];
-    if (role === "doctor") {
-      waitConditions.push(eq(appointmentsTable.doctorId, userId));
-    }
-
     const waiting = await db
       .select({
         appointmentId: appointmentsTable.id,
@@ -293,7 +288,7 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
         eq(stationKioskSessionsTable.appointmentId, appointmentsTable.id),
       )
       .innerJoin(patientsTable, eq(appointmentsTable.patientId, patientsTable.id))
-      .where(and(...waitConditions));
+      .where(eq(stationKioskSessionsTable.status, "waiting_doctor"));
 
     for (const row of waiting) {
       if (!row.appointmentId) continue;
@@ -307,7 +302,7 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
         type: "videollamada_lista",
         referenceKey,
         title: `Estación: teleconsulta — ${name}`,
-        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""} Video en PC Dell de estación (no en kiosk táctil).`,
+        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""} Únete desde Consulta. Video paciente en PC Dell de estación.`,
         href: `/consultas/cita/${row.appointmentId}`,
       });
     }

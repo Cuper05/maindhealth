@@ -107,11 +107,11 @@ export async function registerStationWalkIn(formData: FormData) {
     })
     .returning({ id: appointmentsTable.id });
 
-  const room = await createDailyRoom(appointment.id);
-  if (room) {
+  const created = await createDailyRoom(appointment.id);
+  if (created.ok) {
     await db
       .update(appointmentsTable)
-      .set({ meetingUrl: room.url, meetingRoomName: room.name })
+      .set({ meetingUrl: created.room.url, meetingRoomName: created.room.name })
       .where(eq(appointmentsTable.id, appointment.id));
   }
 

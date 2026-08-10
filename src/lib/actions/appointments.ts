@@ -52,10 +52,10 @@ export async function createAppointment(_prev: unknown, formData: FormData) {
   let meetingRoomName: string | null = null;
 
   if (data.modality === "teleconsulta" && !meetingUrl) {
-    const room = await createDailyRoom(appointment.id);
-    if (room) {
-      meetingUrl = room.url;
-      meetingRoomName = room.name;
+    const created = await createDailyRoom(appointment.id);
+    if (created.ok) {
+      meetingUrl = created.room.url;
+      meetingRoomName = created.room.name;
       await db
         .update(appointmentsTable)
         .set({ meetingUrl, meetingRoomName })

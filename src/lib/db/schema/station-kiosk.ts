@@ -76,6 +76,8 @@ export type KioskAssessmentDraft = {
   consultationId?: number | null;
   prescriptionId?: number | null;
   prescriptionFolio?: string | null;
+  /** Visible when Daily room creation failed during escalation. */
+  roomError?: string | null;
 };
 
 export type KioskVitalsDraft = {

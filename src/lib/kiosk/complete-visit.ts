@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { syncClinicalAlertsFromVitals } from "@/lib/alerts/sync-from-vitals";
 import { db } from "@/lib/db";
 import {
@@ -19,9 +20,9 @@ import { getActiveResponsiblePhysician } from "@/lib/kiosk/commerce";
 import { notifyDoctorsStationTeleconsulta } from "@/lib/kiosk/notify-escalation";
 import { isVitalsComplete } from "@/lib/kiosk/vitals";
 import { buildPrescriptionFolio } from "@/lib/prescriptions/folio";
+import { getActiveDoctors, getAppointmentStatusByCode } from "@/lib/queries/catalogs";
 import { createDailyRoom } from "@/lib/video/daily";
 import { computeBmi } from "@/lib/validators/vitals";
-import { getAppointmentStatusByCode } from "@/lib/queries/catalogs";
 
 type ClinicalDraft = {
   chiefComplaint?: string;
@@ -169,23 +170,39 @@ async function escalateToDoctor(params: {
 }) {
   const { appointment, assessment, vitalSignId, sessionToken, responsible } = params;
 
+  // Garantizar médico asignado (cola de estación hace innerJoin con users).
+  let doctorId = responsible?.doctorId ?? appointment.doctorId;
+  if (!doctorId) {
+    const doctors = await getActiveDoctors();
+    doctorId = doctors[0]?.id;
+  }
+  if (!doctorId) {
+    return {
+      ok: false as const,
+      error: "No hay médicos activos para asignar la teleconsulta",
+    };
+  }
+
   let meetingUrl = appointment.meetingUrl;
   let meetingRoomName = appointment.meetingRoomName;
+  let roomError: string | null = null;
+
   if (!meetingUrl) {
-    const room = await createDailyRoom(appointment.id);
-    if (room) {
-      meetingUrl = room.url;
-      meetingRoomName = room.name;
+    const created = await createDailyRoom(appointment.id);
+    if (created.ok) {
+      meetingUrl = created.room.url;
+      meetingRoomName = created.room.name;
+    } else {
+      roomError = created.error;
+      console.error("[kiosk/escalate] Daily room failed", created.error);
     }
   }
 
-  const doctorId = responsible?.doctorId ?? appointment.doctorId;
   const inProgress = await getAppointmentStatusByCode("in_progress");
   await db
     .update(appointmentsTable)
     .set({
       doctorId,
-      // Pasa a teleconsulta para que agenda/consulta muestren la sala Daily.
       modality: "teleconsulta",
       meetingUrl: meetingUrl ?? appointment.meetingUrl,
       meetingRoomName: meetingRoomName ?? appointment.meetingRoomName,
@@ -195,19 +212,27 @@ async function escalateToDoctor(params: {
     })
     .where(eq(appointmentsTable.id, appointment.id));
 
-  const notifyIds = [doctorId, appointment.doctorId, responsible?.doctorId].filter(
-    (id): id is number => typeof id === "number" && id > 0,
-  );
+  // Avisar al médico asignado/responsable + todos los médicos activos (telemedicina).
+  const allDoctors = await getActiveDoctors();
+  const notifyIds = [
+    doctorId,
+    appointment.doctorId,
+    responsible?.doctorId,
+    ...allDoctors.map((d) => d.id),
+  ].filter((id): id is number => typeof id === "number" && id > 0);
+
+  let notified = 0;
   try {
-    await notifyDoctorsStationTeleconsulta({
+    const notifyResult = await notifyDoctorsStationTeleconsulta({
       appointmentId: appointment.id,
       patientId: appointment.patientId,
       doctorUserIds: notifyIds,
       redFlags: assessment.redFlags,
       meetingUrl: meetingUrl ?? null,
     });
-  } catch {
-    // No bloquear la atención si falla el aviso
+    notified = notifyResult.notified;
+  } catch (err) {
+    console.error("[kiosk/escalate] notify failed", err);
   }
 
   const assessmentDraft: KioskAssessmentDraft = {
@@ -217,6 +242,7 @@ async function escalateToDoctor(params: {
     consultationId: null,
     prescriptionId: null,
     prescriptionFolio: null,
+    roomError,
   };
 
   await db
@@ -230,12 +256,21 @@ async function escalateToDoctor(params: {
     })
     .where(eq(stationKioskSessionsTable.token, sessionToken));
 
+  revalidatePath("/estacion");
+  revalidatePath(`/estacion/sala/${appointment.id}`);
+  revalidatePath(`/consultas/cita/${appointment.id}`);
+  revalidatePath("/notificaciones");
+  revalidatePath("/agenda");
+
   return {
     ok: true as const,
     path: "doctor" as const,
     step: "waiting" as const,
     assessment: assessmentDraft,
     meetingUrl: meetingUrl ?? null,
+    roomError,
+    appointmentId: appointment.id,
+    notified,
   };
 }
 
@@ -342,6 +377,7 @@ async function issueProtocolCare(params: {
     consultationId: consultation.id,
     prescriptionId,
     prescriptionFolio,
+    roomError: null,
   };
 
   await db
@@ -361,5 +397,8 @@ async function issueProtocolCare(params: {
     step: "result" as const,
     assessment: assessmentDraft,
     meetingUrl: null,
+    roomError: null,
+    appointmentId: appointment.id,
+    notified: 0,
   };
 }
