@@ -38,6 +38,11 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
+  // Station video sala: hide chrome so Daily fills the Dell monitor.
+  if (pathname.startsWith("/estacion/sala")) {
+    return null;
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";

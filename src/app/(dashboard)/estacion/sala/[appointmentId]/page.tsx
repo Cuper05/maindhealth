@@ -7,12 +7,15 @@ import { db } from "@/lib/db";
 import { appointmentsTable, patientsTable, usersTable } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { ensureAppointmentMeetingUrl } from "@/lib/video/ensure-meeting";
+import {
+  createStationDailyToken,
+  parseDailyRoomName,
+} from "@/lib/video/daily";
 import { DailyVideoRoom } from "@/components/video/DailyVideoRoom";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { buttonSecondaryClassName, cardClassName } from "@/lib/ui/classes";
 
 /**
  * Endpoint de videoconsulta en la PC Dell de la estación (cámara + audífonos).
+ * Fullscreen + auto-join (sin lobby "Are you ready to join?").
  * El kiosk táctil ViewSonic no une Daily; el médico remoto entra desde agenda/consulta.
  */
 export default async function EstacionSalaPage({
@@ -32,6 +35,7 @@ export default async function EstacionSalaPage({
       id: appointmentsTable.id,
       modality: appointmentsTable.modality,
       meetingUrl: appointmentsTable.meetingUrl,
+      meetingRoomName: appointmentsTable.meetingRoomName,
       reason: appointmentsTable.reason,
       patientId: appointmentsTable.patientId,
       patientFirstName: patientsTable.firstName,
@@ -66,69 +70,88 @@ export default async function EstacionSalaPage({
     lastNamePaternal: appointment.doctorLastNamePaternal,
     lastNameMaternal: appointment.doctorLastNameMaternal,
   });
+  const stationUserName = `Paciente — ${patientName}`;
+
+  const roomName =
+    appointment.meetingRoomName?.trim() || parseDailyRoomName(meetingUrl);
+  let dailyToken: string | null = null;
+  if (meetingUrl && roomName) {
+    const tokenResult = await createStationDailyToken({
+      roomName,
+      userName: stationUserName,
+    });
+    if (tokenResult.ok) {
+      dailyToken = tokenResult.token;
+    } else {
+      console.error("[estacion/sala] token for auto-join failed", tokenResult.error);
+    }
+  }
 
   return (
-    <div>
-      <PageHeader
-        title="Sala de videoconsulta — estación"
-        description={`${patientName} · ${appointment.patientChart}`}
-        backHref="/estacion"
-        action={
-          <div className="flex flex-wrap gap-2">
-            {meetingUrl ? (
-              <a
-                href={meetingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={buttonSecondaryClassName}
-              >
-                Abrir en pestaña
-              </a>
-            ) : null}
-            <Link href={`/consultas/cita/${appointmentId}`} className={buttonSecondaryClassName}>
-              Expediente / notas médicas
-            </Link>
-          </div>
-        }
-      />
+    <div
+      data-station-sala
+      className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white"
+    >
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-3">
+        <div className="min-w-0 truncate text-sm">
+          <Link href="/estacion" className="text-teal-300 hover:underline">
+            ← Estación
+          </Link>
+          <span className="mx-2 text-slate-600">·</span>
+          <span className="font-medium text-white">{patientName}</span>
+          <span className="text-slate-400"> · {appointment.patientChart}</span>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {meetingUrl ? (
+            <a
+              href={meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
+            >
+              Abrir en pestaña
+            </a>
+          ) : null}
+          <Link
+            href={`/consultas/cita/${appointmentId}`}
+            className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
+          >
+            Expediente
+          </Link>
+        </div>
+      </header>
 
-      <section className={`${cardClassName} mb-6 border-[#1d6eb8]/30 bg-[#f0f7ff]`}>
-        <p className="text-sm font-semibold text-[#1a4d7c]">
-          Esta PC (Dell) es el lado paciente de la llamada
-        </p>
-        <p className="mt-1 text-sm text-slate-700">
-          Usa la cámara y audífonos conectados aquí. El médico remoto (
-          <strong>Dr(a). {doctorName}</strong>) se une desde su notificación / consulta. No uses
-          Agenda ni el kiosk táctil para el video del paciente.
-        </p>
-        {appointment.reason ? (
-          <p className="mt-2 text-xs text-slate-500">Motivo: {appointment.reason}</p>
-        ) : null}
-      </section>
+      <p className="shrink-0 truncate border-b border-slate-800 bg-slate-900/90 px-3 py-1 text-xs text-slate-300">
+        Video automático en esta PC · Dr(a). {doctorName} entra desde su consulta
+        {appointment.reason ? ` · ${appointment.reason}` : ""}
+      </p>
 
       {meetingUrl ? (
-        <section>
+        <div className="relative min-h-0 flex-1">
           <DailyVideoRoom
             meetingUrl={meetingUrl}
             title="Videoconsulta — paciente en estación"
-            userName={patientName}
+            userName={stationUserName}
+            token={dailyToken}
+            variant="station"
+            autoJoin
           />
-        </section>
+        </div>
       ) : (
-        <section className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950">
+        <section className="m-4 rounded-xl border border-red-400/60 bg-red-950/80 px-4 py-3 text-sm text-red-50">
           <p className="font-semibold">
             {roomEnsureFailed
               ? "No se pudo crear la sala Daily"
               : "No hay sala Daily disponible"}
           </p>
-          <p className="mt-1">
+          <p className="mt-1 text-red-100/90">
             Revisa que `VIDEO_API_KEY` (Daily.co) esté configurada en Vercel/producción y vuelve a
             abrir esta sala. El paciente sigue en cola de estación; el médico remoto también puede
             intentar desde Consulta.
           </p>
           <Link
             href={`/estacion/sala/${appointmentId}`}
-            className="mt-3 inline-block font-medium text-red-900 underline"
+            className="mt-3 inline-block font-medium text-red-100 underline"
           >
             Reintentar crear sala
           </Link>

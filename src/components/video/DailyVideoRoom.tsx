@@ -8,11 +8,20 @@ export function DailyVideoRoom({
   meetingUrl,
   title = "Videollamada",
   userName,
+  token,
+  variant = "default",
+  autoJoin = false,
 }: {
   meetingUrl: string;
   title?: string;
   /** When set (e.g. kiosk patient), prefill Daily and skip the name form. */
   userName?: string | null;
+  /** Daily meeting token (station: enable_prejoin_ui false). */
+  token?: string | null;
+  /** Station sala: large frame + auto-enter call. */
+  variant?: "default" | "station";
+  /** Alias for station auto-enter (no Join click). */
+  autoJoin?: boolean;
 }) {
   if (!isDailyEmbedUrl(meetingUrl)) {
     return (
@@ -27,38 +36,52 @@ export function DailyVideoRoom({
     );
   }
 
+  const isStation = variant === "station" || autoJoin;
   const trimmedName = userName?.trim();
 
-  // Staff/portal: plain iframe (unchanged). Kiosk: daily-js so we can pass userName.
-  if (!trimmedName) {
-    const embedUrl = meetingUrl.includes("?")
-      ? `${meetingUrl}&embed=true`
-      : `${meetingUrl}?embed=true`;
-
+  // Station always uses daily-js (token + auto-join). Named joins also use createFrame.
+  if (isStation || trimmedName) {
     return (
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
-        <p className="border-b border-slate-700 px-4 py-2 text-sm text-slate-200">{title}</p>
-        <iframe
-          src={embedUrl}
-          allow="camera; microphone; fullscreen; display-capture"
-          className="aspect-video w-full min-h-[360px] bg-black"
-          title={title}
-        />
-      </div>
+      <DailyNamedFrame
+        meetingUrl={meetingUrl}
+        title={title}
+        userName={trimmedName || "Paciente"}
+        token={token?.trim() || null}
+        station={isStation}
+      />
     );
   }
 
-  return <DailyNamedFrame meetingUrl={meetingUrl} title={title} userName={trimmedName} />;
+  // Staff/portal default: plain iframe (keeps normal Daily prejoin if domain has it).
+  const embedUrl = meetingUrl.includes("?")
+    ? `${meetingUrl}&embed=true`
+    : `${meetingUrl}?embed=true`;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
+      <p className="border-b border-slate-700 px-4 py-2 text-sm text-slate-200">{title}</p>
+      <iframe
+        src={embedUrl}
+        allow="camera; microphone; fullscreen; display-capture"
+        className="aspect-video w-full min-h-[360px] bg-black"
+        title={title}
+      />
+    </div>
+  );
 }
 
 function DailyNamedFrame({
   meetingUrl,
   title,
   userName,
+  token,
+  station,
 }: {
   meetingUrl: string;
   title: string;
   userName: string;
+  token: string | null;
+  station: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -75,12 +98,13 @@ function DailyNamedFrame({
 
       call = DailyIframe.createFrame(parent, {
         showLeaveButton: true,
+        showFullscreenButton: station,
         showUserNameChangeUI: false,
         iframeStyle: {
           width: "100%",
           height: "100%",
           border: "0",
-          minHeight: "360px",
+          ...(station ? {} : { minHeight: "360px" }),
         },
       });
 
@@ -89,9 +113,13 @@ function DailyNamedFrame({
         return;
       }
 
+      // Token with enable_prejoin_ui:false skips "Are you ready to join?" / Join.
       await call.join({
         url: meetingUrl,
         userName,
+        ...(token ? { token } : {}),
+        startVideoOff: false,
+        startAudioOff: false,
       });
     };
 
@@ -108,7 +136,18 @@ function DailyNamedFrame({
         void active.destroy();
       });
     };
-  }, [meetingUrl, userName]);
+  }, [meetingUrl, userName, token, station]);
+
+  if (station) {
+    return (
+      <div className="h-full w-full bg-black" title={title}>
+        <div
+          ref={containerRef}
+          className="h-full w-full bg-black [&_iframe]:h-full [&_iframe]:w-full"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
