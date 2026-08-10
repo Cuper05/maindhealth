@@ -64,6 +64,12 @@ Abre **http://localhost:3003**
 | Ingesta hardware API | ✅ | ✅ `/api/device-readings/ingest` |
 | Configuración / usuarios | ✅ | ✅ listado |
 
+## App móvil de médicos
+
+Expo (React Native) en [`mobile/doctor`](./mobile/doctor): alerta con sonido + vibración al escalar teleconsulta desde la estación, y apertura de la sala Daily. Ver [mobile/doctor/README.md](./mobile/doctor/README.md).
+
+Tras desplegar backend: `npm run db:push` (tabla `push_tokens`).
+
 ## Documentación
 
 - [docs/MODULES.md](./docs/MODULES.md) — matriz de módulos y prioridades

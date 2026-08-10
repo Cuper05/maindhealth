@@ -9,7 +9,8 @@ const PUBLIC_PATHS = [
   "/estacion/paciente",
 ];
 
-const PUBLIC_API_PREFIXES = ["/api/station/"];
+/** Station kiosk + doctor mobile app (Bearer JWT checked in route handlers). */
+const PUBLIC_API_PREFIXES = ["/api/station/", "/api/mobile/"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

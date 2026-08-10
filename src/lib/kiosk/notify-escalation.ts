@@ -2,9 +2,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { notificationsTable, patientsTable, usersTable } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
+import { sendExpoPushToUsers } from "@/lib/push/expo";
 
 /**
  * Avisa a médicos (users.id) que un paciente de estación espera teleconsulta.
+ * También envía push Expo a dispositivos registrados (app móvil del médico).
  */
 export async function notifyDoctorsStationTeleconsulta(input: {
   appointmentId: number;
@@ -14,7 +16,7 @@ export async function notifyDoctorsStationTeleconsulta(input: {
   meetingUrl: string | null;
 }) {
   const uniqueIds = [...new Set(input.doctorUserIds.filter((id) => Number.isFinite(id) && id > 0))];
-  if (uniqueIds.length === 0) return { notified: 0 };
+  if (uniqueIds.length === 0) return { notified: 0, pushSent: 0 };
 
   const [patient] = await db
     .select({
@@ -44,12 +46,15 @@ export async function notifyDoctorsStationTeleconsulta(input: {
   const referenceKey = `estacion-teleconsulta:${input.appointmentId}`;
   let notified = 0;
 
+  const title = `Estación: teleconsulta — ${patientName}`;
+  const body = `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Un clic abre la videollamada. El paciente ya entra solo en la Dell de estación.`;
+
   for (const doctor of activeDoctors) {
     const payload = {
       userId: doctor.id,
       type: "videollamada_lista",
-      title: `Estación: teleconsulta — ${patientName}`,
-      body: `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Un clic abre la videollamada. El paciente ya entra solo en la Dell de estación.`,
+      title,
+      body,
       href,
       referenceKey,
     };
@@ -78,5 +83,24 @@ export async function notifyDoctorsStationTeleconsulta(input: {
     notified += 1;
   }
 
-  return { notified };
+  let pushSent = 0;
+  try {
+    const pushResult = await sendExpoPushToUsers(
+      activeDoctors.map((d) => d.id),
+      {
+        title,
+        body: `${patientName}${chart} espera teleconsulta. Toca para unirte.`,
+        data: {
+          appointmentId: input.appointmentId,
+          meetingUrl: input.meetingUrl?.trim() || null,
+          href,
+        },
+      },
+    );
+    pushSent = pushResult.sent;
+  } catch (err) {
+    console.error("[notify-escalation] expo push failed", err);
+  }
+
+  return { notified, pushSent };
 }

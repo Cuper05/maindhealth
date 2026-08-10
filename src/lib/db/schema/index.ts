@@ -12,6 +12,7 @@ export * from "./follow-ups";
 export * from "./clinical-documents";
 export * from "./medical-devices";
 export * from "./notifications";
+export * from "./push-tokens";
 export * from "./activity-log";
 export * from "./station-kiosk";
 export * from "./device-readings";
