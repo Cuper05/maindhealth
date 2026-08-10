@@ -41,7 +41,15 @@ export async function getWaitingDoctorStationSessions() {
     .where(eq(stationKioskSessionsTable.status, "waiting_doctor"))
     .orderBy(desc(stationKioskSessionsTable.updatedAt));
 
-  return rows.map((row) => ({
+  // Una fila por cita: pueden existir varias sesiones kiosk en waiting_doctor.
+  const seenAppointments = new Set<number>();
+  const uniqueRows = rows.filter((row) => {
+    if (seenAppointments.has(row.appointmentId)) return false;
+    seenAppointments.add(row.appointmentId);
+    return true;
+  });
+
+  return uniqueRows.map((row) => ({
     sessionId: row.sessionId,
     appointmentId: row.appointmentId,
     patientId: row.patientId,

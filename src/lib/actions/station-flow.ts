@@ -124,6 +124,7 @@ export async function registerStationWalkIn(formData: FormData) {
   });
 
   revalidatePath("/estacion");
+  revalidatePath("/estacion/panel");
   revalidatePath("/agenda");
   return actionSuccess({
     patientId: patient.id,

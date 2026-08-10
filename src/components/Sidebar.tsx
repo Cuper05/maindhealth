@@ -10,7 +10,7 @@ const NAV = [
   { href: "/", label: "Dashboard", phase: 1 },
   { href: "/pacientes", label: "Pacientes", phase: 1 },
   { href: "/agenda", label: "Agenda", phase: 1 },
-  { href: "/estacion", label: "Estación", phase: 5 },
+  { href: "/estacion/panel", label: "Estación", phase: 5 },
   { href: "/triage", label: "Triage / signos vitales", phase: 1 },
   { href: "/consultas", label: "Consultas", phase: 1 },
   { href: "/recetas", label: "Recetas", phase: 1 },
@@ -38,8 +38,8 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
-  // Station video sala: hide chrome so Daily fills the Dell monitor.
-  if (pathname.startsWith("/estacion/sala")) {
+  // Dell standby + video sala: chrome-free fullscreen.
+  if (pathname === "/estacion" || pathname.startsWith("/estacion/sala")) {
     return null;
   }
 
@@ -66,7 +66,10 @@ export function Sidebar({
           const active =
             item.href === "/"
               ? pathname === "/"
-              : pathname.startsWith(item.href);
+              : item.href === "/estacion/panel"
+                ? pathname.startsWith("/estacion/") &&
+                  !pathname.startsWith("/estacion/sala")
+                : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

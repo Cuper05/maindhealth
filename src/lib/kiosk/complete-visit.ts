@@ -257,6 +257,7 @@ async function escalateToDoctor(params: {
     .where(eq(stationKioskSessionsTable.token, sessionToken));
 
   revalidatePath("/estacion");
+  revalidatePath("/estacion/panel");
   revalidatePath(`/estacion/sala/${appointment.id}`);
   revalidatePath(`/consultas/cita/${appointment.id}`);
   revalidatePath("/notificaciones");

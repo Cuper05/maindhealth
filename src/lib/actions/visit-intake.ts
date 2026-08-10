@@ -101,6 +101,7 @@ async function saveVisitIntake(
   });
 
   revalidatePath("/estacion");
+  revalidatePath("/estacion/panel");
   revalidatePath("/estacion/flujo");
   revalidatePath(`/estacion/intake/${data.appointmentId}`);
   revalidatePath(`/agenda/${data.appointmentId}`);

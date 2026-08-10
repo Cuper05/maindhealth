@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function EstacionFlujoPage() {
   const session = await requireSession();
-  if (!can(session?.role, "intake:write")) redirect("/estacion");
+  if (!can(session?.role, "intake:write")) redirect("/estacion/panel");
 
   const [appointments, doctors] = await Promise.all([
     getTodayStationAppointments(),
@@ -34,7 +34,7 @@ export default async function EstacionFlujoPage() {
       <PageHeader
         title="Protocolo de estación"
         description="Bienvenida → paciente → datos → clínico → consentimiento → signos → espera."
-        backHref="/estacion"
+        backHref="/estacion/panel"
       />
       <Suspense fallback={<p className="text-sm text-slate-500">Cargando…</p>}>
         <StationFlowWizard todayAppointments={today} doctors={doctors} />

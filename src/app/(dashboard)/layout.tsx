@@ -41,7 +41,7 @@ export default async function DashboardLayout({
         unreadNotifications={unreadNotifications}
       />
       {/* Sala de estación usa fixed fullscreen; el padding normal no aplica ahí. */}
-      <main className="relative flex-1 overflow-auto p-6 md:p-8 [&:has([data-station-sala])]:p-0">
+      <main className="relative flex-1 overflow-auto p-6 md:p-8 [&:has([data-station-sala])]:p-0 [&:has([data-station-standby])]:p-0">
         {stationWatch ? <StationTeleconsultaAutoPilot /> : null}
         {children}
       </main>

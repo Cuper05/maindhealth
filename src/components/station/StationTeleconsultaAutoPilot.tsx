@@ -104,7 +104,6 @@ export function StationTeleconsultaAutoPilot({
 }) {
   const pathname = usePathname() ?? "";
   const [stationMode, setStationMode] = useState(false);
-  const [waiting, setWaiting] = useState<WaitingItem[]>(initialWaiting);
   const [pending, setPending] = useState<WaitingItem | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(COUNTDOWN_SEC);
   const [authLost, setAuthLost] = useState(false);
@@ -114,6 +113,7 @@ export function StationTeleconsultaAutoPilot({
   const pendingIdRef = useRef<number | null>(null);
 
   const onEstacionSection = pathname === "/estacion" || pathname.startsWith("/estacion/");
+  const onStandby = pathname === "/estacion";
   const onSala = pathname.startsWith("/estacion/sala/");
   const currentSalaId = onSala
     ? Number(pathname.split("/estacion/sala/")[1]?.split(/[/?#]/)[0])
@@ -171,7 +171,6 @@ export function StationTeleconsultaAutoPilot({
         setPollError(null);
         const data = (await res.json()) as { waiting?: WaitingItem[] };
         if (!data.waiting) return;
-        setWaiting(data.waiting);
 
         const opened = new Set(readOpened());
         const candidate = data.waiting.find((item) => {
@@ -270,51 +269,48 @@ export function StationTeleconsultaAutoPilot({
 
   return (
     <>
-      {/* Indicador permanente: modo estación activo en esta PC */}
-      {!onSala && (
-        <div className="pointer-events-none fixed bottom-3 left-3 z-[70] max-w-xs rounded-lg border border-[#1d6eb8]/40 bg-[#0f3d66]/95 px-3 py-2 text-xs text-white shadow-lg">
-          <p className="font-semibold">Modo estación Dell activo</p>
-          <p className="mt-0.5 text-white/80">
-            Teleconsultas se abren solas aquí. No uses Agenda para el video del paciente.
-          </p>
+      {/* Fuera de standby/sala: chip discreto (el standby ya muestra “En espera”). */}
+      {!onSala && !onStandby && (
+        <div className="pointer-events-none fixed bottom-3 left-3 z-[70] max-w-[14rem] rounded-lg border border-[#1d6eb8]/30 bg-[#0f3d66]/90 px-2.5 py-1.5 text-[11px] text-white/90 shadow-lg">
+          <p className="font-medium">Modo estación activo</p>
           <button
             type="button"
-            className="pointer-events-auto mt-1 text-[11px] underline opacity-80 hover:opacity-100"
+            className="pointer-events-auto mt-0.5 text-[10px] underline opacity-70 hover:opacity-100"
             onClick={() => {
               disableStationMode();
               setStationMode(false);
             }}
           >
-            Desactivar en este navegador
+            Desactivar
           </button>
         </div>
       )}
 
-      {pollError && !authLost && (
-        <div className="fixed top-3 left-1/2 z-[75] w-[min(96vw,36rem)] -translate-x-1/2 rounded-xl border border-amber-400 bg-amber-100 px-4 py-3 text-sm text-amber-950 shadow-xl">
+      {pollError && !authLost && !onStandby && (
+        <div className="fixed top-3 left-1/2 z-[75] w-[min(96vw,28rem)] -translate-x-1/2 rounded-xl border border-amber-400 bg-amber-100 px-4 py-3 text-sm text-amber-950 shadow-xl">
           <p className="font-semibold">Vigilancia de estación: {pollError}</p>
-          <p className="mt-1">Reintentando cada {POLL_MS / 1000}s. Mantén esta PC en /estacion.</p>
+          <p className="mt-1 text-xs">Reintentando cada {POLL_MS / 1000}s.</p>
         </div>
       )}
 
       {authLost && (
         <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-red-950/90 p-6"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0c2a47]/95 p-6"
           role="alertdialog"
           aria-live="assertive"
         >
-          <div className="w-full max-w-lg rounded-2xl border-4 border-red-400 bg-white px-6 py-8 text-center shadow-2xl">
-            <p className="text-sm font-bold uppercase tracking-wide text-red-700">
-              Sesión expirada — video bloqueado
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-white px-6 py-8 text-center shadow-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-red-700">
+              Sesión expirada
             </p>
             <p className="mt-3 text-lg font-semibold text-slate-900">
-              Vuelve a iniciar sesión. Te regresamos a la sala de estación.
+              Vuelve a iniciar sesión para continuar con el video.
             </p>
             <a
               href={`/login?from=${encodeURIComponent(pending ? salaPath(pending.appointmentId) : "/estacion")}`}
-              className="mt-6 inline-block rounded-lg bg-red-700 px-6 py-3 text-base font-bold text-white hover:bg-red-800"
+              className="mt-6 inline-block rounded-lg bg-[#1d6eb8] px-6 py-3 text-base font-semibold text-white hover:bg-[#185a96]"
             >
-              Iniciar sesión ahora
+              Iniciar sesión
             </a>
           </div>
         </div>
@@ -322,64 +318,53 @@ export function StationTeleconsultaAutoPilot({
 
       {navFailed && (
         <div
-          className="fixed inset-0 z-[85] flex items-center justify-center bg-red-950/90 p-6"
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-[#0c2a47]/95 p-6"
           role="alertdialog"
           aria-live="assertive"
         >
-          <div className="w-full max-w-lg rounded-2xl border-4 border-red-400 bg-white px-6 py-8 text-center shadow-2xl">
-            <p className="text-sm font-bold uppercase tracking-wide text-red-700">
-              Falló apertura automática
+          <div className="w-full max-w-md rounded-2xl border border-white/20 bg-white px-6 py-8 text-center shadow-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-amber-700">
+              No se pudo abrir automáticamente
             </p>
-            <h2 className="mt-3 text-2xl font-bold text-slate-900">{navFailed.patientName}</h2>
-            <p className="mt-1 text-sm text-slate-500">Expediente {navFailed.chartNumber}</p>
+            <p className="mt-3 text-lg font-semibold text-slate-900">
+              Toca para entrar a la videoconsulta
+            </p>
             <a
               href={salaPath(navFailed.appointmentId)}
-              className="mt-6 inline-block w-full rounded-lg bg-red-700 px-6 py-4 text-lg font-bold text-white hover:bg-red-800"
+              className="mt-6 inline-block w-full rounded-lg bg-[#1d6eb8] px-6 py-4 text-lg font-semibold text-white hover:bg-[#185a96]"
               onClick={() => {
                 navigatingRef.current = true;
                 markOpened(navFailed.appointmentId);
               }}
             >
-              ABRIR VIDEOCONSULTA AHORA
+              Abrir videoconsulta
             </a>
           </div>
         </div>
       )}
 
+      {/* Transición breve al auto-join: marca corporativa, sin cola ni datos clínicos. */}
       {showOverlay && pending && !navFailed && !authLost && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 p-6"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-gradient-to-br from-[#0c2a47] via-[#143d66] to-[#1d6eb8] p-6"
           role="alertdialog"
           aria-live="assertive"
-          aria-label="Teleconsulta lista"
+          aria-label="Abriendo videoconsulta"
         >
-          <div className="w-full max-w-lg rounded-2xl border-2 border-amber-400 bg-white px-6 py-8 text-center shadow-2xl">
-            <p className="text-sm font-semibold uppercase tracking-wide text-amber-700">
-              Teleconsulta automática — PC estación
+          <div className="text-center text-white">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/12 text-xl font-bold backdrop-blur-sm">
+              MH
+            </div>
+            <p className="text-sm font-medium uppercase tracking-[0.3em] text-blue-100/90">
+              MaindHealth
             </p>
-            <h2 className="mt-3 text-2xl font-bold text-slate-900">{pending.patientName}</h2>
-            <p className="mt-1 text-sm text-slate-500">Expediente {pending.chartNumber}</p>
-            {pending.summary ? (
-              <p className="mt-4 text-sm text-slate-600 line-clamp-3">{pending.summary}</p>
-            ) : null}
-            {pending.redFlags.length > 0 ? (
-              <p className="mt-3 text-sm font-medium text-amber-900">
-                {pending.redFlags.slice(0, 4).join(" · ")}
-              </p>
-            ) : null}
-            {!pending.meetingUrl ? (
-              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Sala Daily pendiente — se creará al abrir.
-              </p>
-            ) : (
-              <p className="mt-3 text-sm text-emerald-700">Sala Daily lista</p>
-            )}
-            <p className="mt-6 text-xl font-semibold text-[#1a4d7c]">
-              Abriendo videoconsulta en {secondsLeft}…
+            <p className="mt-4 text-2xl font-semibold tracking-tight md:text-3xl">
+              Conectando videoconsulta…
             </p>
+            <p className="mt-3 text-sm text-blue-100/80">Abriendo en {secondsLeft}…</p>
             <a
               href={salaPath(pending.appointmentId)}
-              className="mt-6 inline-block rounded-lg bg-[#1d6eb8] px-6 py-3 text-base font-bold text-white hover:bg-[#185a96]"
+              className="mt-8 inline-block text-sm text-white/50 underline-offset-4 hover:text-white/80 hover:underline"
               onClick={() => {
                 navigatingRef.current = true;
                 markOpened(pending.appointmentId);
@@ -387,29 +372,7 @@ export function StationTeleconsultaAutoPilot({
             >
               Abrir ahora
             </a>
-            <p className="mt-4 text-xs text-slate-400">
-              Esta PC Dell es el lado paciente. El médico remoto se une desde su notificación /
-              consulta. No abras Agenda en esta PC para el video.
-            </p>
           </div>
-        </div>
-      )}
-
-      {!showOverlay && !navFailed && !authLost && waiting.length > 0 && !onSala && (
-        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold">
-            {waiting.length} paciente{waiting.length === 1 ? "" : "s"} en espera de teleconsulta
-          </p>
-          <p className="mt-1">
-            Modo estación vigila cada {POLL_MS / 1000}s y abre la sala sola. Cola:{" "}
-            {waiting.map((w) => w.patientName).join(", ")}.
-          </p>
-          <a
-            href={salaPath(waiting[0].appointmentId)}
-            className="mt-2 inline-block font-bold text-amber-950 underline"
-          >
-            Abrir sala de {waiting[0].patientName} ahora
-          </a>
         </div>
       )}
     </>
