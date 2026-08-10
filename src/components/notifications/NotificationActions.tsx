@@ -39,6 +39,14 @@ export function NotificationLink({
   children: React.ReactNode;
 }) {
   if (!href) return <>{children}</>;
+  const external = /^https?:\/\//i.test(href);
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="hover:underline">
+        {children}
+      </a>
+    );
+  }
   return (
     <Link href={href} className="hover:underline">
       {children}

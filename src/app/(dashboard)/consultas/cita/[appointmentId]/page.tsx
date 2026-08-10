@@ -154,18 +154,18 @@ export default async function ConsultationByAppointmentPage({
       {appointment.modality === "teleconsulta" ? (
         <section className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <p>
-            Si atiendes desde un consultorio remoto, únete aquí. Si el paciente está en la estación
-            física, el staff debe abrir la sala en la{" "}
+            Médico remoto: la videollamada está abajo (un clic desde la notificación). El video del
+            paciente se abre solo en la{" "}
             <Link href={`/estacion/sala/${appointmentId}`} className="font-medium text-teal-700 hover:underline">
               PC Dell de la estación
-            </Link>{" "}
-            (cámara y audífonos); el kiosk táctil no usa video.
+            </Link>
+            ; el kiosk táctil no usa cámara.
           </p>
         </section>
       ) : null}
 
       {(meetingUrl ?? appointment.meetingUrl) ? (
-        <section className="mb-6">
+        <section id="video" className="mb-6 scroll-mt-6">
           <DailyVideoRoom
             meetingUrl={(meetingUrl ?? appointment.meetingUrl)!}
             title="Teleconsulta en vivo"

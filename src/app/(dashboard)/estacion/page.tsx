@@ -4,7 +4,6 @@ import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { getTodayStationAppointments } from "@/lib/queries/visit-intake";
 import { getWaitingDoctorStationSessions } from "@/lib/queries/station-waiting";
-import { StationTeleconsultaAutoPilot } from "@/components/station/StationTeleconsultaAutoPilot";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { buttonPrimaryClassName, cardClassName } from "@/lib/ui/classes";
 
@@ -20,7 +19,7 @@ export default async function EstacionPage() {
     <div>
       <PageHeader
         title="Estación de telemedicina"
-        description="Cola de teleconsulta en esta PC (Dell: cámara y audífonos). El kiosk táctil solo captura datos y signos. Las teleconsultas se abren solas aquí."
+        description="Deja esta pestaña abierta en la Dell al inicio del día (sesión iniciada). El video del paciente se abre solo tras escalación IA — no uses Agenda en esta PC."
         action={
           <div className="flex flex-wrap gap-2">
             <a
@@ -40,27 +39,23 @@ export default async function EstacionPage() {
         }
       />
 
-      <StationTeleconsultaAutoPilot
-        initialWaiting={waitingDoctor.map((item) => ({
-          sessionId: item.sessionId,
-          appointmentId: item.appointmentId,
-          patientName: item.patientName,
-          chartNumber: item.chartNumber,
-          meetingUrl: item.meetingUrl,
-          redFlags: item.redFlags,
-          summary: item.summary,
-          updatedAt: item.updatedAt,
-        }))}
-      />
+      <div className="mb-6 rounded-xl border-2 border-[#1d6eb8] bg-[#f0f7ff] px-4 py-4 text-sm text-[#0f3d66]">
+        <p className="font-semibold text-base">Operación Dell — video automático</p>
+        <p className="mt-1">
+          Al abrir esta página se activa el <strong>modo estación</strong> en este navegador. Aunque
+          alguien navegue a Agenda por error, la Dell sigue vigilando la cola y abre{" "}
+          <code className="rounded bg-white/80 px-1">/estacion/sala/…</code> sola (≤2 s). El kiosk
+          táctil solo captura datos; el médico remoto se une por notificación.
+        </p>
+      </div>
 
       {waitingDoctor.length > 0 && (
         <section className="mb-8">
           <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            <p className="font-semibold">Acción automática en esta PC (Dell)</p>
+            <p className="font-semibold">Paciente en espera — apertura automática</p>
             <p className="mt-1">
-              Al detectar un paciente en espera, esta pantalla abre la videoconsulta sola (cuenta
-              regresiva de 3 s). El médico remoto se une desde su agenda o consulta. No uses el kiosk
-              táctil ViewSonic para video.
+              La videoconsulta debe abrirse sola en esta PC. Si no aparece el overlay, usa el botón
+              grande abajo. No abras Agenda para unir al paciente.
             </p>
           </div>
           <h2 className="mb-3 text-lg font-semibold text-slate-900">

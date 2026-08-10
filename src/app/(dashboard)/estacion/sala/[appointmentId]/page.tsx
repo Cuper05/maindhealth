@@ -98,8 +98,8 @@ export default async function EstacionSalaPage({
         </p>
         <p className="mt-1 text-sm text-slate-700">
           Usa la cámara y audífonos conectados aquí. El médico remoto (
-          <strong>Dr(a). {doctorName}</strong>) se une desde su propia sesión (agenda o consulta), no
-          desde el kiosk táctil.
+          <strong>Dr(a). {doctorName}</strong>) se une desde su notificación / consulta. No uses
+          Agenda ni el kiosk táctil para el video del paciente.
         </p>
         {appointment.reason ? (
           <p className="mt-2 text-xs text-slate-500">Motivo: {appointment.reason}</p>

@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/Sidebar";
+import { StationTeleconsultaAutoPilot } from "@/components/station/StationTeleconsultaAutoPilot";
 import { requireSession } from "@/lib/auth/session";
 import { can } from "@/lib/auth/permissions";
 import { syncUserNotifications } from "@/lib/notifications/sync";
@@ -28,6 +29,10 @@ export default async function DashboardLayout({
     }
   }
 
+  // AutoPilot global: solo navega si esta PC activó "modo estación" (visitar /estacion).
+  // Así Agenda u otras rutas en la Dell aún abren la sala; laptops remotas no se secuestran.
+  const stationWatch = can(session.role, "intake:view");
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar
@@ -35,7 +40,10 @@ export default async function DashboardLayout({
         role={session.role}
         unreadNotifications={unreadNotifications}
       />
-      <main className="flex-1 overflow-auto p-6 md:p-8">{children}</main>
+      <main className="flex-1 overflow-auto p-6 md:p-8">
+        {stationWatch ? <StationTeleconsultaAutoPilot /> : null}
+        {children}
+      </main>
     </div>
   );
 }

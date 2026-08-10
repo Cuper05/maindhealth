@@ -302,8 +302,8 @@ export async function syncUserNotifications(userId: number, role: UserRole) {
         type: "videollamada_lista",
         referenceKey,
         title: `Estación: teleconsulta — ${name}`,
-        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""} Únete desde Consulta. Video paciente en PC Dell de estación.`,
-        href: `/consultas/cita/${row.appointmentId}`,
+        body: `${name}${row.chartNumber ? ` (${row.chartNumber})` : ""} espera. ${flags}${row.meetingUrl ? " · Sala lista." : ""} Un clic abre la videollamada. Video paciente automático en Dell de estación.`,
+        href: row.meetingUrl?.trim() || `/consultas/cita/${row.appointmentId}#video`,
       });
     }
   }

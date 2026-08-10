@@ -1,10 +1,9 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,8 +38,10 @@ function LoginForm() {
       const from = searchParams.get("from");
       const role = data.user?.role;
       const defaultPath = role === "patient" ? "/portal" : "/";
-      router.push(from && from !== "/" ? from : defaultPath);
-      router.refresh();
+      // Hard redirect: preserves /estacion/sala/... after session expiry on the Dell.
+      const dest =
+        from && from.startsWith("/") && !from.startsWith("//") ? from : defaultPath;
+      window.location.assign(dest);
     } catch {
       setError("No se pudo conectar con el servidor");
       setLoading(false);
