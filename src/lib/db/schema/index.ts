@@ -23,3 +23,4 @@ export * from "./clinical-messages";
 export * from "./clinical-alerts";
 export * from "./visit-intakes";
 export * from "./station-commerce";
+export * from "./teleconsulta-alerts";

@@ -19,6 +19,9 @@ export async function middleware(request: NextRequest) {
     PUBLIC_PATHS.some((p) => pathname === p) ||
     PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/api/prescriptions/verify/") ||
+    pathname.startsWith("/api/alerts/twilio/") ||
+    pathname.startsWith("/api/cron/") ||
+    pathname.startsWith("/t/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
   ) {

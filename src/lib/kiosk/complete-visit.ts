@@ -229,6 +229,8 @@ async function escalateToDoctor(params: {
       doctorUserIds: notifyIds,
       redFlags: assessment.redFlags,
       meetingUrl: meetingUrl ?? null,
+      assignedDoctorId: doctorId,
+      responsibleDoctorId: responsible?.doctorId ?? null,
     });
     notified = notifyResult.notified;
   } catch (err) {

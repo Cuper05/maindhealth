@@ -1,12 +1,19 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { after } from "next/server";
 import { db } from "@/lib/db";
 import { notificationsTable, patientsTable, usersTable } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { sendExpoPushToUsers } from "@/lib/push/expo";
+import {
+  processDueTeleconsultaEscalations,
+  startTeleconsultaEscalation,
+} from "@/lib/alerts/teleconsulta-escalate";
+import { teleconsultaEscalateSeconds } from "@/lib/alerts/twilio";
 
 /**
  * Avisa a médicos (users.id) que un paciente de estación espera teleconsulta.
  * También envía push Expo a dispositivos registrados (app móvil del médico).
+ * Additive: inicia cola urgente Twilio (voz + SMS + WhatsApp) si hay teléfonos.
  */
 export async function notifyDoctorsStationTeleconsulta(input: {
   appointmentId: number;
@@ -14,6 +21,8 @@ export async function notifyDoctorsStationTeleconsulta(input: {
   doctorUserIds: number[];
   redFlags: string[];
   meetingUrl: string | null;
+  assignedDoctorId?: number | null;
+  responsibleDoctorId?: number | null;
 }) {
   const uniqueIds = [...new Set(input.doctorUserIds.filter((id) => Number.isFinite(id) && id > 0))];
   if (uniqueIds.length === 0) return { notified: 0, pushSent: 0 };
@@ -102,5 +111,42 @@ export async function notifyDoctorsStationTeleconsulta(input: {
     console.error("[notify-escalation] expo push failed", err);
   }
 
-  return { notified, pushSent };
+  let escalateStarted = false;
+  let escalateQueue = 0;
+  try {
+    const esc = await startTeleconsultaEscalation({
+      appointmentId: input.appointmentId,
+      assignedDoctorId: input.assignedDoctorId ?? uniqueIds[0] ?? null,
+      responsibleDoctorId: input.responsibleDoctorId ?? null,
+      preferredIds: uniqueIds,
+      redFlags: input.redFlags,
+    });
+    escalateStarted = esc.started;
+    escalateQueue = esc.queueSize;
+
+    if (esc.started) {
+      const waitMs = teleconsultaEscalateSeconds() * 1000 + 2000;
+      try {
+        after(async () => {
+          await new Promise((r) => setTimeout(r, waitMs));
+          try {
+            await processDueTeleconsultaEscalations({
+              redFlagsByAppointment: {
+                [input.appointmentId]: input.redFlags,
+              },
+            });
+          } catch (err) {
+            console.error("[notify-escalation] after() escalate tick failed", err);
+          }
+        });
+      } catch (err) {
+        // outside request context — cron will advance the queue
+        console.warn("[notify-escalation] after() unavailable", err);
+      }
+    }
+  } catch (err) {
+    console.error("[notify-escalation] twilio escalate failed", err);
+  }
+
+  return { notified, pushSent, escalateStarted, escalateQueue };
 }

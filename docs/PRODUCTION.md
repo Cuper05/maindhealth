@@ -50,6 +50,12 @@ Base de datos: Neon (Vercel integration `neon-green-field`).
 
 3. Redeploy. Nueva autocita **teleconsulta** creará sala automática.
 
+## Alertas urgentes teleconsulta (Twilio)
+
+Llamada + SMS + WhatsApp a médicos en cola cuando el kiosk escala. Guía completa: [`docs/TELECONSULTA-ALERTAS.md`](./TELECONSULTA-ALERTAS.md).
+
+Variables mínimas: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_WHATSAPP_FROM`, `CRON_SECRET`, `APP_BASE_URL` o `NEXT_PUBLIC_APP_URL`. Teléfonos de médicos en **Configuración**.
+
 ## Hardware (cuando tengas equipos)
 
 No bloquea el resto del sistema. Hoy puedes:

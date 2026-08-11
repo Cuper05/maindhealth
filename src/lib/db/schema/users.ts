@@ -26,6 +26,8 @@ export const usersTable = pgTable("users", {
   professionalLicense: varchar("professional_license", { length: 100 }),
   passwordHash: text("password_hash").notNull(),
   active: boolean("active").notNull().default(true),
+  /** Incluir en cola de alertas urgentes (voz/SMS/WhatsApp) al escalar teleconsulta. */
+  teleconsultaAvailable: boolean("teleconsulta_available").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
