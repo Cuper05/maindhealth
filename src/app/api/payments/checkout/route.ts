@@ -4,7 +4,7 @@ import { resolvePatientId } from "@/lib/auth/patient-scope";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { consultationPaymentsTable } from "@/lib/db/schema";
-import { getStripe, isStripeConfigured } from "@/lib/payments/stripe";
+import { getAppOrigin, getStripe, isStripeConfigured } from "@/lib/payments/stripe";
 
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
@@ -50,11 +50,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Stripe no disponible" }, { status: 503 });
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3003";
+  const origin = getAppOrigin();
 
+  // Sin payment_method_types: métodos dinámicos desde el Dashboard de Stripe.
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
-    payment_method_types: ["card"],
     line_items: [
       {
         quantity: 1,
@@ -69,12 +69,14 @@ export async function POST(request: Request) {
       },
     ],
     metadata: {
+      kind: "portal_consultation",
       paymentId: String(payment.id),
       appointmentId: String(payment.appointmentId),
       patientId: String(payment.patientId),
     },
     success_url: `${origin}/portal/pagos?paid=1`,
     cancel_url: `${origin}/portal/pagos?cancelled=1`,
+    locale: "es",
   });
 
   await db
