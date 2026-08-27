@@ -44,9 +44,9 @@ function isEmailField(el: HTMLInputElement | HTMLTextAreaElement | null): boolea
   if (!el) return false;
   const type = (el.getAttribute("type") || el.type || "").toLowerCase();
   if (type === "email") return true;
-  const autoComplete = (el.getAttribute("autocomplete") || el.autoComplete || "").toLowerCase();
+  const autoComplete = (el.getAttribute("autocomplete") || "").toLowerCase();
   if (autoComplete === "email") return true;
-  const name = (el.getAttribute("name") || el.name || "").toLowerCase();
+  const name = (el.getAttribute("name") || "").toLowerCase();
   const id = (el.id || "").toLowerCase();
   const placeholder = (el.getAttribute("placeholder") || "").toLowerCase();
   const haystack = `${name} ${id} ${placeholder}`;
