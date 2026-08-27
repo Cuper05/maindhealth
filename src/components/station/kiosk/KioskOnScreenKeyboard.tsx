@@ -14,6 +14,19 @@ const LETTERS_SHIFT = [
   ["Z", "X", "C", "V", "B", "N", "M"],
 ];
 
+/** Correo: @ y . en la misma pantalla de letras (sin ir a 123). */
+const LETTERS_EMAIL = [
+  ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ñ"],
+  ["z", "x", "c", "v", "b", "n", "m", "@", "."],
+];
+
+const LETTERS_EMAIL_SHIFT = [
+  ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+  ["A", "S", "D", "F", "G", "H", "J", "K", "L", "Ñ"],
+  ["Z", "X", "C", "V", "B", "N", "M", "@", "."],
+];
+
 const NUMBERS = [
   ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
   ["@", ".", "-", "_", "/", "+", "(", ")", ",", ":"],
@@ -26,6 +39,19 @@ const ACCENTS = [
 ];
 
 type Layout = "letters" | "numbers" | "accents";
+
+function isEmailField(el: HTMLInputElement | HTMLTextAreaElement | null): boolean {
+  if (!el) return false;
+  const type = (el.getAttribute("type") || el.type || "").toLowerCase();
+  if (type === "email") return true;
+  const autoComplete = (el.getAttribute("autocomplete") || el.autoComplete || "").toLowerCase();
+  if (autoComplete === "email") return true;
+  const name = (el.getAttribute("name") || el.name || "").toLowerCase();
+  const id = (el.id || "").toLowerCase();
+  const placeholder = (el.getAttribute("placeholder") || "").toLowerCase();
+  const haystack = `${name} ${id} ${placeholder}`;
+  return /\bemail\b|correo|e-?mail|@/.test(haystack);
+}
 
 /** Props for kiosk text fields so the OS keyboard stays suppressed. */
 export const kioskTextFieldProps = {
@@ -196,8 +222,16 @@ export function KioskOnScreenKeyboard({
 
   if (!open) return null;
 
+  const emailMode = isEmailField(target);
+  const letterRows = emailMode
+    ? shift
+      ? LETTERS_EMAIL_SHIFT
+      : LETTERS_EMAIL
+    : shift
+      ? LETTERS_SHIFT
+      : LETTERS;
   const rows =
-    layout === "numbers" ? NUMBERS : layout === "accents" ? ACCENTS : shift ? LETTERS_SHIFT : LETTERS;
+    layout === "numbers" ? NUMBERS : layout === "accents" ? ACCENTS : letterRows;
 
   return (
     <div
@@ -210,7 +244,7 @@ export function KioskOnScreenKeyboard({
       <div className="mx-auto max-w-5xl">
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Teclado en pantalla
+            {emailMode ? "Teclado · correo (@ y . en letras)" : "Teclado en pantalla"}
           </p>
           <button
             type="button"
@@ -227,7 +261,7 @@ export function KioskOnScreenKeyboard({
         </div>
         <div className="space-y-2">
           {rows.map((row, i) => (
-            <div key={`${layout}-${i}`} className="flex justify-center gap-1.5">
+            <div key={`${layout}-${emailMode ? "email" : "text"}-${i}`} className="flex justify-center gap-1.5">
               {i === 2 && layout === "letters" && (
                 <KeyButton label="⇧" onPress={() => setShift((s) => !s)} active={shift} wide />
               )}
@@ -252,6 +286,12 @@ export function KioskOnScreenKeyboard({
               onPress={() => setLayout((l) => (l === "accents" ? "letters" : "accents"))}
               wide
             />
+            {emailMode && layout === "letters" && (
+              <>
+                <KeyButton label="@" onPress={() => insert("@")} />
+                <KeyButton label="." onPress={() => insert(".")} />
+              </>
+            )}
             <KeyButton label="Espacio" onPress={() => insert(" ")} wide />
             <KeyButton label="⌫" onPress={backspace} wide />
             <KeyButton
