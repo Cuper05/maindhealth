@@ -12,10 +12,13 @@ export const visitIntakeSchema = z
   .object({
     appointmentId: z.coerce.number().int().positive(),
     chiefComplaint: z.string().min(3, "Describe el motivo de la consulta"),
+    symptomSelection: z.unknown().optional(),
+    clinicalSnapshot: z.unknown().optional(),
     hasDiabetes: z.boolean(),
     diabetesDetails: z.string().optional(),
     hasHypertension: z.boolean(),
     hypertensionDetails: z.string().optional(),
+    hasAsthma: z.boolean().optional(),
     hasHeartDisease: z.boolean(),
     heartDiseaseDetails: z.string().optional(),
     hasAllergies: z.boolean(),
@@ -31,6 +34,7 @@ export const visitIntakeSchema = z
     patientType: z.enum(["new", "returning"]),
     consentSignerName: z.string().min(3, "Nombre del paciente o tutor requerido"),
     consentAccepted: z.boolean(),
+    source: z.enum(["kiosk", "portal", "staff", "mobile"]).optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.consentAccepted) {
