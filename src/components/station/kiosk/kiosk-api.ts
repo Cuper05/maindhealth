@@ -86,6 +86,24 @@ export const kioskApi = {
       method: "PATCH",
       body: JSON.stringify({ paymentOrderId, status, provider: "demo" }),
     }),
+  /** Stripe Checkout: redirige al paciente a pagar con tarjeta. */
+  createStripeCheckout: (paymentOrderId: number, customerEmail?: string) =>
+    kioskFetch<{ url: string | null; alreadyPaid?: boolean; checkoutSessionId?: string }>(
+      "/api/station/payment/stripe",
+      {
+        method: "POST",
+        body: JSON.stringify({ paymentOrderId, customerEmail }),
+      },
+    ),
+  /** Tras volver de Stripe: confirma el pago en la sesión del kiosco. */
+  verifyStripeCheckout: (checkoutSessionId: string) =>
+    kioskFetch<{
+      paid: boolean;
+      order?: PaymentOrder;
+      nextStep?: string;
+      paymentStatus?: string;
+      status?: string;
+    }>(`/api/station/payment/stripe?session_id=${encodeURIComponent(checkoutSessionId)}`),
   lookup: (body: Record<string, string>) =>
     kioskFetch<{ patient: PatientPayload }>("/api/station/lookup", { method: "POST", body: JSON.stringify(body) }),
   startWalkIn: (patientId: number) =>
@@ -115,6 +133,22 @@ export const kioskApi = {
     }>("/api/station/assess", { method: "POST" }),
   pollReadings: (appointmentId: number) =>
     kioskFetch<{ draft: VitalsDraft }>(`/api/station/readings?appointmentId=${appointmentId}`),
+  login: (username: string, password: string) =>
+    kioskFetch<KioskLoginResult>("/api/station/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  setProfile: (username: string, password: string) =>
+    kioskFetch<{ ok: true; username: string }>("/api/station/profile", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  setPatientEmail: (email: string) =>
+    kioskFetch<{ ok: true; email: string }>("/api/station/patient-email", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  crisis: () => kioskFetch<CrisisResult>("/api/station/crisis", { method: "POST" }),
 };
 
 export type VitalsDraft = {
@@ -126,6 +160,10 @@ export type VitalsDraft = {
   weight?: string;
   height?: string;
   bmi?: string;
+  /** "done" | "skipped" — ECG hardware pending full integration */
+  ecgStatus?: string;
+  ecgRhythm?: string;
+  ecgHeartRate?: string;
 };
 
 export type KioskSessionPayload = {
@@ -153,6 +191,8 @@ export type PatientPayload = {
   sex?: string | null;
   phone?: string | null;
   email?: string | null;
+  /** true si ya tiene usuario/contraseña de estación. */
+  hasKioskLogin?: boolean;
 };
 
 export type AppointmentPayload = {
@@ -172,4 +212,30 @@ export type RegisterResult = {
   startAt: string;
   doctorName: string;
   modality: string;
+};
+
+/** Antecedentes guardados del perfil de estación (visitas siguientes). */
+export type KioskAntecedents = {
+  hasDiabetes?: boolean;
+  hasHypertension?: boolean;
+  hasAsthma?: boolean;
+  hasHeartDisease?: boolean;
+  hasAllergies?: boolean;
+  allergyDetails?: string;
+  currentMedications?: string;
+};
+
+export type KioskLoginResult = RegisterResult & {
+  patient: PatientPayload;
+  antecedents: KioskAntecedents | null;
+};
+
+export type CrisisResult = {
+  ok: true;
+  step: "waiting";
+  patientId: number;
+  appointmentId: number;
+  assessment: AssessmentPayload;
+  meetingUrl: string | null;
+  roomError: string | null;
 };

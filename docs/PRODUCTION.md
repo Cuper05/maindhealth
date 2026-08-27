@@ -11,7 +11,7 @@ Base de datos: Neon (Vercel integration `neon-green-field`).
 | App en Vercel | ✅ | — |
 | Neon + seed demo | ✅ | — |
 | Dominio propio | Pendiente | Ver sección Dominio |
-| Stripe (pagos en línea) | Pendiente | Ver sección Stripe |
+| Stripe (pagos en línea) | ✅ Test keys + webhook | Completar onboarding Stripe (charges_enabled) antes de live |
 | Daily.co (teleconsulta) | Pendiente | Ver sección Daily.co |
 | Hardware / ingest API | ⏸ Sin equipos | Activar cuando lleguen dispositivos |
 
@@ -24,19 +24,41 @@ Base de datos: Neon (Vercel integration `neon-green-field`).
 
 ## Stripe
 
-1. Crear cuenta en [stripe.com](https://stripe.com) (modo test primero).
-2. En Vercel → **maindhealth** → Settings → Environment Variables (Production):
+> **Estado actual:** ✅ Test mode configurado en producción (`health.maindsteel.com.mx`).
+> Diagnóstico: [`/api/payments/status`](https://health.maindsteel.com.mx/api/payments/status) → `ok: true`.
+> Webhook: `https://health.maindsteel.com.mx/api/payments/webhook`
+> Antes de **live**: completar onboarding Stripe (hoy `charges_enabled=false`) y cambiar a `sk_live_…`.
 
-   | Variable | Valor |
-   |----------|--------|
-   | `STRIPE_SECRET_KEY` | `sk_test_...` o `sk_live_...` |
-   | `STRIPE_WEBHOOK_SECRET` | `whsec_...` del webhook |
+### Configurar (local primero)
 
-3. Webhook en Stripe Dashboard → Developers → Webhooks:
-   - URL: `https://maindhealth.vercel.app/api/payments/webhook`
-   - Eventos: `checkout.session.completed`
-4. Redeploy. Probar en `/portal/pagos` con tarjeta test `4242 4242 4242 4242`.
+```powershell
+# Interactivo: pega sk_test_… y la URL pública
+.\scripts\setup-stripe.ps1
+```
 
+O a mano en `.env.local`:
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_APP_URL=https://health.maindsteel.com.mx
+```
+
+Diagnóstico (sin secretos): `GET /api/payments/status`
+
+### Stripe Dashboard (modo Test)
+
+1. [API keys](https://dashboard.stripe.com/test/apikeys) → Secret key → `STRIPE_SECRET_KEY`
+2. [Webhooks](https://dashboard.stripe.com/test/webhooks) → Add endpoint:
+   - URL: `https://<tu-dominio>/api/payments/webhook`
+   - Evento: `checkout.session.completed`
+   - Signing secret → `STRIPE_WEBHOOK_SECRET`
+3. En Vercel → Environment Variables (Production) las mismas tres variables.
+4. Redeploy. Probar:
+   - `GET /api/payments/status` → `ok: true`, `mode: "test"`
+   - Estación: `/estacion/paciente` → **Pagar con tarjeta (Stripe)**
+   - Tarjeta: `4242 4242 4242 4242`, fecha futura, CVC `123`
+5. El webhook y el retorno a `/estacion/paciente?stripe=success&session_id=…` aprueban la orden.
 ## Daily.co
 
 1. Crear proyecto en [daily.co](https://daily.co).
@@ -55,6 +77,15 @@ Base de datos: Neon (Vercel integration `neon-green-field`).
 Llamada + SMS + WhatsApp a médicos en cola cuando el kiosk escala. Guía completa: [`docs/TELECONSULTA-ALERTAS.md`](./TELECONSULTA-ALERTAS.md).
 
 Variables mínimas: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_WHATSAPP_FROM`, `CRON_SECRET`, `APP_BASE_URL` o `NEXT_PUBLIC_APP_URL`. Teléfonos de médicos en **Configuración**.
+
+## Correo de recetas (kiosco)
+
+Al emitir receta en estación se envía el PDF al correo del paciente (obligatorio en el alta).
+
+| Variable | Valor |
+|----------|--------|
+| `RESEND_API_KEY` | API key de [Resend](https://resend.com) |
+| `EMAIL_FROM` | Remitente verificado, ej. `MaindHealth <noreply@tu-dominio.com>` |
 
 ## Hardware (cuando tengas equipos)
 

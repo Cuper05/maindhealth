@@ -16,12 +16,17 @@ export const KIOSK_STEPS = [
   "payment",
   "identification",
   "registration",
+  "symptoms",
+  "antecedents",
+  "consent",
+  /** Legacy sessions may still store clinical */
   "clinical",
   "preparation",
+  "weight_height",
   "blood_pressure",
   "oxygen",
-  "weight_height",
   "temperature",
+  "ecg",
   "summary",
   "analysis",
   "result",
@@ -37,14 +42,18 @@ export const KIOSK_STEP_LABELS: Record<KioskStep, string> = {
   payment: "Pago",
   identification: "Identificación",
   registration: "Datos del paciente",
+  symptoms: "Síntomas",
+  antecedents: "Antecedentes",
+  consent: "Consentimiento",
   clinical: "Formulario clínico",
   preparation: "Preparación",
+  weight_height: "Peso y altura",
   blood_pressure: "Presión arterial",
   oxygen: "Oxigenación y pulso",
-  weight_height: "Peso y altura",
   temperature: "Temperatura",
+  ecg: "Electrocardiograma",
   summary: "Resumen",
-  analysis: "Análisis IA",
+  analysis: "Revisión médica",
   result: "Resultado",
   waiting: "Espera médico",
   /** Legacy step: video runs on Dell `/estacion/sala`, not on the touch kiosk. */
@@ -76,8 +85,17 @@ export type KioskAssessmentDraft = {
   consultationId?: number | null;
   prescriptionId?: number | null;
   prescriptionFolio?: string | null;
+  /** Receta firmada por el médico → estación debe imprimir automáticamente. */
+  printPending?: boolean;
+  printRequestedAt?: string | null;
+  printCompletedAt?: string | null;
+  printError?: string | null;
   /** Visible when Daily room creation failed during escalation. */
   roomError?: string | null;
+  /** Receta enviada por correo al paciente. */
+  prescriptionEmailSentAt?: string | null;
+  prescriptionEmailTo?: string | null;
+  prescriptionEmailId?: string | null;
 };
 
 export type KioskVitalsDraft = {
@@ -89,6 +107,10 @@ export type KioskVitalsDraft = {
   weight?: string;
   height?: string;
   bmi?: string;
+  /** done | skipped — ECG hardware may still be pending */
+  ecgStatus?: string;
+  ecgRhythm?: string;
+  ecgHeartRate?: string;
 };
 
 export type KioskDeviceStatus = "idle" | "waiting" | "reading" | "done" | "retry";
