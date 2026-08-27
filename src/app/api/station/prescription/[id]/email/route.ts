@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { emailStationPrescription } from "@/lib/kiosk/send-prescription-email";
 import { getKioskCookie } from "@/lib/kiosk/session-cookie";
 
+export const runtime = "nodejs";
+
 export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
