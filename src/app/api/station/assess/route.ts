@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { completeKioskVisit } from "@/lib/kiosk/complete-visit";
 import { getKioskCookie } from "@/lib/kiosk/session-cookie";
 
+/** Escalación + Daily + Twilio (voz con timeout); maxDuration evita 502 en Vercel. */
+export const maxDuration = 60;
+
 export async function POST() {
   try {
     const cookie = await getKioskCookie();

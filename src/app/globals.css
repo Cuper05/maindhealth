@@ -73,3 +73,16 @@ body {
 .station-standby-pulse {
   animation: station-standby-pulse 2.4s ease-in-out infinite;
 }
+
+/* Kiosco: mientras el teclado virtual está abierto, ocultar el pie Continuar
+   para que no tape el campo que se está editando (medicamentos, alergias, etc.). */
+html.kiosk-kb-open [data-kiosk-clinical-footer] {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}

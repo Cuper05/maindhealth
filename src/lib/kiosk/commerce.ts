@@ -169,6 +169,15 @@ export async function confirmStationPayment(input: {
   }
 
   if (order.status === "approved") {
+    const { syncStationPaymentToExpediente } = await import(
+      "@/lib/kiosk/sync-payment-to-expediente"
+    );
+    await syncStationPaymentToExpediente({
+      sessionToken: input.sessionToken,
+      patientId: session.patientId,
+      appointmentId: session.appointmentId,
+      paymentOrderId: order.id,
+    });
     return { ok: true as const, order, alreadyApproved: true };
   }
 
@@ -195,6 +204,18 @@ export async function confirmStationPayment(input: {
     })
     .where(eq(stationKioskSessionsTable.token, input.sessionToken));
 
+  if (input.status === "approved") {
+    const { syncStationPaymentToExpediente } = await import(
+      "@/lib/kiosk/sync-payment-to-expediente"
+    );
+    await syncStationPaymentToExpediente({
+      sessionToken: input.sessionToken,
+      patientId: session.patientId,
+      appointmentId: session.appointmentId,
+      paymentOrderId: updated.id,
+    });
+  }
+
   return { ok: true as const, order: updated, alreadyApproved: false };
 }
 
@@ -209,15 +230,86 @@ export function matchProtocolByComplaint(
     instructions: string | null;
     diagnosisLabel: string | null;
   }>,
+  /** Códigos de síntoma del kiosco (fiebre, dolor_garganta, …) para priorizar protocolos. */
+  symptomCodes: string[] = [],
 ) {
   const text = complaint.trim().toLowerCase();
+  if (!text && symptomCodes.length === 0) return null;
+
+  let best: (typeof protocols)[number] | null = null;
+  let bestScore = 0;
+
+  const codes = new Set(symptomCodes.map((c) => c.toLowerCase()));
+
   for (const protocol of protocols) {
-    const keywords = protocol.keywords ?? [];
-    if (keywords.some((k) => text.includes(k.toLowerCase()))) {
-      return protocol;
+    let score = 0;
+    let hits = 0;
+    for (const raw of protocol.keywords ?? []) {
+      const key = raw.toLowerCase().trim();
+      if (!key) continue;
+      const hit =
+        key.length >= 5
+          ? text.includes(key)
+          : new RegExp(`(?:^|[\\s;,./(])${escapeRegExp(key)}(?:$|[\\s;,./)])`, "i").test(text);
+      if (!hit) continue;
+      hits += 1;
+      // Frases largas y específicas pesan más; varios hits del mismo protocolo suman.
+      score += key.length * 10 + (key.includes(" ") ? 8 : 0);
+    }
+
+    // Boost por chips del kiosco (no solo texto libre).
+    score += symptomCodeBoost(protocol.code, codes);
+
+    if (hits === 0 && score === 0) continue;
+    // Si solo hay boost por chip sin keyword, aún cuenta (ej. chip «fiebre»).
+    if (hits === 0 && score > 0) {
+      hits = 1;
+    }
+    score += hits * 25;
+    if (score > bestScore) {
+      bestScore = score;
+      best = protocol;
     }
   }
-  return null;
+
+  return best;
+}
+
+/** Prioriza protocolos según los síntomas tocados en el kiosco. */
+function symptomCodeBoost(protocolCode: string, codes: Set<string>): number {
+  let boost = 0;
+  const has = (...xs: string[]) => xs.some((x) => codes.has(x));
+
+  if (protocolCode === "FIEBRE_VIRAL_LEVE" && has("fiebre")) boost += 80;
+  if (protocolCode === "FARINGITIS_BACT" && has("dolor_garganta")) boost += 90;
+  if (protocolCode === "FARINGITIS_BACT" && has("dolor_garganta", "fiebre")) boost += 40;
+  if (protocolCode === "IRA_VIRAL_LEVE" && has("tos", "congestion", "congestión")) boost += 70;
+  if (protocolCode === "IRA_VIRAL_LEVE" && has("fiebre") && has("tos", "congestion")) boost += 35;
+  if (protocolCode === "CEFALEA_LEVE" && has("dolor_cabeza")) boost += 90;
+  if (protocolCode === "CEFALEA_LEVE" && has("dolor") && !has("dolor_garganta")) {
+    // dolor + zona cabeza se refleja en complaint; boost suave si solo chip dolor
+  }
+  if (protocolCode === "LUMBALGIA_LEVE" && has("dolor")) boost += 5;
+  if (protocolCode === "MIALGIA_LEVE" && has("dolor") && !has("dolor_garganta", "dolor_cabeza")) {
+    boost += 45;
+  }
+  if (protocolCode === "GI_LEVE" && has("nausea")) boost += 20;
+  if (protocolCode === "DIARREA_LEVE" && has("diarrea")) boost += 90;
+  if (protocolCode === "NAUSEA_LEVE" && has("nausea")) boost += 90;
+  if (protocolCode === "OTITIS_EXTERNA_LEVE" && has("oido")) boost += 90;
+  if (protocolCode === "IVU_LEVE" && has("sintomas_urinarios")) boost += 90;
+  if (protocolCode === "CONJUNTIVITIS_LEVE" && has("ojo_rojo")) boost += 90;
+  if (protocolCode === "DERMATITIS_LEVE" && has("erupcion_piel")) boost += 90;
+
+  // Fiebre + dolor sin foco → sintomático febril gana sobre mialgia genérica.
+  if (protocolCode === "FIEBRE_VIRAL_LEVE" && has("fiebre") && has("dolor")) boost += 50;
+  if (protocolCode === "MIALGIA_LEVE" && has("fiebre")) boost -= 30;
+
+  return boost;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 export function newDemoProviderReference() {

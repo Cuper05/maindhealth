@@ -34,6 +34,7 @@ type ClinicalDraft = {
   allergyDetails?: string;
   currentMedications?: string;
   consentSignerName?: string;
+  symptomSelection?: import("@/lib/kiosk/symptom-catalog").SymptomSelection | null;
 };
 
 export async function completeKioskVisit(sessionToken: string) {
@@ -81,6 +82,12 @@ export async function completeKioskVisit(sessionToken: string) {
         height: draft.height,
         bmi,
         symptoms: clinical.chiefComplaint,
+        deviceExtras: {
+          source: "kiosk",
+          ecgStatus: draft.ecgStatus ?? null,
+          ecgRhythm: draft.ecgRhythm ?? null,
+          ecgHeartRate: draft.ecgHeartRate ?? null,
+        },
       })
       .returning({ id: vitalSignsTable.id });
 
@@ -95,6 +102,19 @@ export async function completeKioskVisit(sessionToken: string) {
       temperature: draft.temperature,
       source: "kiosk",
     });
+  } else {
+    await db
+      .update(vitalSignsTable)
+      .set({
+        symptoms: clinical.chiefComplaint ?? undefined,
+        deviceExtras: {
+          source: "kiosk",
+          ecgStatus: draft.ecgStatus ?? null,
+          ecgRhythm: draft.ecgRhythm ?? null,
+          ecgHeartRate: draft.ecgHeartRate ?? null,
+        },
+      })
+      .where(eq(vitalSignsTable.id, vitalSignId));
   }
 
   const assessment = await assessClinicalCase({
@@ -107,6 +127,7 @@ export async function completeKioskVisit(sessionToken: string) {
     allergyDetails: clinical.allergyDetails,
     currentMedications: clinical.currentMedications,
     vitals: draft,
+    symptomSelection: clinical.symptomSelection ?? null,
   });
 
   const responsible = await getActiveResponsiblePhysician();

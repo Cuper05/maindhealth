@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
-import { getWaitingDoctorStationSessions } from "@/lib/queries/station-waiting";
+import {
+  dismissWaitingDoctorForAppointment,
+  getWaitingDoctorStationSessions,
+} from "@/lib/queries/station-waiting";
 
 export async function GET() {
   const session = await requireSession();
@@ -25,4 +28,27 @@ export async function GET() {
       summary: item.summary,
     })),
   });
+}
+
+/** Descarta una espera fantasma (Cancelar / No abrir en la Dell). */
+export async function POST(request: Request) {
+  const session = await requireSession();
+  if (!session || !can(session.role, "intake:view")) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const body = (await request.json()) as {
+    action?: string;
+    appointmentId?: number;
+  };
+  if (body.action !== "dismiss") {
+    return NextResponse.json({ error: "Acción no válida" }, { status: 400 });
+  }
+  const appointmentId = Number(body.appointmentId);
+  if (!Number.isFinite(appointmentId) || appointmentId <= 0) {
+    return NextResponse.json({ error: "appointmentId inválido" }, { status: 400 });
+  }
+
+  const updated = await dismissWaitingDoctorForAppointment(appointmentId);
+  return NextResponse.json({ ok: true, updated });
 }

@@ -2,6 +2,9 @@ import type { KioskVitalsDraft } from "@/lib/db/schema/station-kiosk";
 import type { ProtocolMedication } from "@/lib/db/schema/station-commerce";
 import { normalizeAssessmentText } from "@/lib/kiosk/assessment-text";
 import { listActiveProtocols, matchProtocolByComplaint } from "@/lib/kiosk/commerce";
+import { getProtocolSafety } from "@/lib/kiosk/clinical-protocols-catalog";
+import type { SymptomSelection } from "@/lib/kiosk/symptom-catalog";
+import { detectSymptomRedFlags } from "@/lib/kiosk/symptom-catalog";
 
 export { displayTreatmentPlan, normalizeAssessmentText } from "@/lib/kiosk/assessment-text";
 
@@ -33,6 +36,8 @@ type ClinicalInput = {
   allergyDetails?: string;
   currentMedications?: string;
   vitals: KioskVitalsDraft;
+  /** Chips del kiosco para match de protocolos (fiebre, dolor, …). */
+  symptomSelection?: SymptomSelection | null;
 };
 
 function num(value?: string) {
@@ -52,6 +57,13 @@ function collectRedFlags(input: ClinicalInput): string[] {
   const spo2 = num(input.vitals.oxygenSaturation);
   const temperature = num(input.vitals.temperature);
   const redFlags: string[] = [];
+  const sel = input.symptomSelection;
+
+  if (sel) {
+    for (const f of detectSymptomRedFlags(sel)) {
+      if (!redFlags.includes(f)) redFlags.push(f);
+    }
+  }
 
   if (systolic != null && systolic >= 180) redFlags.push("Crisis hipertensiva (presión sistólica muy elevada)");
   if (diastolic != null && diastolic >= 120) redFlags.push("Crisis hipertensiva (presión diastólica muy elevada)");
@@ -62,20 +74,58 @@ function collectRedFlags(input: ClinicalInput): string[] {
   if (temperature != null && temperature >= 39.5) redFlags.push("Fiebre alta");
   if (temperature != null && temperature > 0 && temperature <= 35) redFlags.push("Hipotermia");
 
+  // Fiebre reportada con duración prolongada → médico (no autónomo).
+  if (sel?.primary.includes("fiebre")) {
+    const d = sel.symptomDetails.fiebre?.duration;
+    if (d === "3_7_dias" || d === "mas_1_semana") {
+      redFlags.push("Fiebre prolongada (≥3 días) — requiere valoración médica");
+    }
+  }
+
   if (includesAny(complaint, ["dolor de pecho", "dolor pecho", "opresion", "opresión", "infarto"])) {
-    redFlags.push("Dolor torácico sugerente de urgencia");
+    if (!redFlags.some((f) => /pecho|torácico/i.test(f))) {
+      redFlags.push("Dolor torácico sugerente de urgencia");
+    }
   }
   if (includesAny(complaint, ["falta de aire", "dificultad para respirar", "no puedo respirar", "ahogo"])) {
-    redFlags.push("Dificultad respiratoria");
+    if (!redFlags.some((f) => /falta de aire|respirat/i.test(f))) {
+      redFlags.push("Dificultad respiratoria");
+    }
   }
-  if (includesAny(complaint, ["desmayo", "convulsion", "convulsión", "paralisis", "parálisis", "no mueve"])) {
-    redFlags.push("Síntomas neurológicos de alarma");
+  if (
+    includesAny(complaint, [
+      "desmayo",
+      "convulsion",
+      "convulsión",
+      "paralisis",
+      "parálisis",
+      "no mueve",
+      "confusión",
+      "confusion",
+      "dificultad para hablar",
+      "entumecimiento",
+    ])
+  ) {
+    if (!redFlags.some((f) => /neurológ|desmayo|confusión|hablar|entumecimiento|parálisis|debilidad/i.test(f))) {
+      redFlags.push("Síntomas neurológicos de alarma");
+    }
   }
   if (includesAny(complaint, ["sangrado abundante", "hemorragia", "vomito de sangre", "vómito de sangre"])) {
     redFlags.push("Sangrado potencialmente grave");
   }
-  if (includesAny(complaint, ["anafilaxia", "hinchazon de garganta", "hinchazón de garganta", "no trago"])) {
-    redFlags.push("Posible reacción alérgica severa");
+  if (
+    includesAny(complaint, [
+      "anafilaxia",
+      "hinchazon de garganta",
+      "hinchazón de garganta",
+      "no trago",
+      "reacción alérgica",
+      "reaccion alergica",
+    ])
+  ) {
+    if (!redFlags.some((f) => /alérg|anafil|hinchazón/i.test(f))) {
+      redFlags.push("Posible reacción alérgica severa");
+    }
   }
   if (input.hasHeartDisease && (includesAny(complaint, ["dolor de pecho", "dolor pecho"]) || (systolic != null && systolic >= 160))) {
     redFlags.push("Antecedente cardiaco con síntomas de riesgo");
@@ -101,8 +151,73 @@ function filterMedsForAllergies(meds: ProtocolMedication[], input: ClinicalInput
     ) {
       return false;
     }
+    if (
+      includesAny(details, ["penicilina", "amoxicilina", "beta-lactamico", "beta-lactámico"]) &&
+      includesAny(name, ["amoxicilina", "penicilina", "clavulánico", "clavulanico"])
+    ) {
+      return false;
+    }
+    if (
+      includesAny(details, ["nitrofurantoina", "nitrofurantoína"]) &&
+      name.includes("nitrofuranto")
+    ) {
+      return false;
+    }
     return true;
   });
+}
+
+const SYMPTOMATIC_PARACETAMOL: ProtocolMedication = {
+  medication: "Paracetamol",
+  dose: "500 mg",
+  frequency: "Cada 8 horas si fiebre o dolor",
+  duration: "3 días",
+  route: "Oral",
+  instructions: "Máximo 3 g/día. Añadido por síntomas de fiebre/dolor del kiosco.",
+};
+
+const SYMPTOMATIC_IBUPROFENO: ProtocolMedication = {
+  medication: "Ibuprofeno",
+  dose: "400 mg",
+  frequency: "Cada 8 horas si fiebre o dolor",
+  duration: "3 días",
+  route: "Oral",
+  instructions:
+    "Con alimentos. Evitar si úlcera, sangrado, enfermedad renal o alergia a AINE. Añadido por síntomas del kiosco.",
+};
+
+/** Si el paciente marcó fiebre/dolor y el protocolo no trae antitérmico/analgésico, lo agrega. */
+function ensureSymptomaticMeds(
+  meds: ProtocolMedication[],
+  input: ClinicalInput,
+): ProtocolMedication[] {
+  const sel = input.symptomSelection;
+  const complaint = input.chiefComplaint.toLowerCase();
+  const wantsFever =
+    Boolean(sel?.primary.includes("fiebre")) || complaint.includes("fiebre");
+  const wantsPain =
+    Boolean(sel?.primary.includes("dolor")) ||
+    Boolean(sel?.primary.includes("dolor_cabeza")) ||
+    Boolean(sel?.primary.includes("dolor_garganta")) ||
+    Boolean(sel?.primary.includes("dolor_muscular")) ||
+    Boolean(sel?.primary.includes("ardor")) ||
+    /\bdolor\b/.test(complaint);
+
+  if (!wantsFever && !wantsPain) return meds;
+
+  const names = meds.map((m) => m.medication.toLowerCase());
+  const hasPara = names.some((n) => n.includes("paracetamol"));
+  const hasAine = names.some((n) =>
+    includesAny(n, ["ibuprofeno", "naproxeno", "aspirina"]),
+  );
+
+  const next = [...meds];
+  if (!hasPara) next.push(SYMPTOMATIC_PARACETAMOL);
+  if (wantsFever && !hasAine && !input.hasHeartDisease) {
+    next.push(SYMPTOMATIC_IBUPROFENO);
+  }
+
+  return next;
 }
 
 /**
@@ -114,12 +229,17 @@ function filterMedsForAllergies(meds: ProtocolMedication[], input: ClinicalInput
 export async function assessClinicalCase(input: ClinicalInput): Promise<ClinicalAssessment> {
   const redFlags = collectRedFlags(input);
   const protocols = await listActiveProtocols();
-  const matched = matchProtocolByComplaint(input.chiefComplaint, protocols);
+  const symptomCodes = input.symptomSelection?.primary ?? [];
+  const matched = matchProtocolByComplaint(input.chiefComplaint, protocols, symptomCodes);
 
   if (redFlags.length > 0) {
     return {
       diagnosis: "Cuadro clínico de riesgo que requiere evaluación médica remota",
-      severity: redFlags.some((f) => /crisis|hipoxemia|torácico|neurológ|anafil|hemorragia|hipotermia/i.test(f))
+      severity: redFlags.some((f) =>
+        /crisis|hipoxemia|torácico|neurológ|anafil|alérg|hemorragia|hipotermia|prolongada|desmayo|hablar|entumecimiento|parálisis|abdominal intenso|hinchazón|ACV/i.test(
+          f,
+        ),
+      )
         ? "critical"
         : "high",
       requiresDoctor: true,
@@ -156,7 +276,40 @@ export async function assessClinicalCase(input: ClinicalInput): Promise<Clinical
     };
   }
 
-  const medications = filterMedsForAllergies(matched.medications ?? [], input);
+  // Exclusiones del protocolo (embarazo, sangre, vía aérea, etc.) → teleconsulta, no receta.
+  const safety = getProtocolSafety(matched.code);
+  const complaintAndNotes = [
+    input.chiefComplaint,
+    input.allergyDetails ?? "",
+    input.currentMedications ?? "",
+  ]
+    .join(" ")
+    .toLowerCase();
+  const safetyHits =
+    safety?.exclusionKeywords.filter((k) => complaintAndNotes.includes(k.toLowerCase())) ?? [];
+  if (safetyHits.length > 0) {
+    return {
+      diagnosis: matched.diagnosisLabel ?? matched.name,
+      severity: "high",
+      requiresDoctor: true,
+      summary:
+        "El motivo sugiere un protocolo, pero hay criterios de exclusión de seguridad. No se emite receta automática.",
+      treatmentPlan: "Teleconsulta con médico para valoración completa.",
+      instructions: "Permanece en la estación. El médico revisará tu caso en vivo.",
+      redFlags: safetyHits.map((k) => `Exclusión de protocolo: ${k}`),
+      medications: [],
+      engine: "rules",
+      protocolCode: matched.code,
+      protocolName: matched.name,
+      prescriptionAuthorized: false,
+    };
+  }
+
+  let medications = filterMedsForAllergies(
+    ensureSymptomaticMeds(matched.medications ?? [], input),
+    input,
+  );
+
   if (medications.length === 0 && (matched.medications?.length ?? 0) > 0) {
     return {
       diagnosis: matched.diagnosisLabel ?? matched.name,
@@ -210,7 +363,7 @@ async function enrichWithOpenAI(
   apiKey: string,
 ): Promise<ClinicalAssessment | null> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const timeout = setTimeout(() => controller.abort(), 6_000);
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",

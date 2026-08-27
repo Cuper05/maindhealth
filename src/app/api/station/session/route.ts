@@ -32,6 +32,7 @@ async function loadSession(token: string) {
         sex: row.sex,
         phone: row.phone,
         email: row.email,
+        hasKioskLogin: Boolean(row.kioskUsername && row.kioskPasswordHash),
       };
     }
   }
@@ -139,6 +140,25 @@ export async function PATCH(request: Request) {
 
   if (!session) {
     return NextResponse.json({ error: "Sesión no encontrada" }, { status: 404 });
+  }
+
+  // Al vincular paciente/cita tras el pago, copiar cobro al expediente (/pagos).
+  if (
+    session.paymentStatus === "approved" &&
+    session.patientId &&
+    session.appointmentId &&
+    session.paymentOrderId &&
+    (body.patientId !== undefined || body.appointmentId !== undefined)
+  ) {
+    const { syncStationPaymentToExpediente } = await import(
+      "@/lib/kiosk/sync-payment-to-expediente"
+    );
+    await syncStationPaymentToExpediente({
+      sessionToken: cookie.token,
+      patientId: session.patientId,
+      appointmentId: session.appointmentId,
+      paymentOrderId: session.paymentOrderId,
+    });
   }
 
   return NextResponse.json({ ok: true, session });

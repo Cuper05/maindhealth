@@ -47,13 +47,16 @@ function applyVirtualKeyboardPolicy(el: HTMLElement) {
 function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: string, inputType = "insertText") {
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   const desc = Object.getOwnPropertyDescriptor(proto, "value");
+  // React controlled: sin value tracker el estado no guarda lo escrito y al tocar Listo se pierde.
+  const tracker = (el as unknown as { _valueTracker?: { setValue: (v: string) => void } })._valueTracker;
+  tracker?.setValue(el.value);
   desc?.set?.call(el, value);
-  // React controlled inputs listen via the value tracker + bubbling input events.
   const inputEvent =
     typeof InputEvent !== "undefined"
       ? new InputEvent("input", { bubbles: true, cancelable: true, inputType, composed: true })
       : new Event("input", { bubbles: true, cancelable: true });
   el.dispatchEvent(inputEvent);
+  el.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function KeyButton({
@@ -81,8 +84,8 @@ function KeyButton({
       tabIndex={-1}
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={handlePointerDown}
-      className={`min-h-[52px] rounded-xl text-lg font-semibold shadow-sm ring-1 transition active:scale-[0.97] ${
-        wide ? "min-w-[88px] flex-[1.4] px-3" : "min-w-[40px] flex-1 px-1"
+      className={`min-h-[56px] rounded-xl text-xl font-semibold shadow-sm ring-1 transition active:scale-[0.97] ${
+        wide ? "min-w-[96px] flex-[1.4] px-3" : "min-w-[44px] flex-1 px-1"
       } ${
         active
           ? "bg-[#1d6eb8] text-white ring-[#1d6eb8]"
@@ -158,8 +161,37 @@ export function KioskOnScreenKeyboard({
   }, [target]);
 
   const dismiss = useCallback(() => {
-    target?.blur();
-    onClose();
+    if (target) {
+      // Asegura que el valor final quede en el estado de React antes de blur.
+      setNativeValue(target, target.value, "insertReplacementText");
+    }
+
+    // Evita el “click fantasma”: al cerrar el teclado, el mismo toque cae en
+    // Recargar / Nueva atención del footer y reinicia toda la atención.
+    const shield = document.createElement("div");
+    shield.setAttribute("data-kiosk-keyboard-shield", "1");
+    shield.style.cssText =
+      "position:fixed;inset:0;z-index:9999;touch-action:none;background:transparent;";
+    const block = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    shield.addEventListener("pointerdown", block, true);
+    shield.addEventListener("pointerup", block, true);
+    shield.addEventListener("pointercancel", block, true);
+    shield.addEventListener("click", block, true);
+    shield.addEventListener("mousedown", block, true);
+    shield.addEventListener("mouseup", block, true);
+    document.body.appendChild(shield);
+
+    window.setTimeout(() => {
+      target?.blur();
+      onClose();
+    }, 80);
+
+    window.setTimeout(() => {
+      shield.remove();
+    }, 550);
   }, [target, onClose]);
 
   if (!open) return null;
@@ -222,7 +254,11 @@ export function KioskOnScreenKeyboard({
             />
             <KeyButton label="Espacio" onPress={() => insert(" ")} wide />
             <KeyButton label="⌫" onPress={backspace} wide />
-            <KeyButton label="Listo" onPress={dismiss} wide />
+            <KeyButton
+              label="Listo ✓"
+              onPress={dismiss}
+              wide
+            />
           </div>
         </div>
       </div>
@@ -270,6 +306,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
   useEffect(() => {
     if (!enabled) {
       document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+      document.documentElement.classList.remove("kiosk-kb-open");
       return;
     }
 
@@ -288,9 +325,10 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
       setTarget(el);
       setOpen(true);
       document.documentElement.style.setProperty("--kiosk-keyboard-height", "300px");
-      // Keep the caret visible above the keyboard.
+      document.documentElement.classList.add("kiosk-kb-open");
+      // Deja el campo arriba del teclado, sin taparlo con el pie «Continuar».
       window.requestAnimationFrame(() => {
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
       });
     };
 
@@ -299,6 +337,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
         setOpen(false);
         setTarget(null);
         document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+        document.documentElement.classList.remove("kiosk-kb-open");
       }, 180);
     };
 
@@ -309,6 +348,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
       document.removeEventListener("focusout", onFocusOut);
       if (blurTimer.current) window.clearTimeout(blurTimer.current);
       document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+      document.documentElement.classList.remove("kiosk-kb-open");
     };
   }, [enabled]);
 
@@ -316,6 +356,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
     setOpen(false);
     setTarget(null);
     document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+    document.documentElement.classList.remove("kiosk-kb-open");
   }, []);
 
   return { open: enabled && open, target: enabled ? target : null, close, setOpen };

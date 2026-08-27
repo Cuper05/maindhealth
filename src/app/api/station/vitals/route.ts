@@ -77,6 +77,12 @@ export async function POST(request: Request) {
       height: draft.height,
       bmi,
       symptoms: "Captura estación paciente",
+      deviceExtras: {
+        source: "kiosk",
+        ecgStatus: draft.ecgStatus ?? null,
+        ecgRhythm: draft.ecgRhythm ?? null,
+        ecgHeartRate: draft.ecgHeartRate ?? null,
+      },
     })
     .returning({ id: vitalSignsTable.id });
 

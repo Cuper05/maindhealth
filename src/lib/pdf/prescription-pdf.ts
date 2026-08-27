@@ -2,6 +2,39 @@ import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import { buildVerificationUrl } from "@/lib/prescriptions/folio";
 
+/** Signos vitales tomados en la estación, como referencia para el paciente. */
+export type PrescriptionVitals = {
+  systolicPressure?: string | null;
+  diastolicPressure?: string | null;
+  heartRate?: string | null;
+  oxygenSaturation?: string | null;
+  temperature?: string | null;
+  weight?: string | null;
+  height?: string | null;
+  bmi?: string | null;
+};
+
+export const PRESCRIPTION_VITALS_TITLE = "Sus signos vitales (referencia)";
+
+export const PRESCRIPTION_VITALS_NOTE =
+  "Medidos en la estación el día de su consulta. Son de referencia; no sustituyen la valoración de su médico.";
+
+/** Líneas legibles para pacientes; vacío si no hay mediciones. */
+export function formatPrescriptionVitals(vitals?: PrescriptionVitals | null): string[] {
+  if (!vitals) return [];
+  const lines: string[] = [];
+  if (vitals.systolicPressure && vitals.diastolicPressure) {
+    lines.push(`Presión arterial: ${vitals.systolicPressure}/${vitals.diastolicPressure} mmHg`);
+  }
+  if (vitals.heartRate) lines.push(`Pulso: ${vitals.heartRate} latidos por minuto`);
+  if (vitals.oxygenSaturation) lines.push(`Oxígeno en sangre: ${vitals.oxygenSaturation}%`);
+  if (vitals.temperature) lines.push(`Temperatura: ${vitals.temperature} °C`);
+  if (vitals.weight) lines.push(`Peso: ${vitals.weight} kg`);
+  if (vitals.height) lines.push(`Estatura: ${vitals.height} m`);
+  if (vitals.bmi) lines.push(`Índice de masa corporal: ${vitals.bmi}`);
+  return lines;
+}
+
 export type PrescriptionPdfData = {
   chartNumber: string;
   patientName: string;
@@ -21,6 +54,7 @@ export type PrescriptionPdfData = {
     route?: string | null;
     instructions?: string | null;
   }[];
+  vitals?: PrescriptionVitals | null;
   signature?: {
     signerName: string;
     signerLicense?: string | null;
@@ -133,6 +167,17 @@ export async function buildPrescriptionPdf(data: PrescriptionPdfData): Promise<B
         doc.moveDown();
         doc.font("Helvetica-Bold").text("Observaciones generales");
         doc.font("Helvetica").text(asText(data.generalNotes));
+      }
+
+      const vitalLines = formatPrescriptionVitals(data.vitals);
+      if (vitalLines.length > 0) {
+        doc.moveDown();
+        doc.font("Helvetica-Bold").fontSize(11).fillColor("#0f766e").text(PRESCRIPTION_VITALS_TITLE);
+        doc.moveDown(0.3);
+        doc.font("Helvetica").fontSize(10).fillColor("#0f172a");
+        vitalLines.forEach((line) => doc.text(line));
+        doc.fontSize(8).fillColor("#64748b").text(PRESCRIPTION_VITALS_NOTE);
+        doc.fontSize(10).fillColor("#0f172a");
       }
 
       doc.moveDown(2);
