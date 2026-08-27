@@ -1,5 +1,6 @@
 import {
   date,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -21,6 +22,19 @@ export const patientsTable = pgTable("patients", {
   address: text("address"),
   emergencyContactName: varchar("emergency_contact_name", { length: 200 }),
   emergencyContactPhone: varchar("emergency_contact_phone", { length: 50 }),
+  /** Perfil simple de estación (reingreso). */
+  kioskUsername: varchar("kiosk_username", { length: 80 }),
+  kioskPasswordHash: text("kiosk_password_hash"),
+  /** Antecedentes guardados para trato más humano en visitas siguientes. */
+  kioskAntecedents: jsonb("kiosk_antecedents").$type<{
+    hasDiabetes?: boolean;
+    hasHypertension?: boolean;
+    hasAsthma?: boolean;
+    hasHeartDisease?: boolean;
+    hasAllergies?: boolean;
+    allergyDetails?: string;
+    currentMedications?: string;
+  }>(),
   status: varchar("status", { length: 50 }).notNull().default("active"),
   registeredAt: timestamp("registered_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

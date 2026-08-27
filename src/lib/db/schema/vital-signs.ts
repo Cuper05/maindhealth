@@ -1,5 +1,6 @@
 import {
   integer,
+  jsonb,
   numeric,
   pgTable,
   serial,
@@ -9,6 +10,14 @@ import {
 import { appointmentsTable } from "./appointments";
 import { patientsTable } from "./patients";
 import { usersTable } from "./users";
+
+/** Extras de dispositivos de estación (ECG, etc.) ligados al registro de signos. */
+export type VitalDeviceExtras = {
+  ecgStatus?: string | null;
+  ecgRhythm?: string | null;
+  ecgHeartRate?: string | null;
+  source?: "kiosk" | "manual" | "device" | null;
+};
 
 export const vitalSignsTable = pgTable("vital_signs", {
   id: serial("id").primaryKey(),
@@ -28,5 +37,7 @@ export const vitalSignsTable = pgTable("vital_signs", {
   glucose: numeric("glucose", { precision: 10, scale: 2 }),
   bmi: numeric("bmi", { precision: 10, scale: 2 }),
   symptoms: text("symptoms"),
+  /** ECG y otros datos de dispositivos de estación. */
+  deviceExtras: jsonb("device_extras").$type<VitalDeviceExtras>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgTable,
   serial,
   text,
@@ -40,10 +41,15 @@ export const visitIntakesTable = pgTable("visit_intakes", {
     .references(() => patientsTable.id),
   completedByUserId: integer("completed_by_user_id").references(() => usersTable.id),
   chiefComplaint: text("chief_complaint").notNull(),
+  /** Selección estructurada de síntomas del kiosco (códigos, intensidad, duración). */
+  symptomSelection: jsonb("symptom_selection"),
+  /** Copia completa del borrador clínico de estación al momento del consentimiento. */
+  clinicalSnapshot: jsonb("clinical_snapshot"),
   hasDiabetes: boolean("has_diabetes").notNull().default(false),
   diabetesDetails: text("diabetes_details"),
   hasHypertension: boolean("has_hypertension").notNull().default(false),
   hypertensionDetails: text("hypertension_details"),
+  hasAsthma: boolean("has_asthma").notNull().default(false),
   hasHeartDisease: boolean("has_heart_disease").notNull().default(false),
   heartDiseaseDetails: text("heart_disease_details"),
   hasAllergies: boolean("has_allergies").notNull().default(false),
@@ -57,6 +63,7 @@ export const visitIntakesTable = pgTable("visit_intakes", {
   changesSinceLastVisit: text("changes_since_last_visit"),
   additionalNotes: text("additional_notes"),
   patientType: varchar("patient_type", { length: 20 }).notNull().default("returning"),
+  source: varchar("source", { length: 30 }).notNull().default("kiosk"),
   dataConfirmedAt: timestamp("data_confirmed_at"),
   consentSignerName: varchar("consent_signer_name", { length: 200 }),
   consentAcceptedAt: timestamp("consent_accepted_at"),
