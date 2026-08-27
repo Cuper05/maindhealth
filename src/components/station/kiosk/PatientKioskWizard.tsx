@@ -3381,13 +3381,12 @@ function ConfirmDataPanel({
       <div className="mt-4">
         <label className={kioskLabelClassName}>Correo electrónico * (para su receta)</label>
         <input
+          {...kioskTextFieldProps}
           name="confirmEmail"
           type="text"
-          inputMode="email"
           autoComplete="email"
           value={emailValue}
           onChange={(e) => onEmailChange(e.target.value)}
-          {...kioskTextFieldProps}
           className={kioskInputClassName}
           placeholder="ej. juan.perez@gmail.com"
           required

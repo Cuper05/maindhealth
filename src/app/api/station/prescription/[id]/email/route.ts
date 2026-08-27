@@ -20,8 +20,9 @@ export async function POST(
 
     const result = await emailStationPrescription(cookie.token, prescriptionId);
     if (!result.ok) {
-      const status = result.skipped ? 503 : 400;
-      return NextResponse.json({ error: result.error, skipped: result.skipped === true }, { status });
+      const skipped = "skipped" in result && result.skipped === true;
+      const status = skipped ? 503 : 400;
+      return NextResponse.json({ error: result.error, skipped }, { status });
     }
 
     return NextResponse.json({
