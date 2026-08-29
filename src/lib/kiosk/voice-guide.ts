@@ -23,7 +23,7 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
   "Coloque el brazalete en el brazo izquierdo, a la altura del corazón, con la manguera hacia abajo.",
-  "Relájese, no hable, y espere a que inicie y termine la medición.",
+  "Toque Leer presión ahora, relájese y no hable hasta que el aparato termine.",
   "Al terminar, retire el brazalete y colóquelo en su lugar asignado.",
 ] as const;
 
@@ -48,9 +48,9 @@ export const TEMPERATURE_VOICE_STEPS = [
 
 export const ECG_VOICE_STEPS = [
   "Paso cinco: electrocardiograma de un solo canal.",
-  "Siéntese, apoye los brazos y coloque los dedos de ambas manos sobre las placas metálicas del aparato.",
-  "Toque Leer electrocardiograma para iniciar y permanezca quieto unos treinta segundos.",
-  "Cuando termine, la voz se lo dirá; puede soltar las placas y tocar Continuar.",
+  "Siéntese y coloque los dedos de ambas manos sobre las placas metálicas del aparato.",
+  "Mida unos treinta segundos. Si el aparato pide guardar, acepte. Si no inicia, desconecte el USB, mida, y vuelva a conectar.",
+  "Cuando termine, toque Leer electrocardiograma.",
 ] as const;
 
 /** Frases humanas por paso — guía hablada del kiosko táctil. */
@@ -128,6 +128,10 @@ export const OXYGEN_START_VOICE =
 export const OXYGEN_SUCCESS_VOICE =
   "Listo. Terminó la medición de oxígeno y pulso. Retire el oxímetro del dedo y colóquelo de nuevo en su lugar asignado. Luego toque Continuar.";
 
+/** Al iniciar lectura de presión (botón). */
+export const BP_START_VOICE =
+  "Iniciamos la medición de presión. Deje el brazo quieto, sin hablar, hasta que el aparato termine.";
+
 /** Tras presión arterial: retirar brazalete y devolver. */
 export const BP_SUCCESS_VOICE =
   "Listo. Terminó la medición de la presión. Retire el brazalete del brazo y colóquelo de nuevo en su lugar asignado. Luego toque Continuar.";
@@ -138,7 +142,7 @@ export const TEMP_SUCCESS_VOICE =
 
 /** Al iniciar lectura del ECG (botón). */
 export const ECG_START_VOICE =
-  "Iniciamos el electrocardiograma de un solo canal. Mantenga los dedos de ambas manos en las placas metálicas, quieto y sin hablar, hasta que terminemos.";
+  "Buscamos el electrocardiograma en el aparato. Si ya midió y guardó, deje el USB conectado. Si aún no mide, hágalo ahora y luego toque Leer otra vez.";
 
 /** Tras ECG. */
 export const ECG_SUCCESS_VOICE =

@@ -49,7 +49,7 @@ export async function readStationEcg(
     const msg = err instanceof Error ? err.message : String(err);
     if (/Failed to fetch|NetworkError|abort/i.test(msg)) {
       throw new Error(
-        "ECG aún no conectado en esta PC (servicio 127.0.0.1:3928). Puede Continuar o usar Simular mientras llega el equipo USB.",
+        "No se pudo contactar 127.0.0.1:3928. Los bridges deben estar en fondo (station-bridges). Si Edge pide red local, elija Permitir.",
       );
     }
     throw err instanceof Error ? err : new Error(msg);

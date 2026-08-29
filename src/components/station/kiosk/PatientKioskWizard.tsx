@@ -8,6 +8,7 @@ import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
 import { readStationEcg } from "@/lib/kiosk/station-ecg";
 import { readStationScale } from "@/lib/kiosk/station-scale";
+import { readStationBp } from "@/lib/kiosk/station-bp";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
 import {
   KioskCard,
@@ -40,6 +41,7 @@ import {
   ANTECEDENTS_PAGE2_VOICE,
   SCALE_MOUNT_VOICE,
   OXYGEN_START_VOICE,
+  BP_START_VOICE,
   ECG_START_VOICE,
   VITAL_DONE_VOICE,
   WEIGHT_HEIGHT_VOICE_STEPS,
@@ -323,6 +325,9 @@ export function PatientKioskWizard() {
   const [scaleStatus, setScaleStatus] = useState<string>("");
   const [scaleCapturing, setScaleCapturing] = useState(false);
   const scaleCaptureLock = useRef(false);
+  const [bpStatus, setBpStatus] = useState<string>("");
+  const [bpCapturing, setBpCapturing] = useState(false);
+  const bpCaptureLock = useRef(false);
   const [ecgStatusMsg, setEcgStatusMsg] = useState<string>("");
   const [ecgCapturing, setEcgCapturing] = useState(false);
   const ecgCaptureLock = useRef(false);
@@ -1441,6 +1446,38 @@ export function PatientKioskWizard() {
     }
   }, []);
 
+  const captureBp = useCallback(async () => {
+    if (bpCaptureLock.current) return;
+    bpCaptureLock.current = true;
+    setError(null);
+    setBpCapturing(true);
+    setDeviceStatus("reading");
+    setBpStatus("Iniciando lectura del baumanómetro…");
+    speakKiosk(BP_START_VOICE, { force: true });
+    try {
+      const sample = await readStationBp((msg) => setBpStatus(msg));
+      const patch: VitalsDraft = {
+        systolicPressure: String(sample.systolic),
+        diastolicPressure: String(sample.diastolic),
+        ...(sample.heartRate ? { heartRate: String(sample.heartRate) } : {}),
+      };
+      setVitalsDraft((prev) => ({ ...prev, ...patch }));
+      await kioskApi.patchVitals(patch, "done");
+      setDeviceStatus("done");
+      setBpStatus(
+        `${sample.systolic}/${sample.diastolic} mmHg${sample.heartRate ? ` · FC ${sample.heartRate}` : ""}`,
+      );
+    } catch (err) {
+      setDeviceStatus("retry");
+      const msg = err instanceof Error ? err.message : "No se pudo leer la presión";
+      setBpStatus(msg);
+      setError(msg);
+    } finally {
+      setBpCapturing(false);
+      bpCaptureLock.current = false;
+    }
+  }, []);
+
   const captureEcg = useCallback(async () => {
     if (ecgCaptureLock.current) return;
     ecgCaptureLock.current = true;
@@ -1495,6 +1532,17 @@ export function PatientKioskWizard() {
     setDeviceStatus("idle");
     setScaleStatus("Pulsa el botón verde «Leer báscula ahora».");
   }, [step, vitalsDraft.weight, vitalsDraft.height]);
+
+  useEffect(() => {
+    if (step !== "blood_pressure") return;
+    if (vitalsDraft.systolicPressure && vitalsDraft.diastolicPressure) {
+      setDeviceStatus("done");
+      return;
+    }
+    setBpCapturing(false);
+    setDeviceStatus("idle");
+    setBpStatus("Pulsa el botón verde «Leer presión ahora».");
+  }, [step, vitalsDraft.systolicPressure, vitalsDraft.diastolicPressure]);
 
   // Al entrar a ECG sin lectura, idle (no bloquear con reading de sesión vieja).
   useEffect(() => {
@@ -2788,6 +2836,12 @@ export function PatientKioskWizard() {
             VITAL_RANGE_COPY.bloodPressure,
             VITAL_RANGE_COPY.heartRate,
           ]}
+          statusMessage={
+            bpStatus ||
+            (vitalsDraft.systolicPressure
+              ? undefined
+              : "Listo para leer — pulse el botón verde de abajo")
+          }
           readingViews={
             vitalsDraft.systolicPressure && vitalsDraft.diastolicPressure
               ? [
@@ -2801,10 +2855,15 @@ export function PatientKioskWizard() {
                 ]
               : undefined
           }
+          onCapture={() => void captureBp()}
+          captureLabel="Leer presión ahora"
+          capturingLabel="Esperando medición…"
+          captureHelp="Coloque el brazalete e inicie la medición en el aparato. Necesita el bridge en 127.0.0.1:3931. Si Edge pide red local, elija Permitir."
+          capturing={bpCapturing}
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}
           onContinue={async () => {
             if (!vitalsDraft.systolicPressure) {
-              failWithVoice("Todavía no llega la lectura de la presión. Espere un momento, por favor.");
+              failWithVoice("Primero toque el botón verde «Leer presión ahora».");
               return;
             }
             setError(null);
@@ -2812,7 +2871,11 @@ export function PatientKioskWizard() {
             await goToStep("oxygen");
           }}
           onBack={goBack}
-          onRetry={() => clearVitalFields(VITAL_FIELDS.blood_pressure)}
+          onRetry={() => {
+            void clearVitalFields(VITAL_FIELDS.blood_pressure);
+            setBpStatus("Pulsa Leer presión ahora");
+            setDeviceStatus("idle");
+          }}
         />
       )}
 
@@ -2847,7 +2910,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureOximeter()}
           captureLabel="Leer oxímetro ahora"
           capturingLabel="Esperando lectura estable…"
-          captureHelp="No se guarda hasta que SpO₂ y pulso estén estables. Necesita iniciar-servicio-oximetro.bat. Si Chrome pide red local, elija Permitir."
+          captureHelp="No se guarda hasta que SpO₂ y pulso estén estables. Si Edge pide red local, elija Permitir."
           capturing={oxygenCapturing}
           onSimulate={() =>
             simulateReading({
@@ -2935,12 +2998,13 @@ export function PatientKioskWizard() {
             (vitalsDraft.ecgStatus === "done"
               ? undefined
               : vitalsDraft.ecgStatus === "skipped"
-                ? "ECG pendiente de equipo — puede continuar al resumen"
+                ? "ECG omitido"
                 : "Cuando esté listo, toque Leer electrocardiograma")
           }
           onCapture={() => void captureEcg()}
           captureLabel="Leer electrocardiograma"
           capturingLabel="Leyendo ECG…"
+          captureHelp="Mida 30 s en el PC-80B, acepte guardar si lo pide, deje el USB conectado y toque Leer. Si Edge pide red local, elija Permitir."
           captureOptional
           capturing={ecgCapturing}
           onSimulate={() =>

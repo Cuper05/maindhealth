@@ -1,0 +1,14 @@
+{
+  "name": "bp700-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "USB bridge: baumanómetro CP2110 (TU0-700X) -> MaindHealth",
+  "scripts": {
+    "start": "node server.mjs",
+    "service": "node server.mjs"
+  },
+  "dependencies": {
+    "node-hid": "^3.1.2"
+  }
+}
