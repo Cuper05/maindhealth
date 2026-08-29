@@ -1,8 +1,12 @@
 /**
- * Bridge baumanómetro USB (Silicon Labs CP2110, serie TU0-700X / familia BP-700).
+ * Bridge baumanómetro USB (Silicon Labs CP2110, serie TU0-700X).
+ * El aparato NO mide con el USB conectado (entra en modo PC). Flujo:
+ * desconectar → medir → reconectar → leer el resultado guardado.
  * http://127.0.0.1:3931
  */
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import HID from "node-hid";
 
 const HOST = "127.0.0.1";
@@ -10,11 +14,24 @@ const PORT = Number(process.env.BP_BRIDGE_PORT || 3931);
 const VID = 0x10c4;
 const PID = 0xea80;
 const SERIAL = (process.env.BP_SERIAL || "TU0-700X").toUpperCase();
-const BAUDS = (process.env.BP_BAUDS || "9600,115200,4800,38400")
+const BAUDS = (process.env.BP_BAUDS || "115200,9600,38400,4800")
   .split(",")
   .map((n) => Number(n.trim()))
   .filter((n) => n > 0);
-const READ_TIMEOUT_MS = Number(process.env.BP_READ_TIMEOUT_MS || 70000);
+const READ_TIMEOUT_MS = Number(process.env.BP_READ_TIMEOUT_MS || 150000);
+const LOG_DIR = path.join(process.env.LOCALAPPDATA || ".", "MaindHealth", "logs");
+const SNIFF_LOG = path.join(LOG_DIR, "presion-sniff.log");
+
+let progress = {
+  phase: "idle",
+  message: "Listo",
+  plugged: false,
+};
+let readingLock = false;
+
+function setProgress(phase, message) {
+  progress = { phase, message, plugged: Boolean(findDevice()) };
+}
 
 function sendJson(res, status, body) {
   const payload = JSON.stringify(body);
@@ -42,6 +59,10 @@ function findDevice() {
   );
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function featureReport(bytes) {
   const buf = Buffer.alloc(64, 0);
   Buffer.from(bytes).copy(buf);
@@ -51,29 +72,31 @@ function featureReport(bytes) {
 function configureUart(dev, baud) {
   const baudBe = Buffer.alloc(4);
   baudBe.writeUInt32BE(baud, 0);
-  // 0x50 Set UART Config: baud BE, no parity, no flow, 8 data, 1 stop
   dev.sendFeatureReport(
     featureReport([0x50, ...baudBe, 0x00, 0x00, 0x03, 0x00]),
   );
-  // 0x43 purge TX+RX
   dev.sendFeatureReport(featureReport([0x43, 0x03]));
-  // 0x41 enable UART
   dev.sendFeatureReport(featureReport([0x41, 0x01]));
 }
 
+function uartWrite(dev, payload) {
+  const id = Math.min(payload.length, 0x3f);
+  const report = Buffer.alloc(64, 0);
+  report[0] = id;
+  payload.subarray(0, id).copy(report, 1);
+  dev.write([...report]);
+}
+
 function plausible(sys, dia, hr) {
-  return (
-    sys >= 80 &&
-    sys <= 230 &&
-    dia >= 40 &&
-    dia <= 140 &&
-    sys >= dia + 10 &&
-    hr >= 40 &&
-    hr <= 180
-  );
+  if (!(sys >= 80 && sys <= 230 && dia >= 40 && dia <= 140 && sys >= dia + 10)) {
+    return false;
+  }
+  if (hr == null || hr === 0) return true;
+  return hr >= 40 && hr <= 180;
 }
 
 function parseReading(buffer) {
+  if (!buffer?.length) return null;
   const ascii = buffer.toString("latin1");
   const slash = ascii.match(/(\d{2,3})\s*\/\s*(\d{2,3})(?:[^\d]{1,8}(\d{2,3}))?/);
   if (slash) {
@@ -94,18 +117,37 @@ function parseReading(buffer) {
     if (plausible(sys, dia, hr)) return { sys, dia, hr, format: "labeled" };
   }
 
+  for (let i = 0; i < buffer.length - 5; i++) {
+    const a = buffer[i];
+    const b = buffer[i + 1];
+    if ((a === 0x55 && b === 0xaa) || (a === 0xaa && b === 0x55)) {
+      for (const off of [2, 3, 4]) {
+        const sys = buffer[i + off];
+        const dia = buffer[i + off + 1];
+        const hr = buffer[i + off + 2];
+        if (plausible(sys, dia, hr)) {
+          return { sys, dia, hr, format: "hdr" };
+        }
+      }
+    }
+  }
+
   for (let i = 0; i < buffer.length - 2; i++) {
     const sys = buffer[i];
     const dia = buffer[i + 1];
     const hr = buffer[i + 2];
-    if (plausible(sys, dia, hr)) return { sys, dia, hr, format: "u8" };
+    if (plausible(sys, dia, hr) && hr >= 40) {
+      return { sys, dia, hr, format: "u8" };
+    }
   }
 
   for (let i = 0; i + 5 < buffer.length; i++) {
     const sys = buffer.readUInt16LE(i);
     const dia = buffer.readUInt16LE(i + 2);
     const hr = buffer.readUInt16LE(i + 4);
-    if (plausible(sys, dia, hr)) return { sys, dia, hr, format: "u16le" };
+    if (plausible(sys, dia, hr) && hr >= 40) {
+      return { sys, dia, hr, format: "u16le" };
+    }
   }
   return null;
 }
@@ -113,28 +155,42 @@ function parseReading(buffer) {
 function sendProbes(dev) {
   const probes = [
     Buffer.from([0xaa, 0x55]),
-    Buffer.from("AT\r\n", "ascii"),
+    Buffer.from([0x55, 0xaa]),
+    Buffer.from([0xa5, 0x5a]),
+    Buffer.from([0xfd, 0xfd]),
     Buffer.from([0xbe, 0x20, 0x00, 0x00]),
+    Buffer.from([0x01, 0x00]),
+    Buffer.from("AT\r\n", "ascii"),
     Buffer.from("READ\r\n", "ascii"),
+    Buffer.from("M\r", "ascii"),
   ];
   for (const probe of probes) {
-    const id = Math.min(probe.length, 0x3f);
-    const report = Buffer.alloc(64, 0);
-    report[0] = id;
-    probe.subarray(0, id).copy(report, 1);
     try {
-      dev.write([...report]);
+      uartWrite(dev, probe);
     } catch {
       /* ignore */
     }
   }
 }
 
-function readOnce(timeoutMs) {
+function appendSniff(note, buf) {
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    const hex = buf?.length ? buf.toString("hex") : "";
+    fs.appendFileSync(
+      SNIFF_LOG,
+      `${new Date().toISOString()} ${note} len=${buf?.length || 0} ${hex}\n`,
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function dumpAfterConnect(timeoutMs) {
   return new Promise((resolve, reject) => {
     const info = findDevice();
     if (!info) {
-      reject(new Error("Baumanómetro USB no detectado (CP2110). Conéctelo y enciéndalo."));
+      reject(new Error("USB reconectado pero el baumanómetro no aparece aún. Espere 2 s y toque Leer otra vez."));
       return;
     }
 
@@ -152,10 +208,14 @@ function readOnce(timeoutMs) {
 
     const chunks = [];
     let settled = false;
+    let baudIndex = 0;
+    let phaseTimer;
+
     const finish = (err, value) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
+      clearTimeout(hardTimer);
+      clearTimeout(phaseTimer);
       try {
         dev.removeAllListeners();
         dev.close();
@@ -169,7 +229,10 @@ function readOnce(timeoutMs) {
     const consider = () => {
       const buf = Buffer.concat(chunks);
       const parsed = parseReading(buf);
-      if (parsed?.sys && parsed?.dia) finish(null, { ...parsed, bytes: buf.length });
+      if (parsed?.sys && parsed?.dia) {
+        appendSniff(`ok ${parsed.format}`, buf);
+        finish(null, { ...parsed, bytes: buf.length });
+      }
     };
 
     dev.on("error", (err) => finish(err));
@@ -182,29 +245,99 @@ function readOnce(timeoutMs) {
       consider();
     });
 
-    const baud = BAUDS[0] || 9600;
-    try {
-      configureUart(dev, baud);
-      sendProbes(dev);
-    } catch (err) {
-      finish(err);
-      return;
-    }
+    const runBaud = () => {
+      if (settled) return;
+      if (baudIndex >= BAUDS.length) {
+        const buf = Buffer.concat(chunks);
+        appendSniff("fail", buf);
+        finish(
+          new Error(
+            `USB listo pero no llegó la medición (${buf.length} bytes). Mida sin USB, reconecte y toque Leer otra vez.`,
+          ),
+        );
+        return;
+      }
+      const baud = BAUDS[baudIndex];
+      baudIndex += 1;
+      setProgress("dump", `USB detectado. Leyendo a ${baud} baudios…`);
+      try {
+        configureUart(dev, baud);
+      } catch (err) {
+        finish(err);
+        return;
+      }
+      phaseTimer = setTimeout(() => {
+        if (settled) return;
+        sendProbes(dev);
+        phaseTimer = setTimeout(runBaud, 2500);
+      }, 3000);
+    };
 
-    const timer = setTimeout(() => {
+    runBaud();
+
+    const hardTimer = setTimeout(() => {
       const buf = Buffer.concat(chunks);
       const parsed = parseReading(buf);
       if (parsed?.sys && parsed?.dia) {
+        appendSniff(`ok-timeout ${parsed.format}`, buf);
         finish(null, { ...parsed, bytes: buf.length });
         return;
       }
+      appendSniff("timeout", buf);
       finish(
         new Error(
-          `Sin lectura de presión (${buf.length} bytes). Coloque el brazalete, inicie la medición en el aparato y espere a que termine.`,
+          `Sin lectura de presión (${buf.length} bytes). Mida sin USB, reconecte el cable y toque Leer otra vez.`,
         ),
       );
     }, timeoutMs);
   });
+}
+
+async function waitForUnplug(deadline) {
+  if (!findDevice()) return;
+  setProgress(
+    "unplug",
+    "Desconecte el cable USB del baumanómetro. Con el USB puesto no enciende.",
+  );
+  while (Date.now() < deadline) {
+    if (!findDevice()) {
+      await sleep(400);
+      return;
+    }
+    await sleep(400);
+  }
+  throw new Error(
+    "Sigue el USB conectado. Desconéctelo para que el aparato pueda encender y medir.",
+  );
+}
+
+async function waitForPlug(deadline) {
+  setProgress(
+    "measure",
+    "Coloque el brazalete, inicie la medición en el aparato y, al ver el resultado, reconecte el USB.",
+  );
+  while (Date.now() < deadline) {
+    if (findDevice()) {
+      await sleep(700);
+      if (findDevice()) return;
+    }
+    await sleep(400);
+  }
+  throw new Error(
+    "No reapareció el USB. Cuando termine la medición, reconecte el cable y toque Leer otra vez.",
+  );
+}
+
+async function readSession() {
+  const deadline = Date.now() + READ_TIMEOUT_MS;
+  const pluggedAtStart = Boolean(findDevice());
+  if (pluggedAtStart) {
+    await waitForUnplug(deadline);
+  }
+  await waitForPlug(deadline);
+  setProgress("dump", "USB detectado. Leyendo la medición guardada…");
+  const remaining = Math.max(8000, deadline - Date.now());
+  return dumpAfterConnect(Math.min(remaining, 28000));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -218,10 +351,22 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/health") {
     const info = findDevice();
     sendJson(res, 200, {
-      ok: Boolean(info),
+      ok: true,
       device: "bp-cp2110",
       serial: info?.serialNumber || null,
+      plugged: Boolean(info),
       hidDevices: listCp2110().length,
+      phase: progress.phase,
+      message: progress.message,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/progress") {
+    sendJson(res, 200, {
+      ok: true,
+      ...progress,
+      plugged: Boolean(findDevice()),
     });
     return;
   }
@@ -248,8 +393,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (readingLock) {
+      sendJson(res, 409, {
+        ok: false,
+        error: "Ya hay una lectura de presión en curso.",
+      });
+      return;
+    }
+
+    readingLock = true;
     try {
-      const reading = await readOnce(READ_TIMEOUT_MS);
+      const reading = await readSession();
+      setProgress("idle", "Listo");
       sendJson(res, 200, {
         ok: true,
         systolicPressure: reading.sys,
@@ -259,10 +414,11 @@ const server = http.createServer(async (req, res) => {
         bytes: reading.bytes,
       });
     } catch (err) {
-      sendJson(res, 503, {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const message = err instanceof Error ? err.message : String(err);
+      setProgress("idle", message);
+      sendJson(res, 503, { ok: false, error: message });
+    } finally {
+      readingLock = false;
     }
     return;
   }
@@ -271,5 +427,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[bp700-bridge] http://${HOST}:${PORT}`);
+  console.log(`[bp700-bridge] http://${HOST}:${PORT} (medir SIN USB, luego reconectar)`);
 });

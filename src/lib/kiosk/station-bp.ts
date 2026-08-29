@@ -1,5 +1,6 @@
 /**
  * Lectura del baumanómetro USB (CP2110) en 127.0.0.1:3931.
+ * El aparato no mide con el USB conectado: desconectar → medir → reconectar.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3931";
@@ -13,14 +14,25 @@ export type StationBpSample = {
 export async function readStationBp(
   onProgress?: (msg: string) => void,
 ): Promise<StationBpSample> {
-  onProgress?.("Contactando servicio local del baumanómetro…");
+  onProgress?.(
+    "Desconecte el USB, mida en el aparato y, al ver el resultado, reconecte el cable…",
+  );
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 80000);
+  const timer = setTimeout(() => ctrl.abort(), 160000);
+  const poll = setInterval(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`${BRIDGE_URL}/progress`, { cache: "no-store" });
+        const data = (await res.json()) as { message?: string };
+        if (data.message) onProgress?.(data.message);
+      } catch {
+        /* el POST /read sigue en curso */
+      }
+    })();
+  }, 800);
+
   try {
-    onProgress?.(
-      "Coloque el brazalete e inicie la medición en el aparato. Esperamos el resultado…",
-    );
     const res = await fetch(`${BRIDGE_URL}/read`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,7 +48,7 @@ export async function readStationBp(
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          "Sin lectura de presión. Encienda el baumanómetro, coloque el brazalete e inicie la medición.",
+          "Sin lectura de presión. Desconecte el USB, mida, reconecte y toque Leer otra vez.",
       );
     }
     const systolic = Number(data.systolicPressure);
@@ -58,7 +70,7 @@ export async function readStationBp(
     const name = err instanceof Error ? err.name : "";
     if (name === "AbortError" || /aborted/i.test(msg)) {
       throw new Error(
-        "La presión tardó demasiado. Deje el brazo quieto hasta que el aparato termine y pulse Leer otra vez.",
+        "La presión tardó demasiado. Mida sin USB, reconecte el cable y pulse Leer otra vez.",
       );
     }
     if (/Failed to fetch|NetworkError/i.test(msg)) {
@@ -68,6 +80,7 @@ export async function readStationBp(
     }
     throw err instanceof Error ? err : new Error(msg);
   } finally {
+    clearInterval(poll);
     clearTimeout(timer);
   }
 }

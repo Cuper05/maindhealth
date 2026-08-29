@@ -2857,8 +2857,9 @@ export function PatientKioskWizard() {
           }
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
-          capturingLabel="Esperando medición…"
-          captureHelp="Coloque el brazalete e inicie la medición en el aparato. Necesita el bridge en 127.0.0.1:3931. Si Edge pide red local, elija Permitir."
+          capturingLabel="Esperando USB…"
+          captureHelp="Con el USB puesto el aparato no enciende. Toque Leer, desconecte el cable, mida, y al ver el resultado reconecte el USB."
+          tips={["Si no enciende, desconecte el USB: solo mide sin cable."]}
           capturing={bpCapturing}
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}
           onContinue={async () => {

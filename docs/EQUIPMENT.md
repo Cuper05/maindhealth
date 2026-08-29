@@ -29,7 +29,7 @@
 
 ## C. Paquete mínimo de arranque
 
-**Clínico:** baumanómetro USB **BP-700 / CP2110 TU0-700X** (bridge `tools/bp700-bridge` en `127.0.0.1:3931`), oxímetro CMS50D+ (`COM4`, `:3927`), termómetro, báscula+altura **Lejia HW-701** (`COM5`, `:3930`), ECG **PC-80B** (disco `EASY ECG`, `:3928`), glucómetro.
+**Clínico:** baumanómetro USB **BP-700 / CP2110 TU0-700X** (mide **sin USB**; al terminar se reconecta; bridge `tools/bp700-bridge` en `127.0.0.1:3931`), oxímetro CMS50D+ (`COM4`, `:3927`), termómetro, báscula+altura **Lejia HW-701** (`COM5`, `:3930`), ECG **PC-80B** (disco `EASY ECG`, `:3928`), glucómetro.
 
 **Tecnológico:** cámara, bocina fija, micrófono fijo, pantalla, computadora, conectividad estable.
 

@@ -22,9 +22,9 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
-  "Coloque el brazalete en el brazo izquierdo, a la altura del corazón, con la manguera hacia abajo.",
-  "Toque Leer presión ahora, relájese y no hable hasta que el aparato termine.",
-  "Al terminar, retire el brazalete y colóquelo en su lugar asignado.",
+  "Toque Leer presión ahora. Luego desconecte el cable USB: con el USB puesto el aparato no enciende.",
+  "Coloque el brazalete en el brazo izquierdo, a la altura del corazón, e inicie la medición en el aparato.",
+  "Cuando vea el resultado, reconecte el USB. La pantalla leerá sola. Luego retire el brazalete y colóquelo en su lugar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
@@ -130,7 +130,7 @@ export const OXYGEN_SUCCESS_VOICE =
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
-  "Iniciamos la medición de presión. Deje el brazo quieto, sin hablar, hasta que el aparato termine.";
+  "Desconecte el cable USB del baumanómetro. Coloque el brazalete e inicie la medición en el aparato. Cuando vea el resultado, vuelva a conectar el USB. Estamos esperando.";
 
 /** Tras presión arterial: retirar brazalete y devolver. */
 export const BP_SUCCESS_VOICE =
