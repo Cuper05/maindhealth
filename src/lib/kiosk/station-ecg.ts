@@ -1,6 +1,6 @@
 /**
- * Lectura de ECG desde el servicio local de estación (127.0.0.1:3928).
- * Misma idea que el oxímetro en :3927. El bridge se completa al llegar el equipo USB (p. ej. PC-80B).
+ * Lectura de ECG PC-80B desde 127.0.0.1:3928.
+ * El cable se queda puesto: la PC silencia el USB, el paciente mide, luego se lee.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3928";
@@ -11,15 +11,36 @@ export type StationEcgSample = {
   quality?: string;
 };
 
+export async function confirmStationEcgDone() {
+  try {
+    await fetch(`${BRIDGE_URL}/continue`, { method: "POST" });
+  } catch {
+    /* el POST /read sigue esperando */
+  }
+}
+
 export async function readStationEcg(
   onProgress?: (msg: string) => void,
 ): Promise<StationEcgSample> {
-  onProgress?.("Contactando servicio local del ECG…");
+  onProgress?.(
+    "Cable puesto. Ponga los dedos en las placas 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
+  );
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 45000);
+  const timer = setTimeout(() => ctrl.abort(), 160000);
+  const poll = setInterval(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`${BRIDGE_URL}/progress`, { cache: "no-store" });
+        const data = (await res.json()) as { message?: string };
+        if (data.message) onProgress?.(data.message);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, 800);
+
   try {
-    onProgress?.("Leyendo ECG… mantenga los dedos quietos ~30 s");
     const res = await fetch(`${BRIDGE_URL}/read`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -35,7 +56,7 @@ export async function readStationEcg(
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          "Sin lectura del ECG. Encienda el aparato, coloque los dedos y vuelva a intentar.",
+          "Sin lectura del ECG. Mida 30 s, acepte guardar y toque Ya terminó.",
       );
     }
     const heartRate = Number(data.heartRate);
@@ -47,13 +68,20 @@ export async function readStationEcg(
     return { heartRate, rhythm, quality: data.quality };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/Failed to fetch|NetworkError|abort/i.test(msg)) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "AbortError" || /aborted/i.test(msg)) {
+      throw new Error(
+        "El ECG tardó demasiado. Mida 30 s, acepte guardar y toque Ya terminó.",
+      );
+    }
+    if (/Failed to fetch|NetworkError/i.test(msg)) {
       throw new Error(
         "No se pudo contactar 127.0.0.1:3928. Los bridges deben estar en fondo (station-bridges). Si Edge pide red local, elija Permitir.",
       );
     }
     throw err instanceof Error ? err : new Error(msg);
   } finally {
+    clearInterval(poll);
     clearTimeout(timer);
   }
 }

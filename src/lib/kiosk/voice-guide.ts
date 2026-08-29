@@ -48,9 +48,9 @@ export const TEMPERATURE_VOICE_STEPS = [
 
 export const ECG_VOICE_STEPS = [
   "Paso cinco: electrocardiograma de un solo canal.",
-  "Siéntese y coloque los dedos de ambas manos sobre las placas metálicas del aparato.",
-  "Mida unos treinta segundos. Si el aparato pide guardar, acepte. El cable USB se queda puesto.",
-  "Cuando termine, toque Leer electrocardiograma.",
+  "Toque Leer electrocardiograma. El cable USB se queda puesto.",
+  "Siéntese y ponga los dedos de ambas manos sobre las placas metálicas unos treinta segundos. Si pide guardar, acepte.",
+  "Cuando termine, toque Ya terminó.",
 ] as const;
 
 /** Frases humanas por paso — guía hablada del kiosko táctil. */
@@ -142,7 +142,7 @@ export const TEMP_SUCCESS_VOICE =
 
 /** Al iniciar lectura del ECG (botón). */
 export const ECG_START_VOICE =
-  "Buscamos el electrocardiograma en el aparato. Si ya midió y guardó, deje el USB conectado. Si aún no mide, hágalo ahora y luego toque Leer otra vez.";
+  "El cable se queda puesto. Ponga los dedos de ambas manos en las placas unos treinta segundos. Si pide guardar, acepte. Cuando termine, toque Ya terminó.";
 
 /** Tras ECG. */
 export const ECG_SUCCESS_VOICE =

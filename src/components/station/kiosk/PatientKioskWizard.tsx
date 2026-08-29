@@ -6,7 +6,7 @@ import { StationAutoPrintWatcher } from "@/components/station/StationAutoPrintWa
 import { STATION_CONSENT_TEXT } from "@/lib/station/copy";
 import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
-import { readStationEcg } from "@/lib/kiosk/station-ecg";
+import { readStationEcg, confirmStationEcgDone } from "@/lib/kiosk/station-ecg";
 import { readStationScale } from "@/lib/kiosk/station-scale";
 import { confirmStationBpDone, readStationBp } from "@/lib/kiosk/station-bp";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
@@ -1482,12 +1482,15 @@ export function PatientKioskWizard() {
   }, []);
 
   const captureEcg = useCallback(async () => {
-    if (ecgCaptureLock.current) return;
+    if (ecgCaptureLock.current) {
+      await confirmStationEcgDone();
+      return;
+    }
     ecgCaptureLock.current = true;
     setError(null);
     setEcgCapturing(true);
     setDeviceStatus("reading");
-    setEcgStatusMsg("Iniciando lectura del ECG…");
+    setEcgStatusMsg("Cable puesto. Ponga los dedos en las placas…");
     speakKiosk(ECG_START_VOICE, { force: true });
     try {
       const sample = await readStationEcg((msg) => setEcgStatusMsg(msg));
@@ -3008,10 +3011,11 @@ export function PatientKioskWizard() {
           }
           onCapture={() => void captureEcg()}
           captureLabel="Leer electrocardiograma"
-          capturingLabel="Leyendo ECG…"
-          captureHelp="Mida 30 s en el PC-80B, acepte guardar si lo pide. El cable USB se queda puesto. Luego toque Leer electrocardiograma."
+          capturingLabel="Ya terminó"
+          captureHelp="El cable se queda puesto. Toque Leer, ponga los dedos 30 s, acepte guardar si lo pide, y toque Ya terminó."
           captureOptional
           capturing={ecgCapturing}
+          captureCanConfirm
           onSimulate={() =>
             simulateReading({
               ecgStatus: "done",

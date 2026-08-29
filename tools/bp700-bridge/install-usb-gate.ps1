@@ -7,8 +7,8 @@ if (-not (Test-Path $Gate)) { throw "No existe $Gate" }
 
 $ps = (Get-Command powershell.exe).Source
 
-function Install-GateTask([string]$Name, [string]$Action) {
-  $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Gate`" -Action $Action -Target bp"
+function Install-GateTask([string]$Name, [string]$Action, [string]$Target) {
+  $arg = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Gate`" -Action $Action -Target $Target"
   $actionObj = New-ScheduledTaskAction -Execute $ps -Argument $arg
   $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
@@ -26,8 +26,10 @@ function Install-GateTask([string]$Name, [string]$Action) {
   Write-Host "OK $Name"
 }
 
-Install-GateTask "MaindHealthBpUsbDisable" "disable"
-Install-GateTask "MaindHealthBpUsbEnable" "enable"
+Install-GateTask "MaindHealthBpUsbDisable" "disable" "bp"
+Install-GateTask "MaindHealthBpUsbEnable" "enable" "bp"
+Install-GateTask "MaindHealthEcgUsbDisable" "disable" "ecg"
+Install-GateTask "MaindHealthEcgUsbEnable" "enable" "ecg"
 
 Write-Host ""
-Write-Host "Listo. El kiosko ya puede silenciar el USB sin desconectar cables."
+Write-Host "Listo. El kiosko ya puede silenciar USB del baumanómetro y del ECG sin desconectar cables."
