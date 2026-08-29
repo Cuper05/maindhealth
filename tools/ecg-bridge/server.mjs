@@ -7,10 +7,6 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile, execFileSync } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.ECG_BRIDGE_PORT || 3928);
@@ -50,26 +46,6 @@ function sendJson(res, status, body) {
 function findEasyEcgRoot() {
   const envRoot = process.env.ECG_DISK_ROOT;
   if (envRoot && fs.existsSync(envRoot)) return envRoot;
-
-  try {
-    const letter = execFileSync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-Command",
-        "(Get-Volume | Where-Object { $_.FileSystemLabel -match 'EASY ECG' }).DriveLetter",
-      ],
-      { encoding: "utf8", timeout: 8000 },
-    )
-      .trim()
-      .replace(/[^A-Za-z]/g, "");
-    if (letter) {
-      const root = `${letter}:\\`;
-      if (fs.existsSync(root)) return root;
-    }
-  } catch {
-    /* ignore */
-  }
 
   for (const letter of "DEFGHIJKLMNOPQRSTUVWXYZ") {
     const root = `${letter}:\\`;
@@ -245,70 +221,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function ejectRoot(root) {
-  const letter = String(root || "").replace(/[^A-Za-z]/g, "").slice(0, 1);
-  if (!letter) return;
-  try {
-    execFileSync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-Command",
-        `$d = (New-Object -ComObject Shell.Application).Namespace(17).ParseName('${letter}:'); if ($d) { $d.InvokeVerb('Eject') }`,
-      ],
-      { timeout: 8000, windowsHide: true },
-    );
-  } catch {
-    /* ignore */
-  }
-}
-
-function gateScriptPath() {
-  return path.join(process.cwd(), "..", "bp700-bridge", "usb-gate.ps1");
-}
-
-async function waitUntil(pred, ms, stepMs = 400) {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    if (pred()) return true;
-    await sleep(stepMs);
-  }
-  return pred();
-}
-
-async function runSchtask(name) {
-  await execFileAsync("schtasks.exe", ["/Run", "/TN", name], {
-    windowsHide: true,
-    timeout: 20000,
-  });
-}
-
-async function runGateScript(action) {
-  await execFileAsync(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      gateScriptPath(),
-      "-Action",
-      action,
-      "-Target",
-      "ecg",
-    ],
-    { windowsHide: true, timeout: 25000 },
-  );
-}
-
-async function usbGate(action) {
-  try {
-    await runSchtask(action === "disable" ? "MaindHealthEcgUsbDisable" : "MaindHealthEcgUsbEnable");
-  } catch {
-    await runGateScript(action);
-  }
-}
-
 let progress = {
   phase: "idle",
   message: "Listo",
@@ -345,66 +257,23 @@ async function readSession() {
 
   const before = listScpFiles(root);
   const newestBefore = before[0]?.mtimeMs ?? 0;
-  let gated = false;
 
-  setProgress("unplug", "Liberando el USB en la PC. El cable se queda puesto…");
-  ejectRoot(root);
-  await sleep(800);
-  if (findEasyEcgRoot()) {
-    try {
-      await usbGate("disable");
-      gated = true;
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(
-        `No se pudo liberar el USB del ECG (${detail}). Ejecute una sola vez tools\\bp700-bridge\\1-instalar-permiso-usb.bat. El cable se queda puesto.`,
-      );
-    }
+  setProgress(
+    "measure",
+    "Cable puesto. Ponga los dedos en las placas unos 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
+  );
+  await waitForPatientDone(deadline);
+  setProgress("dump", "Leyendo el electrocardiograma…");
+  const fileDeadline = Date.now() + 25000;
+  while (Date.now() < fileDeadline) {
+    const disk = findEasyEcgRoot();
+    const parsed = parseLatest(disk, newestBefore + 1);
+    if (parsed?.heartRate) return parsed;
+    await sleep(800);
   }
-
-  const gone = await waitUntil(() => !findEasyEcgRoot(), 8000);
-  if (!gone && findEasyEcgRoot()) {
-    throw new Error(
-      "Windows no soltó el disco EASY ECG. Ejecute una sola vez tools\\bp700-bridge\\1-instalar-permiso-usb.bat. El cable se queda puesto.",
-    );
-  }
-
-  try {
-    await waitForPatientDone(deadline);
-    setProgress("dump", "Reactivando USB y leyendo el electrocardiograma…");
-    if (gated) {
-      try {
-        await usbGate("enable");
-      } catch {
-        /* eject-only: el aparato puede remontar solo */
-      }
-      gated = false;
-    }
-    const remounted = await waitUntil(() => Boolean(findEasyEcgRoot()), 25000);
-    if (!remounted) {
-      throw new Error(
-        "El disco EASY ECG no volvió a aparecer. Deje el USB puesto, acepte guardar en el aparato y toque Leer otra vez.",
-      );
-    }
-    await sleep(1200);
-    const fileDeadline = Date.now() + 35000;
-    while (Date.now() < fileDeadline) {
-      const parsed = parseLatest(findEasyEcgRoot(), newestBefore + 1);
-      if (parsed?.heartRate) return parsed;
-      await sleep(1200);
-    }
-    throw new Error(
-      "Sin registro nuevo. Mida 30 s, acepte guardar si lo pide, y toque Ya terminó. El cable se queda puesto.",
-    );
-  } finally {
-    if (gated) {
-      try {
-        await usbGate("enable");
-      } catch {
-        /* ignore */
-      }
-    }
-  }
+  throw new Error(
+    "Sin registro nuevo. Mida 30 s, acepte guardar si lo pide, y toque Ya terminó.",
+  );
 }
 
 const server = http.createServer(async (req, res) => {
