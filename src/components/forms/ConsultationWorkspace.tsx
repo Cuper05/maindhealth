@@ -250,8 +250,8 @@ export function ConsultationWorkspace({
       </section>
 
       {canWritePrescription && (
-        <section className={cardClassName}>
-          <h2 className="mb-4 text-lg font-medium text-slate-900">Receta</h2>
+        <section id="prescription-form" className={`${cardClassName} scroll-mt-4`}>
+          <h2 className="mb-4 text-lg font-medium text-slate-900 sm:text-xl">Receta</h2>
           <FormAlert error={rxError} success={rxSuccess} />
 
           {!activeConsultationId && (

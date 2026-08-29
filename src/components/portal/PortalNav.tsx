@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { APP_NAME } from "@/lib/constants";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const NAV = [
   { href: "/portal", label: "Inicio" },
@@ -26,8 +26,8 @@ export function PortalNav({ userName }: { userName: string }) {
     <header className="border-b border-teal-100 bg-white">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-teal-600">{APP_NAME}</p>
-          <p className="text-sm font-medium text-slate-900">Portal del paciente · {userName}</p>
+          <BrandLogo width={140} />
+          <p className="mt-1 text-sm font-medium text-slate-900">Portal del paciente · {userName}</p>
         </div>
         <button
           type="button"

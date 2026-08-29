@@ -15,11 +15,14 @@ export const sessionOptions: SessionOptions = {
     process.env.SESSION_SECRET ??
     "dev_only_session_secret_change_in_production_32chars",
   cookieName: "maindhealth_session",
+  /** 30 días: la Dell de estación no pide login en cada reinicio. */
+  ttl: 60 * 60 * 24 * 30,
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    maxAge: 60 * 60 * 24 * 30,
   },
 };
 

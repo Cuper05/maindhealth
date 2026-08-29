@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   appointmentsTable,
@@ -10,6 +10,7 @@ import {
   visitIntakesTable,
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
+import { normalizePhoneDigits } from "@/lib/patients/find-existing";
 
 export async function getKioskSessionByToken(token: string) {
   const [row] = await db
@@ -83,7 +84,12 @@ export async function lookupPatientForKiosk(query: {
   if (query.chartNumber?.trim()) {
     conditions.push(eq(patientsTable.chartNumber, query.chartNumber.trim()));
   }
-  if (query.phone?.trim()) {
+  const phoneDigits = normalizePhoneDigits(query.phone);
+  if (phoneDigits.length >= 10) {
+    conditions.push(
+      sql`regexp_replace(coalesce(${patientsTable.phone}, ''), '[^0-9]', '', 'g') = ${phoneDigits}`,
+    );
+  } else if (query.phone?.trim()) {
     conditions.push(eq(patientsTable.phone, query.phone.trim()));
   }
   if (query.email?.trim()) {
@@ -95,8 +101,8 @@ export async function lookupPatientForKiosk(query: {
   if (query.firstName?.trim() && query.lastNamePaternal?.trim() && query.birthDate?.trim()) {
     conditions.push(
       and(
-        eq(patientsTable.firstName, query.firstName.trim()),
-        eq(patientsTable.lastNamePaternal, query.lastNamePaternal.trim()),
+        sql`lower(trim(${patientsTable.firstName})) = ${query.firstName.trim().toLowerCase()}`,
+        sql`lower(trim(${patientsTable.lastNamePaternal})) = ${query.lastNamePaternal.trim().toLowerCase()}`,
         eq(patientsTable.birthDate, query.birthDate.trim()),
       )!,
     );
@@ -106,7 +112,16 @@ export async function lookupPatientForKiosk(query: {
   const [patient] = await db
     .select()
     .from(patientsTable)
-    .where(conditions.length === 1 ? conditions[0] : or(...conditions)!)
+    .where(
+      and(
+        conditions.length === 1 ? conditions[0] : or(...conditions)!,
+        sql`${patientsTable.status} is distinct from 'deleted'`,
+      ),
+    )
+    .orderBy(
+      sql`case when ${patientsTable.status} = 'active' then 0 when ${patientsTable.status} = 'archived' then 1 else 2 end`,
+      desc(patientsTable.id),
+    )
     .limit(1);
 
   if (!patient) return null;
@@ -120,6 +135,7 @@ export async function lookupPatientForKiosk(query: {
     email: patient.email,
     emergencyContactName: patient.emergencyContactName,
     emergencyContactPhone: patient.emergencyContactPhone,
+    hasKioskLogin: Boolean(patient.kioskUsername && patient.kioskPasswordHash),
   };
 }
 

@@ -1,8 +1,16 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireMobileAuth } from "@/lib/auth/mobile-token";
 import { db } from "@/lib/db";
-import { notificationsTable } from "@/lib/db/schema";
+import {
+  appointmentsTable,
+  notificationsTable,
+  stationKioskSessionsTable,
+} from "@/lib/db/schema";
+import type {
+  KioskAssessmentDraft,
+  KioskVitalsDraft,
+} from "@/lib/db/schema/station-kiosk";
 
 function withCors(res: NextResponse) {
   res.headers.set("Access-Control-Allow-Origin", "*");
@@ -17,6 +25,7 @@ export async function OPTIONS() {
 
 /**
  * Lista notificaciones de teleconsulta (estación) pendientes / recientes.
+ * Incluye resumen clínico del kiosco + meetingUrl real de la cita (para Daily).
  */
 export async function GET(request: Request) {
   const auth = requireMobileAuth(request);
@@ -48,10 +57,72 @@ export async function GET(request: Request) {
       .orderBy(desc(notificationsTable.createdAt))
       .limit(50);
 
+    const appointmentIds = [
+      ...new Set(
+        rows
+          .map((row) => parseAppointmentId(row.referenceKey, row.href))
+          .filter((id): id is number => id != null),
+      ),
+    ];
+
+    const kioskByAppointment = new Map<
+      number,
+      {
+        clinicalDraft: Record<string, unknown>;
+        vitalsDraft: KioskVitalsDraft | null;
+        assessmentDraft: KioskAssessmentDraft | null;
+        paymentStatus: string | null;
+      }
+    >();
+    const meetingByAppointment = new Map<number, string | null>();
+
+    if (appointmentIds.length > 0) {
+      const [sessions, appointments] = await Promise.all([
+        db
+          .select({
+            appointmentId: stationKioskSessionsTable.appointmentId,
+            clinicalDraft: stationKioskSessionsTable.clinicalDraft,
+            vitalsDraft: stationKioskSessionsTable.vitalsDraft,
+            assessmentDraft: stationKioskSessionsTable.assessmentDraft,
+            paymentStatus: stationKioskSessionsTable.paymentStatus,
+            updatedAt: stationKioskSessionsTable.updatedAt,
+          })
+          .from(stationKioskSessionsTable)
+          .where(inArray(stationKioskSessionsTable.appointmentId, appointmentIds))
+          .orderBy(desc(stationKioskSessionsTable.updatedAt)),
+        db
+          .select({
+            id: appointmentsTable.id,
+            meetingUrl: appointmentsTable.meetingUrl,
+          })
+          .from(appointmentsTable)
+          .where(inArray(appointmentsTable.id, appointmentIds)),
+      ]);
+
+      for (const s of sessions) {
+        if (s.appointmentId == null || kioskByAppointment.has(s.appointmentId)) continue;
+        kioskByAppointment.set(s.appointmentId, {
+          clinicalDraft: (s.clinicalDraft ?? {}) as Record<string, unknown>,
+          vitalsDraft: (s.vitalsDraft ?? null) as KioskVitalsDraft | null,
+          assessmentDraft: (s.assessmentDraft ?? null) as KioskAssessmentDraft | null,
+          paymentStatus: s.paymentStatus,
+        });
+      }
+      for (const a of appointments) {
+        meetingByAppointment.set(a.id, a.meetingUrl);
+      }
+    }
+
     const items = rows.map((row) => {
       const appointmentId = parseAppointmentId(row.referenceKey, row.href);
-      const meetingUrl =
+      const fromHref =
         row.href && /^https?:\/\//i.test(row.href) ? row.href : null;
+      const meetingUrl =
+        (appointmentId ? meetingByAppointment.get(appointmentId) : null) ||
+        fromHref ||
+        null;
+      const kiosk = appointmentId ? kioskByAppointment.get(appointmentId) : undefined;
+      const clinicalSummary = buildClinicalSummary(kiosk);
       return {
         id: row.id,
         title: row.title,
@@ -62,6 +133,7 @@ export async function GET(request: Request) {
         readAt: row.readAt,
         createdAt: row.createdAt,
         unread: !row.readAt,
+        clinicalSummary,
       };
     });
 
@@ -76,6 +148,60 @@ export async function GET(request: Request) {
     console.error("[mobile/teleconsultas]", err);
     return withCors(NextResponse.json({ error: "Error al listar" }, { status: 500 }));
   }
+}
+
+function buildClinicalSummary(
+  kiosk:
+    | {
+        clinicalDraft: Record<string, unknown>;
+        vitalsDraft: KioskVitalsDraft | null;
+        assessmentDraft: KioskAssessmentDraft | null;
+        paymentStatus: string | null;
+      }
+    | undefined,
+) {
+  if (!kiosk) {
+    return {
+      crisis: false,
+      chiefComplaint: null as string | null,
+      vitalsLine: null as string | null,
+      redFlags: [] as string[],
+      diagnosis: null as string | null,
+      severity: null as string | null,
+      summary: null as string | null,
+      paymentStatus: null as string | null,
+    };
+  }
+
+  const clinical = kiosk.clinicalDraft;
+  const chief =
+    typeof clinical.chiefComplaint === "string" && clinical.chiefComplaint.trim()
+      ? clinical.chiefComplaint.trim()
+      : null;
+  const crisis = clinical.crisisMode === true || clinical.crisisIntent === true;
+  const v = kiosk.vitalsDraft;
+  const vitalsParts: string[] = [];
+  if (v) {
+    if (v.systolicPressure || v.diastolicPressure) {
+      vitalsParts.push(`PA ${v.systolicPressure ?? "—"}/${v.diastolicPressure ?? "—"}`);
+    }
+    if (v.heartRate) vitalsParts.push(`FC ${v.heartRate}`);
+    if (v.oxygenSaturation) vitalsParts.push(`SpO₂ ${v.oxygenSaturation}%`);
+    if (v.temperature) vitalsParts.push(`Temp ${v.temperature}°C`);
+    if (v.weight) vitalsParts.push(`Peso ${v.weight} kg`);
+  }
+  const a = kiosk.assessmentDraft;
+
+  return {
+    crisis,
+    chiefComplaint: chief,
+    vitalsLine: vitalsParts.length > 0 ? vitalsParts.join(" · ") : null,
+    redFlags: a?.redFlags ?? [],
+    diagnosis: a?.diagnosis ?? null,
+    severity: a?.severity ?? null,
+    summary: a?.summary ?? null,
+    paymentStatus: kiosk.paymentStatus,
+  };
 }
 
 function parseAppointmentId(

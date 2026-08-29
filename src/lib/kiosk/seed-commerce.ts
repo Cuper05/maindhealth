@@ -6,6 +6,7 @@ import {
   stationServicesTable,
   usersTable,
 } from "@/lib/db/schema";
+import { STATION_PROTOCOL_DRAFTS } from "@/lib/kiosk/clinical-protocols-catalog";
 
 /** Semilla de servicios, médico responsable y protocolos preautorizados. */
 export async function seedStationCommerce() {
@@ -65,105 +66,75 @@ export async function seedStationCommerce() {
     });
   }
 
-  const protocols = [
-    {
-      code: "GI_LEVE",
-      name: "Molestia gastrointestinal leve",
-      description: "Dispepsia / gastritis leve sin alarmas",
-      keywords: [
-        "dolor estomacal",
-        "dolor de estomago",
-        "dolor de estómago",
-        "gastritis",
-        "acidez",
-        "nauseas",
-        "náuseas",
-        "indigestion",
-        "indigestión",
-      ],
-      diagnosisLabel: "Síndrome dispéptico / molestia gastrointestinal leve",
-      treatmentPlan:
-        "Dieta blanda, evitar irritantes y alcohol. Medicación sintomática según protocolo autorizado.",
-      instructions:
-        "Si hay vómito persistente, sangre, dolor intenso o deshidratación, regresa a la estación o acude a urgencias.",
-      medications: [
-        {
-          medication: "Omeprazol",
-          dose: "20 mg",
-          frequency: "Cada 24 horas en ayunas",
-          duration: "7 días",
-          route: "Oral",
-          instructions: "Tomar 30 minutos antes del desayuno.",
-        },
-        {
-          medication: "Paracetamol",
-          dose: "500 mg",
-          frequency: "Cada 8 horas si hay dolor",
-          duration: "3 días",
-          route: "Oral",
-          instructions: "Evitar antiinflamatorios si hay molestia gástrica.",
-        },
-      ],
-      authorizedByDoctorId: doctor.id,
-    },
-    {
-      code: "CEFALEA_LEVE",
-      name: "Cefalea tensional leve",
-      description: "Dolor de cabeza sin signos neurológicos de alarma",
-      keywords: ["dolor de cabeza", "cefalea", "migrana", "migraña"],
-      diagnosisLabel: "Cefalea tensional leve",
-      treatmentPlan: "Analgesia sintomática, hidratación y reposo relativo.",
-      instructions:
-        "Si el dolor es el peor de tu vida, hay confusión, debilidad o vómito en proyectil, busca atención inmediata.",
-      medications: [
-        {
-          medication: "Paracetamol",
-          dose: "500 mg",
-          frequency: "Cada 8 horas si hay dolor",
-          duration: "3 días",
-          route: "Oral",
-          instructions: "No exceder 3 g al día.",
-        },
-      ],
-      authorizedByDoctorId: doctor.id,
-    },
-    {
-      code: "IRA_LEVE",
-      name: "Infección respiratoria alta leve",
-      description: "Resfriado / faringitis sin hipoxemia",
-      keywords: ["tos", "gripe", "resfriado", "congestion", "congestión", "garganta"],
-      diagnosisLabel: "Infección respiratoria alta probable de manejo ambulatorio",
-      treatmentPlan: "Medidas generales y alivio sintomático según protocolo.",
-      instructions: "Si aparece falta de aire, fiebre persistente o dolor torácico, regresa a la estación.",
-      medications: [
-        {
-          medication: "Paracetamol",
-          dose: "500 mg",
-          frequency: "Cada 8 horas si hay dolor o fiebre",
-          duration: "3 días",
-          route: "Oral",
-          instructions: "No exceder 3 g al día.",
-        },
-        {
-          medication: "Loratadina",
-          dose: "10 mg",
-          frequency: "Cada 24 horas",
-          duration: "5 días",
-          route: "Oral",
-          instructions: "Útil si hay congestión o estornudos.",
-        },
-      ],
-      authorizedByDoctorId: doctor.id,
-    },
-  ];
+  // Protocolo legado reemplazado
+  const [legacyIra] = await db
+    .select()
+    .from(stationClinicalProtocolsTable)
+    .where(eq(stationClinicalProtocolsTable.code, "IRA_LEVE"));
+  if (legacyIra) {
+    await db
+      .update(stationClinicalProtocolsTable)
+      .set({
+        active: false,
+        name: "IRA_LEVE (reemplazado por IRA_VIRAL_LEVE / FARINGITIS_BACT)",
+      })
+      .where(eq(stationClinicalProtocolsTable.code, "IRA_LEVE"));
+  }
 
-  for (const protocol of protocols) {
+  for (const draft of STATION_PROTOCOL_DRAFTS) {
+    const inclusionBlock = draft.inclusion.map((x) => `• ${x}`).join("\n");
+    const exclusionBlock = draft.exclusion.map((x) => `• ${x}`).join("\n");
+    const refs = draft.references.map((x) => `• ${x}`).join("\n");
+    const description = [
+      draft.description,
+      "",
+      "INCLUSIÓN:",
+      inclusionBlock,
+      "",
+      "EXCLUSIÓN (→ teleconsulta):",
+      exclusionBlock,
+      "",
+      `Severidad máxima autónoma: ${draft.maxAutonomousSeverity}`,
+      "",
+      "REFERENCIAS (validar por médico firmante):",
+      refs,
+      "",
+      "ESTADO: borrador clínico asistido por IA — requiere firma del médico responsable.",
+    ].join("\n");
+
+    const row = {
+      code: draft.code,
+      name: draft.name,
+      description,
+      keywords: draft.keywords,
+      medications: draft.medications,
+      treatmentPlan: draft.treatmentPlan,
+      instructions: draft.instructions,
+      diagnosisLabel: draft.diagnosisLabel,
+      authorizedByDoctorId: doctor.id,
+      active: true,
+    };
+
     const [existing] = await db
       .select()
       .from(stationClinicalProtocolsTable)
-      .where(eq(stationClinicalProtocolsTable.code, protocol.code));
+      .where(eq(stationClinicalProtocolsTable.code, draft.code));
     if (!existing) {
-      await db.insert(stationClinicalProtocolsTable).values(protocol);
+      await db.insert(stationClinicalProtocolsTable).values(row);
+    } else {
+      await db
+        .update(stationClinicalProtocolsTable)
+        .set({
+          name: row.name,
+          description: row.description,
+          keywords: row.keywords,
+          medications: row.medications,
+          treatmentPlan: row.treatmentPlan,
+          instructions: row.instructions,
+          diagnosisLabel: row.diagnosisLabel,
+          active: true,
+        })
+        .where(eq(stationClinicalProtocolsTable.code, draft.code));
     }
   }
 }

@@ -27,7 +27,7 @@ export default async function EstacionPanelPage() {
               href="/estacion"
               className="rounded-lg border border-[#1d6eb8] bg-[#f0f7ff] px-4 py-2 text-sm font-medium text-[#1a4d7c] hover:bg-[#e0efff]"
             >
-              Pantalla Dell (standby)
+              Ir a pantalla teleconsulta
             </Link>
             <a
               href="https://health.maindsteel.com.mx/estacion/paciente?nueva=1"

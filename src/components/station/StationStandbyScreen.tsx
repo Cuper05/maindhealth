@@ -1,11 +1,33 @@
-import Link from "next/link";
-import { APP_NAME } from "@/lib/constants";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
+import { BrandLogo } from "@/components/BrandLogo";
+import { MaindOsLogo } from "@/components/MaindOsLogo";
 
 /**
- * Pantalla corporativa en espera para la PC Dell de estación.
- * El auto-join (StationTeleconsultaAutoPilot) navega a /estacion/sala/[id].
+ * Pantalla corporativa siempre encendida en la Dell.
+ * Sin menú del sistema completo. Personal puede abrir MaindHealth desde aquí.
  */
 export function StationStandbyScreen() {
+  const router = useRouter();
+  const pressTimer = useRef<number | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  const clearPress = useCallback(() => {
+    if (pressTimer.current != null) {
+      window.clearTimeout(pressTimer.current);
+    }
+    pressTimer.current = null;
+  }, []);
+
+  const startPress = useCallback(() => {
+    clearPress();
+    pressTimer.current = window.setTimeout(() => {
+      setAdminOpen(true);
+    }, 2000);
+  }, [clearPress]);
+
   return (
     <div
       data-station-standby
@@ -33,42 +55,100 @@ export function StationStandbyScreen() {
         }}
       />
 
-      <div className="relative z-10 flex min-h-full flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-8 pb-6 pt-16 text-center">
         <div className="station-standby-enter flex flex-col items-center">
-          <div className="mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-white/12 text-2xl font-bold tracking-tight shadow-[0_0_0_1px_rgba(255,255,255,0.12)] backdrop-blur-sm md:h-24 md:w-24 md:text-3xl">
-            MH
-          </div>
+          <button
+            type="button"
+            className="rounded-3xl bg-white px-8 py-6 shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            aria-label="Logo MaindHealth. Mantenga pulsado para opciones de personal."
+            onPointerDown={startPress}
+            onPointerUp={clearPress}
+            onPointerLeave={clearPress}
+            onPointerCancel={clearPress}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <BrandLogo width={340} priority size="full" />
+          </button>
 
-          <p className="text-sm font-medium uppercase tracking-[0.35em] text-blue-100/90 md:text-base">
-            {APP_NAME}
-          </p>
-
-          <h1 className="mt-5 max-w-2xl font-sans text-3xl font-semibold tracking-tight text-white md:text-5xl">
+          <h1 className="mt-10 max-w-4xl font-sans text-5xl font-semibold tracking-tight text-white md:text-7xl">
             Estación lista
           </h1>
 
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-blue-100/90 md:text-xl">
+          <p className="mt-6 max-w-3xl text-2xl leading-relaxed text-blue-100/90 md:text-3xl">
             La videoconsulta se abrirá automáticamente
           </p>
 
-          <div className="mt-10 flex items-center gap-3 rounded-full border border-white/15 bg-white/8 px-5 py-2.5 text-sm text-blue-50/95 backdrop-blur-sm">
+          <div className="mt-12 flex items-center gap-4 rounded-full border border-white/15 bg-white/8 px-7 py-3.5 text-xl text-blue-50/95 backdrop-blur-sm md:text-2xl">
             <span
               aria-hidden
-              className="station-standby-pulse inline-block h-2.5 w-2.5 rounded-full bg-emerald-400"
+              className="station-standby-pulse inline-block h-3.5 w-3.5 rounded-full bg-emerald-400"
             />
             <span>En espera · Conectado</span>
+          </div>
+
+          <div className="mt-8">
+            <MaindOsLogo width={320} priority />
           </div>
         </div>
       </div>
 
-      <div className="relative z-10 flex justify-center pb-6">
-        <Link
-          href="/estacion/panel"
-          className="text-xs text-white/35 underline-offset-4 transition hover:text-white/70 hover:underline"
+      <div className="relative z-10 flex shrink-0 flex-wrap items-center justify-center gap-3 px-6 pb-8">
+        <button
+          type="button"
+          className="min-h-[52px] rounded-xl border border-white/25 bg-white/10 px-6 py-3 text-lg font-semibold text-white backdrop-blur hover:bg-white/20"
+          onClick={() => setAdminOpen(true)}
         >
-          Panel de personal
-        </Link>
+          Abrir sistema MaindHealth
+        </button>
+        <button
+          type="button"
+          className="min-h-[52px] rounded-xl border border-white/20 bg-transparent px-6 py-3 text-lg font-medium text-blue-100/90 hover:bg-white/10"
+          onClick={() => router.push("/estacion/panel")}
+        >
+          Panel de estación
+        </button>
       </div>
+
+      {adminOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center text-slate-900 shadow-2xl">
+            <p className="text-lg font-bold">Acceso de personal</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Abrir el sistema MaindHealth para configuración, pacientes o panel.
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                className="rounded-xl bg-[#1d6eb8] px-4 py-3 text-base font-semibold text-white hover:bg-[#185a96]"
+                onClick={() => router.push("/")}
+              >
+                Abrir sistema MaindHealth
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 px-4 py-3 text-base font-medium text-slate-800 hover:bg-slate-50"
+                onClick={() => router.push("/estacion/panel")}
+              >
+                Panel de estación
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-200 px-4 py-3 text-base font-medium text-slate-800 hover:bg-slate-50"
+                onClick={() => router.push("/pagos")}
+              >
+                Ver pagos
+              </button>
+              <button
+                type="button"
+                className="mt-1 text-sm text-slate-500 underline"
+                onClick={() => setAdminOpen(false)}
+              >
+                Cancelar / seguir en espera
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

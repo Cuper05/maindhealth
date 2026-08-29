@@ -16,11 +16,17 @@ import {
   prescriptionsTable,
   usersTable,
   vitalSignsTable,
+  visitIntakesTable,
+  type VitalDeviceExtras,
 } from "@/lib/db/schema";
 import { formatPersonName } from "@/lib/format/name";
 import { getPatientVitalsHistory } from "@/lib/queries/vital-signs";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ClinicalRecordForm } from "@/components/forms/ClinicalRecordForm";
+import { EditPatientDemographicsForm } from "@/components/forms/EditPatientDemographicsForm";
+import { EditPatientKioskCredentialsForm } from "@/components/forms/EditPatientKioskCredentialsForm";
+import { PatientAdminActions } from "@/components/forms/PatientAdminActions";
+import { IntakeSummary } from "@/components/intake/IntakeSummary";
 import { VitalSignsCharts } from "@/components/vitals/VitalSignsCharts";
 import { cardClassName } from "@/lib/ui/classes";
 
@@ -38,6 +44,7 @@ export default async function PacienteDetailPage({
 
   const session = await requireSession();
   const canWrite = can(session?.role, "patients:write");
+  const isAdmin = session?.role === "admin";
 
   const [patient] = await db
     .select()
@@ -132,9 +139,17 @@ export default async function PacienteDetailPage({
     .orderBy(desc(clinicalDocumentsTable.uploadedAt))
     .limit(20);
 
+  const intakes = await db
+    .select()
+    .from(visitIntakesTable)
+    .where(eq(visitIntakesTable.patientId, patientId))
+    .orderBy(desc(visitIntakesTable.completedAt))
+    .limit(20);
+
   const tabs = [
     ["resumen", "Resumen"],
     ["expediente", "Expediente"],
+    ["visitas", "Visitas kiosco"],
     ["citas", "Citas"],
     ["signos", "Signos vitales"],
     ["consultas", "Consultas"],
@@ -147,7 +162,7 @@ export default async function PacienteDetailPage({
     <div>
       <PageHeader
         title={formatPersonName(patient)}
-        description={`Expediente ${patient.chartNumber}`}
+        description={`Expediente ${patient.chartNumber}${patient.status === "archived" ? " · ARCHIVADO" : ""}`}
         backHref="/pacientes"
         action={
           canWrite ? (
@@ -160,6 +175,17 @@ export default async function PacienteDetailPage({
           ) : undefined
         }
       />
+
+      {canWrite ? (
+        <div className="mb-6">
+          <PatientAdminActions
+            patientId={patient.id}
+            chartNumber={patient.chartNumber}
+            status={patient.status}
+            isAdmin={isAdmin}
+          />
+        </div>
+      ) : null}
 
       <nav className="mb-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         {tabs.map(([key, label]) => (
@@ -177,27 +203,54 @@ export default async function PacienteDetailPage({
         ))}
       </nav>
 
-      {tab === "resumen" && (
-        <section className={cardClassName}>
-          <dl className="grid gap-4 sm:grid-cols-2 text-sm">
-            <Info label="Teléfono" value={patient.phone} />
-            <Info label="Correo" value={patient.email} />
-            <Info label="CURP" value={patient.curp} />
-            <Info label="Sexo" value={patient.sex} />
-            <Info label="Fecha nacimiento" value={patient.birthDate} />
-            <Info label="Estatus" value={patient.status} />
-            <Info label="Domicilio" value={patient.address} className="sm:col-span-2" />
-            <Info label="Emergencia" value={patient.emergencyContactName} />
-            <Info label="Tel. emergencia" value={patient.emergencyContactPhone} />
-          </dl>
-        </section>
-      )}
+      {tab === "resumen" &&
+        (canWrite ? (
+          <div className="space-y-6">
+            <EditPatientDemographicsForm patientId={patientId} patient={patient} />
+            <EditPatientKioskCredentialsForm
+              patientId={patientId}
+              kioskUsername={patient.kioskUsername}
+              hasPassword={Boolean(patient.kioskPasswordHash)}
+            />
+          </div>
+        ) : (
+          <section className={cardClassName}>
+            <dl className="grid gap-4 sm:grid-cols-2 text-sm">
+              <Info label="Teléfono" value={patient.phone} />
+              <Info label="Correo" value={patient.email} />
+              <Info label="CURP" value={patient.curp} />
+              <Info label="Sexo" value={patient.sex} />
+              <Info label="Fecha nacimiento" value={patient.birthDate} />
+              <Info label="Estatus" value={patient.status} />
+              <Info label="Usuario kiosco" value={patient.kioskUsername} />
+              <Info
+                label="Contraseña kiosco"
+                value={patient.kioskPasswordHash ? "Configurada" : "Sin configurar"}
+              />
+              <Info label="Domicilio" value={patient.address} className="sm:col-span-2" />
+              <Info label="Emergencia" value={patient.emergencyContactName} />
+              <Info label="Tel. emergencia" value={patient.emergencyContactPhone} />
+            </dl>
+          </section>
+        ))}
 
       {tab === "expediente" && (
         canWrite ? (
           <ClinicalRecordForm patientId={patientId} record={record ?? null} />
         ) : (
           <ExpedienteReadOnly record={record} />
+        )
+      )}
+
+      {tab === "visitas" && (
+        intakes.length === 0 ? (
+          <p className="text-sm text-slate-500">Sin cuestionarios de estación registrados.</p>
+        ) : (
+          <div className="space-y-4">
+            {intakes.map((intake) => (
+              <IntakeSummary key={intake.id} intake={intake} />
+            ))}
+          </div>
         )
       )}
 
@@ -479,6 +532,7 @@ function VitalsList({
     weight: string | null;
     glucose: string | null;
     bmi: string | null;
+    deviceExtras?: VitalDeviceExtras | null;
   }[];
 }) {
   if (vitals.length === 0) {
@@ -496,26 +550,40 @@ function VitalsList({
             <th className="px-4 py-3">Temp</th>
             <th className="px-4 py-3">Peso</th>
             <th className="px-4 py-3">IMC</th>
+            <th className="px-4 py-3">ECG</th>
           </tr>
         </thead>
         <tbody>
-          {vitals.map((v) => (
-            <tr key={v.id} className="border-t border-slate-100">
-              <td className="px-4 py-3 whitespace-nowrap">
-                {v.recordedAt.toLocaleString("es-MX")}
-              </td>
-              <td className="px-4 py-3">
-                {v.systolicPressure && v.diastolicPressure
-                  ? `${v.systolicPressure}/${v.diastolicPressure}`
-                  : "—"}
-              </td>
-              <td className="px-4 py-3">{v.heartRate ?? "—"}</td>
-              <td className="px-4 py-3">{v.oxygenSaturation ?? "—"}</td>
-              <td className="px-4 py-3">{v.temperature ?? "—"}</td>
-              <td className="px-4 py-3">{v.weight ?? "—"}</td>
-              <td className="px-4 py-3">{v.bmi ?? "—"}</td>
-            </tr>
-          ))}
+          {vitals.map((v) => {
+            const ecg = v.deviceExtras;
+            const ecgLabel = ecg?.ecgStatus
+              ? [
+                  ecg.ecgStatus,
+                  ecg.ecgRhythm,
+                  ecg.ecgHeartRate ? `${ecg.ecgHeartRate} lpm` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "—";
+            return (
+              <tr key={v.id} className="border-t border-slate-100">
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {v.recordedAt.toLocaleString("es-MX")}
+                </td>
+                <td className="px-4 py-3">
+                  {v.systolicPressure && v.diastolicPressure
+                    ? `${v.systolicPressure}/${v.diastolicPressure}`
+                    : "—"}
+                </td>
+                <td className="px-4 py-3">{v.heartRate ?? "—"}</td>
+                <td className="px-4 py-3">{v.oxygenSaturation ?? "—"}</td>
+                <td className="px-4 py-3">{v.temperature ?? "—"}</td>
+                <td className="px-4 py-3">{v.weight ?? "—"}</td>
+                <td className="px-4 py-3">{v.bmi ?? "—"}</td>
+                <td className="px-4 py-3">{ecgLabel}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

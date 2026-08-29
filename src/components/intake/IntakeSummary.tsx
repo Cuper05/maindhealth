@@ -4,18 +4,33 @@ import {
   type visitIntakesTable,
 } from "@/lib/db/schema/visit-intakes";
 import { formatDetailListForDisplay } from "@/lib/intake/list-details";
+import {
+  buildChiefComplaintFromSelection,
+  type SymptomSelection,
+} from "@/lib/kiosk/symptom-catalog";
 import { cardClassName } from "@/lib/ui/classes";
 
 type Intake = typeof visitIntakesTable.$inferSelect;
+
+function formatSymptomSelection(raw: unknown): string | null {
+  const selection = raw as SymptomSelection | null | undefined;
+  if (!selection || !Array.isArray(selection.primary) || selection.primary.length === 0) {
+    return null;
+  }
+  const text = buildChiefComplaintFromSelection(selection).trim();
+  return text || null;
+}
 
 export function IntakeSummary({ intake }: { intake: Intake }) {
   const flags = [
     intake.hasDiabetes && `Diabetes: ${intake.diabetesDetails ?? "—"}`,
     intake.hasHypertension && `Hipertensión: ${intake.hypertensionDetails ?? "—"}`,
+    intake.hasAsthma && "Asma",
     intake.hasHeartDisease && `Cardíaco: ${intake.heartDiseaseDetails ?? "—"}`,
     intake.hasAllergies && `Alergias: ${formatDetailListForDisplay(intake.allergyDetails)}`,
     intake.hasSurgeries && `Cirugías: ${formatDetailListForDisplay(intake.surgeryDetails)}`,
   ].filter(Boolean) as string[];
+  const symptoms = formatSymptomSelection(intake.symptomSelection);
 
   return (
     <section className={cardClassName}>
@@ -34,6 +49,12 @@ export function IntakeSummary({ intake }: { intake: Intake }) {
           <dt className="text-slate-500">Motivo de consulta</dt>
           <dd className="text-slate-900">{intake.chiefComplaint}</dd>
         </div>
+        {symptoms && (
+          <div>
+            <dt className="text-slate-500">Síntomas estructurados (kiosco)</dt>
+            <dd className="text-slate-900">{symptoms}</dd>
+          </div>
+        )}
         {flags.length > 0 && (
           <div>
             <dt className="text-slate-500">Antecedentes reportados</dt>
@@ -55,9 +76,13 @@ export function IntakeSummary({ intake }: { intake: Intake }) {
         <div>
           <dt className="text-slate-500">Hábitos</dt>
           <dd>
-            Tabaco: {SMOKING_STATUS_LABELS[intake.smokingStatus as keyof typeof SMOKING_STATUS_LABELS] ?? intake.smokingStatus}
+            Tabaco:{" "}
+            {SMOKING_STATUS_LABELS[intake.smokingStatus as keyof typeof SMOKING_STATUS_LABELS] ??
+              intake.smokingStatus}
             {" · "}
-            Alcohol: {ALCOHOL_USE_LABELS[intake.alcoholUse as keyof typeof ALCOHOL_USE_LABELS] ?? intake.alcoholUse}
+            Alcohol:{" "}
+            {ALCOHOL_USE_LABELS[intake.alcoholUse as keyof typeof ALCOHOL_USE_LABELS] ??
+              intake.alcoholUse}
           </dd>
         </div>
         {intake.changesSinceLastVisit && (
@@ -77,6 +102,12 @@ export function IntakeSummary({ intake }: { intake: Intake }) {
                   timeStyle: "short",
                 })}`}
             </dd>
+          </div>
+        )}
+        {intake.source && (
+          <div>
+            <dt className="text-slate-500">Origen</dt>
+            <dd>{intake.source}</dd>
           </div>
         )}
       </dl>

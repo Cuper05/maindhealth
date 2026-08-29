@@ -47,16 +47,14 @@ export async function notifyDoctorsStationTeleconsulta(input: {
     .from(usersTable)
     .where(and(inArray(usersTable.id, uniqueIds), eq(usersTable.active, true)));
 
-  // Médico remoto: Daily directo si hay sala; si no, consulta con #video.
-  // La PC Dell de estación auto-abre /estacion/sala (lado paciente) — no Agenda.
-  const href =
-    input.meetingUrl?.trim() ||
-    `/consultas/cita/${input.appointmentId}#video`;
+  // Web / notificación in-app: consulta completa (signos primero). Daily solo en la sala Dell / app video.
+  const consultaPath = `/consultas/cita/${input.appointmentId}?focus=video`;
+  const href = consultaPath;
   const referenceKey = `estacion-teleconsulta:${input.appointmentId}`;
   let notified = 0;
 
   const title = `Estación: teleconsulta — ${patientName}`;
-  const body = `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Un clic abre la videollamada. El paciente ya entra solo en la Dell de estación.`;
+  const body = `${patientName}${chart} espera médico. ${flags}${input.meetingUrl ? " · Sala lista." : " · Sin sala Daily aún."} Abra la consulta: signos, video y receta. El paciente entra solo en la Dell.`;
 
   for (const doctor of activeDoctors) {
     const payload = {
@@ -102,7 +100,7 @@ export async function notifyDoctorsStationTeleconsulta(input: {
         data: {
           appointmentId: input.appointmentId,
           meetingUrl: input.meetingUrl?.trim() || null,
-          href,
+          href: consultaPath,
         },
       },
     );
@@ -139,6 +137,7 @@ export async function notifyDoctorsStationTeleconsulta(input: {
             console.error("[notify-escalation] after() escalate tick failed", err);
           }
         });
+        // Note: first voice/SMS is awaited inside startTeleconsultaEscalation (not after).
       } catch (err) {
         // outside request context — cron will advance the queue
         console.warn("[notify-escalation] after() unavailable", err);

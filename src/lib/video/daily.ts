@@ -42,7 +42,8 @@ export async function createDailyRoom(appointmentId: number): Promise<CreateDail
           enable_chat: true,
           enable_screenshare: true,
           start_video_off: false,
-          start_audio_off: false,
+          // Por defecto mic apagado (estación paciente no captura hasta teleconsulta).
+          start_audio_off: true,
           exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
         },
       }),
@@ -81,6 +82,36 @@ export async function createStationDailyToken(input: {
   roomName: string;
   userName: string;
 }): Promise<CreateDailyTokenResult> {
+  return createMeetingToken({
+    roomName: input.roomName,
+    userName: input.userName,
+    startVideoOff: false,
+    // Mic apagado en token; la estación solo lo enciende cuando entra el médico.
+    startAudioOff: true,
+  });
+}
+
+/**
+ * Token para el médico (SMS /t, consulta): entra directo con cámara y mic encendidos.
+ */
+export async function createDoctorDailyToken(input: {
+  roomName: string;
+  userName: string;
+}): Promise<CreateDailyTokenResult> {
+  return createMeetingToken({
+    roomName: input.roomName,
+    userName: input.userName,
+    startVideoOff: false,
+    startAudioOff: false,
+  });
+}
+
+async function createMeetingToken(input: {
+  roomName: string;
+  userName: string;
+  startVideoOff: boolean;
+  startAudioOff: boolean;
+}): Promise<CreateDailyTokenResult> {
   const apiKey = dailyApiKey();
   if (!apiKey) {
     const error = "VIDEO_API_KEY no configurada — no se puede crear token Daily";
@@ -99,8 +130,8 @@ export async function createStationDailyToken(input: {
         properties: {
           room_name: input.roomName,
           user_name: input.userName,
-          start_video_off: false,
-          start_audio_off: false,
+          start_video_off: input.startVideoOff,
+          start_audio_off: input.startAudioOff,
           enable_prejoin_ui: false,
           exp: Math.floor(Date.now() / 1000) + 60 * 60 * 8,
         },
@@ -143,4 +174,22 @@ export function parseDailyRoomName(meetingUrl: string | null | undefined): strin
 export function isDailyEmbedUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   return url.includes("daily.co");
+}
+
+/** ¿Existe aún la sala en Daily? (rooms caducadas / borradas → false). */
+export async function dailyRoomExists(roomName: string): Promise<boolean> {
+  const apiKey = dailyApiKey();
+  if (!apiKey || !roomName.trim()) return false;
+  try {
+    const res = await fetch(
+      `https://api.daily.co/v1/rooms/${encodeURIComponent(roomName)}`,
+      {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        cache: "no-store",
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

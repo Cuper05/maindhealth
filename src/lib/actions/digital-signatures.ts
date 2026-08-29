@@ -1,7 +1,7 @@
 "use server";
 
 import { createHash } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   actionError,
@@ -14,7 +14,9 @@ import {
   consultationsTable,
   digitalSignaturesTable,
   prescriptionsTable,
+  stationKioskSessionsTable,
   usersTable,
+  type KioskAssessmentDraft,
 } from "@/lib/db/schema";
 
 export async function signPrescription(prescriptionId: number) {
@@ -68,19 +70,48 @@ export async function signPrescription(prescriptionId: number) {
     .from(consultationsTable)
     .where(eq(consultationsTable.id, prescription.consultationId));
 
+  let printQueued = false;
+  if (consultation?.appointmentId) {
+    const [kiosk] = await db
+      .select()
+      .from(stationKioskSessionsTable)
+      .where(eq(stationKioskSessionsTable.appointmentId, consultation.appointmentId))
+      .orderBy(desc(stationKioskSessionsTable.updatedAt))
+      .limit(1);
+
+    if (kiosk) {
+      const draft: KioskAssessmentDraft = {
+        ...((kiosk.assessmentDraft ?? {}) as KioskAssessmentDraft),
+        prescriptionId,
+        printPending: true,
+        printRequestedAt: signedAt.toISOString(),
+        printCompletedAt: null,
+        printError: null,
+      };
+      await db
+        .update(stationKioskSessionsTable)
+        .set({
+          assessmentDraft: draft,
+          updatedAt: new Date(),
+        })
+        .where(eq(stationKioskSessionsTable.id, kiosk.id));
+      printQueued = true;
+    }
+  }
+
   await logActivity({
     userId: session.userId,
     module: "firmas",
     action: "firmar",
     recordId: prescriptionId,
-    detail: `Receta #${prescriptionId}`,
+    detail: `Receta #${prescriptionId}${printQueued ? " · impresión en estación" : ""}`,
   });
 
   revalidatePath("/recetas");
   if (consultation) {
     revalidatePath(`/consultas/cita/${consultation.appointmentId}`);
   }
-  return actionSuccess({ signatureHash });
+  return actionSuccess({ signatureHash, printQueued });
 }
 
 export async function signConsultation(consultationId: number) {

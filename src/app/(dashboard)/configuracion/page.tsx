@@ -4,14 +4,15 @@ import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { rolesTable, usersTable } from "@/lib/db/schema";
-import { formatPersonName } from "@/lib/format/name";
 import { ModulePlaceholder } from "@/components/ModulePlaceholder";
-import { DoctorTeleconsultaContactForm } from "@/components/forms/DoctorTeleconsultaContactForm";
+import { EditUserProfileForm } from "@/components/forms/EditUserProfileForm";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function ConfiguracionPage() {
   const session = await requireSession();
   const canManage = can(session?.role, "config:view");
   const canEditUsers = can(session?.role, "users:write");
+  const isAdmin = session?.role === "admin";
 
   if (!canManage) {
     return (
@@ -43,15 +44,16 @@ export default async function ConfiguracionPage() {
     .orderBy(asc(usersTable.lastNamePaternal), asc(usersTable.firstName));
 
   const doctors = users.filter((u) => u.roleCode === "doctor");
+  const otherUsers = users.filter((u) => u.roleCode !== "doctor");
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-slate-900">Configuración</h1>
-      <p className="mt-1 text-slate-600">
-        Usuarios internos, roles y catálogos del sistema.
-      </p>
+      <PageHeader
+        title="Configuración"
+        description="Usuarios internos, médicos, roles y catálogos del sistema."
+      />
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap gap-3">
         <Link
           href="/bitacora"
           className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -66,89 +68,82 @@ export default async function ConfiguracionPage() {
         </Link>
       </div>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-medium text-slate-800">
-          Contacto urgencias teleconsulta
-        </h2>
+      <section className="mb-10">
+        <h2 className="text-lg font-medium text-slate-800">Médicos</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Teléfonos para llamada automática, SMS y WhatsApp cuando la estación
-          escala a teleconsulta. Formato México: 10 dígitos o +52…
+          Nombre, cédula, especialidad, teléfono de alertas, disponibilidad y contraseña de acceso.
         </p>
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 space-y-4">
           {doctors.length === 0 ? (
             <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
               No hay médicos en el sistema.
             </p>
+          ) : canEditUsers ? (
+            doctors.map((d) => <EditUserProfileForm key={d.id} user={d} isAdmin={isAdmin} />)
           ) : (
             doctors.map((d) => (
               <div
                 key={d.id}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm"
               >
-                <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="font-medium text-slate-900">{formatPersonName(d)}</p>
-                  <p className="text-xs text-slate-500">
-                    {d.active ? "Activo" : "Inactivo"}
-                    {d.specialty ? ` · ${d.specialty}` : ""}
-                  </p>
-                </div>
-                {canEditUsers ? (
-                  <DoctorTeleconsultaContactForm
-                    userId={d.id}
-                    phone={d.phone}
-                    teleconsultaAvailable={d.teleconsultaAvailable}
-                  />
-                ) : (
-                  <p className="text-sm text-slate-600">
-                    Tel: {d.phone || "—"} · Disponible:{" "}
-                    {d.teleconsultaAvailable ? "sí" : "no"}
-                  </p>
-                )}
+                <p className="font-medium text-slate-900">
+                  {d.firstName} {d.lastNamePaternal} {d.lastNameMaternal ?? ""}
+                </p>
+                <p className="text-slate-600">
+                  {d.specialty || "Sin especialidad"}
+                  {d.professionalLicense ? ` · Cédula ${d.professionalLicense}` : ""}
+                </p>
+                <p className="text-slate-600">
+                  Tel: {d.phone || "—"} · {d.email} · Disponible teleconsulta:{" "}
+                  {d.teleconsultaAvailable ? "sí" : "no"}
+                </p>
               </div>
             ))
           )}
         </div>
       </section>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-medium text-slate-800">Usuarios</h2>
-        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-100 text-slate-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Nombre</th>
-                <th className="px-4 py-3 font-medium">Rol</th>
-                <th className="px-4 py-3 font-medium">Teléfono</th>
-                <th className="px-4 py-3 font-medium">Especialidad</th>
-                <th className="px-4 py-3 font-medium">Cédula</th>
-                <th className="px-4 py-3 font-medium">Correo</th>
-                <th className="px-4 py-3 font-medium">Estatus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-medium">{formatPersonName(u)}</td>
-                  <td className="px-4 py-3">{u.roleName}</td>
-                  <td className="px-4 py-3">{u.phone ?? "—"}</td>
-                  <td className="px-4 py-3">{u.specialty ?? "—"}</td>
-                  <td className="px-4 py-3">{u.professionalLicense ?? "—"}</td>
-                  <td className="px-4 py-3">{u.email}</td>
-                  <td className="px-4 py-3">{u.active ? "Activo" : "Inactivo"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section>
+        <h2 className="text-lg font-medium text-slate-800">Otros usuarios</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Administradores, enfermería, recepción y demás roles.
+        </p>
+        <div className="mt-4 space-y-4">
+          {otherUsers.length === 0 ? (
+            <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              Sin otros usuarios.
+            </p>
+          ) : canEditUsers ? (
+            otherUsers.map((u) => (
+              <EditUserProfileForm key={u.id} user={u} isAdmin={isAdmin} />
+            ))
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Nombre</th>
+                    <th className="px-4 py-3 font-medium">Rol</th>
+                    <th className="px-4 py-3 font-medium">Correo</th>
+                    <th className="px-4 py-3 font-medium">Estatus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {otherUsers.map((u) => (
+                    <tr key={u.id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 font-medium">
+                        {u.firstName} {u.lastNamePaternal}
+                      </td>
+                      <td className="px-4 py-3">{u.roleName}</td>
+                      <td className="px-4 py-3">{u.email}</td>
+                      <td className="px-4 py-3">{u.active ? "Activo" : "Inactivo"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </section>
-
-      <section className="mt-8 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
-        Catálogos de síntomas, diagnósticos y medicamentos disponibles en{" "}
-        <Link href="/configuracion/catalogos" className="text-teal-700 hover:underline">
-          Catálogos clínicos
-        </Link>
-        . Alertas urgentes: ver <code className="text-xs">docs/TELECONSULTA-ALERTAS.md</code> en
-        el repositorio.
       </section>
     </div>
   );

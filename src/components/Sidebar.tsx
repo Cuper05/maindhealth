@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { APP_NAME } from "@/lib/constants";
+import { BrandLogo } from "@/components/BrandLogo";
 import type { UserRole } from "@/lib/constants";
 import { ROLE_LABELS, canAccessRoute } from "@/lib/auth/permissions";
 
@@ -10,7 +10,8 @@ const NAV = [
   { href: "/", label: "Dashboard", phase: 1 },
   { href: "/pacientes", label: "Pacientes", phase: 1 },
   { href: "/agenda", label: "Agenda", phase: 1 },
-  { href: "/estacion/panel", label: "Estación", phase: 5 },
+  { href: "/estacion", label: "Pantalla teleconsulta", phase: 5 },
+  { href: "/estacion/panel", label: "Panel estación", phase: 5 },
   { href: "/triage", label: "Triage / signos vitales", phase: 1 },
   { href: "/consultas", label: "Consultas", phase: 1 },
   { href: "/recetas", label: "Recetas", phase: 1 },
@@ -43,6 +44,12 @@ export function Sidebar({
     return null;
   }
 
+  // Teleconsulta desde SMS/app: el médico necesita video + datos kiosco, no el menú completo.
+  // En móvil el sidebar w-60 dejaba ~30% de ancho y rompía Daily / Join.
+  if (pathname.startsWith("/consultas/cita")) {
+    return null;
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
@@ -52,11 +59,9 @@ export function Sidebar({
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="border-b border-slate-100 px-4 py-5">
-        <p className="text-xs font-medium uppercase tracking-wide text-teal-600">
-          {APP_NAME}
-        </p>
-        <p className="mt-1 truncate text-sm font-medium text-slate-900">
+      <div className="border-b border-slate-100 px-4 py-4">
+        <BrandLogo width={150} priority />
+        <p className="mt-3 truncate text-sm font-medium text-slate-900">
           {userName}
         </p>
         <p className="text-xs text-slate-500">{ROLE_LABELS[role]}</p>
@@ -66,10 +71,14 @@ export function Sidebar({
           const active =
             item.href === "/"
               ? pathname === "/"
-              : item.href === "/estacion/panel"
-                ? pathname.startsWith("/estacion/") &&
-                  !pathname.startsWith("/estacion/sala")
-                : pathname.startsWith(item.href);
+              : item.href === "/estacion"
+                ? pathname === "/estacion" || pathname.startsWith("/estacion/sala")
+                : item.href === "/estacion/panel"
+                  ? pathname.startsWith("/estacion/") &&
+                    pathname !== "/estacion" &&
+                    !pathname.startsWith("/estacion/sala") &&
+                    !pathname.startsWith("/estacion/paciente")
+                  : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

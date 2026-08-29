@@ -4,9 +4,8 @@ import { requireSession } from "@/lib/auth/session";
 import { StationStandbyScreen } from "@/components/station/StationStandbyScreen";
 
 /**
- * Pantalla corporativa siempre encendida en la Dell.
- * AutoPilot abre /estacion/sala/[id] cuando hay teleconsulta.
- * Herramientas de staff: /estacion/panel
+ * Pantalla única de la Dell: estación lista.
+ * La sala de video solo se abre cuando hay teleconsulta.
  */
 export default async function EstacionStandbyPage() {
   const session = await requireSession();

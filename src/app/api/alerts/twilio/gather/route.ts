@@ -10,7 +10,7 @@ function twimlSay(message: string) {
     .replace(/>/g, "&gt;");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="es-MX" voice="Polly.Mia">${escaped}</Say>
+  <Say language="es-MX" voice="alice">${escaped}</Say>
   <Hangup/>
 </Response>`;
 }

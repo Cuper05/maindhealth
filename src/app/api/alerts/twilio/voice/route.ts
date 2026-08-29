@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     if (attempt?.status === "joined") {
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say language="es-MX" voice="Polly.Mia">La teleconsulta ya fue atendida. Gracias.</Say>
+  <Say language="es-MX" voice="alice">La teleconsulta ya fue atendida. Gracias.</Say>
   <Hangup/>
 </Response>`;
       return new NextResponse(twiml, {
@@ -43,9 +43,9 @@ export async function POST(request: Request) {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather numDigits="1" action="${escapeXml(gatherAction)}" method="POST" timeout="8">
-    <Say language="es-MX" voice="Polly.Mia">${escapeXml(say)}</Say>
+    <Say language="es-MX" voice="alice">${escapeXml(say)}</Say>
   </Gather>
-  <Say language="es-MX" voice="Polly.Mia">Revise SMS o WhatsApp. Gracias.</Say>
+  <Say language="es-MX" voice="alice">Revise el SMS. Gracias.</Say>
   <Hangup/>
 </Response>`;
 

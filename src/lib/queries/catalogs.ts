@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   catalogAppointmentStatusesTable,
@@ -38,7 +38,7 @@ export async function getActiveDoctors() {
     })
     .from(usersTable)
     .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
-    .where(eq(rolesTable.code, "doctor"))
+    .where(and(eq(rolesTable.code, "doctor"), eq(usersTable.active, true)))
     .orderBy(asc(usersTable.lastNamePaternal), asc(usersTable.firstName));
 }
 

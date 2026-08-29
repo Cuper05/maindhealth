@@ -13,6 +13,7 @@ import {
 import { formatPersonName } from "@/lib/format/name";
 import {
   appBaseUrl,
+  buildTeleconsultaVoiceTwiml,
   isTwilioConfigured,
   normalizePhoneE164,
   placeVoiceCall,
@@ -144,18 +145,39 @@ async function alertDoctorChannels(input: {
     return { voiceCallSid, smsSid, whatsappSid, errors };
   }
 
-  const base = appBaseUrl();
-  const voiceUrl = `${base}/api/alerts/twilio/voice?attemptId=${input.attemptId}&doctor=${encodeURIComponent(doctorName)}&patient=${encodeURIComponent(input.patientLabel)}`;
+  // Spanish TwiML via Url on APP_BASE_URL (custom domain). Inline Twiml as backup.
+  const voiceUrl = `${appBaseUrl()}/api/alerts/twilio/voice?attemptId=${input.attemptId}&doctor=${encodeURIComponent(doctorName)}&patient=${encodeURIComponent(input.patientLabel)}`;
+  const twiml = buildTeleconsultaVoiceTwiml({
+    attemptId: input.attemptId,
+    doctorName,
+    patientLabel: input.patientLabel,
+    gatherBaseUrl: appBaseUrl(),
+  });
 
-  const voice = await placeVoiceCall({ to: phone, twimlUrl: voiceUrl });
+  // Timeouts: never hang the kiosk request; voice first so the phone rings.
+  type TwResult = Awaited<ReturnType<typeof placeVoiceCall>>;
+  const timed = <T extends TwResult>(p: Promise<T>, ms: number, label: string) =>
+    Promise.race([
+      p,
+      new Promise<TwResult>((resolve) =>
+        setTimeout(() => resolve({ ok: false, error: `${label}: timeout ${ms}ms` }), ms),
+      ),
+    ]);
+
+  const voice = await timed(
+    placeVoiceCall({ to: phone, twimlUrl: voiceUrl, twiml }),
+    10_000,
+    "voz",
+  );
   if (voice.ok) voiceCallSid = voice.sid;
   else if (!voice.skipped) errors.push(`voz: ${voice.error}`);
 
-  const sms = await sendSms({ to: phone, body: smsBody });
+  const [sms, wa] = await Promise.all([
+    timed(sendSms({ to: phone, body: smsBody }), 8_000, "sms"),
+    timed(sendWhatsApp({ to: phone, body: smsBody }), 8_000, "whatsapp"),
+  ]);
   if (sms.ok) smsSid = sms.sid;
   else if (!sms.skipped) errors.push(`sms: ${sms.error}`);
-
-  const wa = await sendWhatsApp({ to: phone, body: smsBody });
   if (wa.ok) whatsappSid = wa.sid;
   else if (!wa.skipped) errors.push(`whatsapp: ${wa.error}`);
 
@@ -200,27 +222,49 @@ async function alertDoctorInEscalation(input: {
     })
     .returning({ id: teleconsultaAlertAttemptsTable.id });
 
-  const result = await alertDoctorChannels({
-    appointmentId: input.appointmentId,
-    doctorUserId: input.doctorUserId,
-    joinUrl: join.url,
-    attemptId: attempt.id,
-    patientLabel,
-    redFlags: input.redFlags,
-  });
+  // Await Twilio in-request with per-channel timeouts (see alertDoctorChannels).
+  // Do NOT fire-and-forget via after(() => void …): Vercel freezes the isolate
+  // before Calls.json completes, so the doctor's phone never rings.
+  try {
+    const result = await alertDoctorChannels({
+      appointmentId: input.appointmentId,
+      doctorUserId: input.doctorUserId,
+      joinUrl: join.url,
+      attemptId: attempt.id,
+      patientLabel,
+      redFlags: input.redFlags,
+    });
 
-  await db
-    .update(teleconsultaAlertAttemptsTable)
-    .set({
-      voiceCallSid: result.voiceCallSid,
-      smsSid: result.smsSid,
-      whatsappSid: result.whatsappSid,
-      errorDetail: result.errors.length > 0 ? result.errors.join("; ") : null,
-      status: result.errors.length >= 3 && !result.voiceCallSid && !result.smsSid && !result.whatsappSid
-        ? "failed"
-        : "pending",
-    })
-    .where(eq(teleconsultaAlertAttemptsTable.id, attempt.id));
+    await db
+      .update(teleconsultaAlertAttemptsTable)
+      .set({
+        voiceCallSid: result.voiceCallSid,
+        smsSid: result.smsSid,
+        whatsappSid: result.whatsappSid,
+        errorDetail: result.errors.length > 0 ? result.errors.join("; ") : null,
+        status:
+          result.errors.length >= 3 &&
+          !result.voiceCallSid &&
+          !result.smsSid &&
+          !result.whatsappSid
+            ? "failed"
+            : "pending",
+      })
+      .where(eq(teleconsultaAlertAttemptsTable.id, attempt.id));
+  } catch (err) {
+    console.error("[teleconsulta-escalate] channels failed", err);
+    try {
+      await db
+        .update(teleconsultaAlertAttemptsTable)
+        .set({
+          status: "failed",
+          errorDetail: err instanceof Error ? err.message : "Error enviando alertas",
+        })
+        .where(eq(teleconsultaAlertAttemptsTable.id, attempt.id));
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /**

@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema/visit-intakes";
 import { STATION_CONSENT_TEXT, STATION_VITALS_INSTRUCTIONS } from "@/lib/station/copy";
 import { YesNoDetailList } from "@/components/intake/YesNoDetailList";
+import { BrandLogo } from "@/components/BrandLogo";
 import { optionLabel } from "@/lib/format/name";
 import {
   buttonPrimaryClassName,
@@ -316,8 +317,8 @@ export function StationFlowWizard({
 
       {step === 1 && (
         <section className={`${cardClassName} text-center`}>
-          <p className="text-xs font-medium uppercase tracking-wide text-teal-600">MaindHealth</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Bienvenido al teleconsultorio</h2>
+          <BrandLogo width={180} className="mx-auto" />
+          <h2 className="mt-4 text-2xl font-semibold text-slate-900">Bienvenido al teleconsultorio</h2>
           <p className="mx-auto mt-3 max-w-md text-sm text-slate-600">
             Te guiaremos paso a paso: identificación, antecedentes clínicos, consentimiento y preparación
             para tu consulta.

@@ -40,8 +40,8 @@ export default async function DashboardLayout({
         role={session.role}
         unreadNotifications={unreadNotifications}
       />
-      {/* Sala de estación usa fixed fullscreen; el padding normal no aplica ahí. */}
-      <main className="relative flex-1 overflow-auto p-6 md:p-8 [&:has([data-station-sala])]:p-0 [&:has([data-station-standby])]:p-0">
+      {/* Sala / teleconsulta médico: sin padding que robe espacio al video en móvil. */}
+      <main className="relative min-w-0 flex-1 overflow-auto p-4 md:p-8 [&:has([data-station-sala])]:p-0 [&:has([data-station-standby])]:p-0 [&:has([data-teleconsulta-doctor])]:p-0">
         {stationWatch ? <StationTeleconsultaAutoPilot /> : null}
         {children}
       </main>

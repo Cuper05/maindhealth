@@ -28,7 +28,7 @@ export const TELECONSULTA_ATTEMPT_STATUSES = [
 export type TeleconsultaAttemptStatus =
   (typeof TELECONSULTA_ATTEMPT_STATUSES)[number];
 
-/** Opaque deep-link tokens: /t/{token} → video without login. */
+/** Opaque deep-link tokens: /t/{token} → sesión médico + consulta (video, signos, receta). */
 export const teleconsultaJoinTokensTable = pgTable(
   "teleconsulta_join_tokens",
   {

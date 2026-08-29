@@ -12,6 +12,7 @@ import {
   appointmentsTable,
   catalogAppointmentStatusesTable,
   consultationsTable,
+  stationKioskSessionsTable,
 } from "@/lib/db/schema";
 import { getAppointmentStatusByCode } from "@/lib/queries/catalogs";
 import { logActivity } from "@/lib/audit/log-activity";
@@ -98,9 +99,37 @@ export async function saveConsultation(_prev: unknown, formData: FormData) {
       .where(eq(appointmentsTable.id, data.appointmentId));
   }
 
+  // Libera el kiosco: al guardar la consulta, la estación puede volver a bienvenida.
+  const kioskRows = await db
+    .select({
+      id: stationKioskSessionsTable.id,
+      assessmentDraft: stationKioskSessionsTable.assessmentDraft,
+    })
+    .from(stationKioskSessionsTable)
+    .where(eq(stationKioskSessionsTable.appointmentId, data.appointmentId));
+  for (const row of kioskRows) {
+    const draft =
+      row.assessmentDraft && typeof row.assessmentDraft === "object"
+        ? { ...(row.assessmentDraft as Record<string, unknown>) }
+        : {};
+    draft.callEnded = true;
+    draft.callEndedAt = new Date().toISOString();
+    await db
+      .update(stationKioskSessionsTable)
+      .set({
+        status: "completed",
+        deviceStatus: "call_ended",
+        currentStep: "welcome",
+        assessmentDraft: draft as typeof row.assessmentDraft,
+        updatedAt: new Date(),
+      })
+      .where(eq(stationKioskSessionsTable.id, row.id));
+  }
+
   revalidatePath("/consultas");
   revalidatePath(`/consultas/cita/${data.appointmentId}`);
   revalidatePath(`/agenda/${data.appointmentId}`);
+  revalidatePath("/estacion");
 
   return actionSuccess({ consultationId });
 }

@@ -10,6 +10,12 @@ Si el médico no abre el enlace en `TELECONSULTA_ESCALATE_SECONDS` (default **45
 
 El enlace abre video inmediato en el navegador (Daily), sin login ni app nativa.
 
+## Cuenta Twilio (producción)
+
+La cuenta debe estar **actualizada (paid), no Trial**. En Trial, Twilio inserta un aviso de voz en inglés que **no se puede quitar con TwiML**. Tras el upgrade, solo se reproduce el mensaje en español de MaindHealth.
+
+Pasos: Console → **Upgrade** (banner Trial) → datos de facturación → confirmar. Luego re-probar la escalación.
+
 ## Variables de entorno (Vercel)
 
 | Variable | Requerida | Descripción |

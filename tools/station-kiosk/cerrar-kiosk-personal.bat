@@ -1,12 +1,16 @@
 @echo off
-REM Solo para personal de la estacion — cierra el kiosk del paciente
-REM (perfil MaindHealthKioskProfile). No cierra el Edge de la Dell.
+REM Solo para personal de la estacion - cierra el kiosk del paciente
+REM (perfil MaindHealthKioskProfile / URL paciente). Evita cerrar Edge del personal.
 
+cd /d "%~dp0"
 echo Cerrando solo el kiosk MaindHealth...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$profile = Join-Path $env:LOCALAPPDATA 'MaindHealthKioskProfile'; ^
-   $procs = Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine -like ('*' + $profile + '*') }; ^
-   if (-not $procs) { Write-Host 'No habia kiosk abierto.' } else { $procs | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue; Write-Host ('Cerrado PID ' + $_.ProcessId) } }"
-
-echo Listo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0cerrar-kiosk-edge.ps1"
+set ERR=%ERRORLEVEL%
+if %ERR% NEQ 0 (
+  echo.
+  echo Si el kiosk sigue en pantalla, ejecuta: cerrar-kiosk-forzado.bat
+  echo O Ctrl+Shift+Esc ^> Microsoft Edge del kiosk ^> Finalizar tarea.
+)
+echo.
 pause
+exit /b %ERR%

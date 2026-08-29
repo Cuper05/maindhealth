@@ -25,7 +25,12 @@ export function SignPrescriptionButton({
         setError(result.error);
         return;
       }
-      setSuccess("Receta firmada digitalmente");
+      const queued = "printQueued" in result && Boolean(result.printQueued);
+      setSuccess(
+        queued
+          ? "Receta firmada. Se envió a imprimir en la estación."
+          : "Receta firmada digitalmente",
+      );
     });
   }
 

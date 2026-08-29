@@ -5,8 +5,10 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
   "/api/payments/webhook",
+  "/api/payments/status",
   "/api/device-readings/ingest",
   "/estacion/paciente",
+  "/estacion/pago-completado",
 ];
 
 /** Station kiosk + doctor mobile app (Bearer JWT checked in route handlers). */
@@ -16,7 +18,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
-    PUBLIC_PATHS.some((p) => pathname === p) ||
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/api/prescriptions/verify/") ||
     pathname.startsWith("/api/alerts/twilio/") ||
