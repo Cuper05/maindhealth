@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MaindOsLogo } from "@/components/MaindOsLogo";
@@ -62,6 +62,25 @@ export function KioskShell({
   // Scroll global con teclado; en cada paso el contenido usa KioskScrollArea si no cabe.
   const allowScroll = keyboardOpen || step !== "welcome";
 
+  useEffect(() => {
+    const blockPinch = (event: Event) => {
+      event.preventDefault();
+    };
+    const blockCtrlWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) event.preventDefault();
+    };
+    document.addEventListener("gesturestart", blockPinch, { passive: false });
+    document.addEventListener("gesturechange", blockPinch, { passive: false });
+    document.addEventListener("gestureend", blockPinch, { passive: false });
+    document.addEventListener("wheel", blockCtrlWheel, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", blockPinch);
+      document.removeEventListener("gesturechange", blockPinch);
+      document.removeEventListener("gestureend", blockPinch);
+      document.removeEventListener("wheel", blockCtrlWheel);
+    };
+  }, []);
+
   function clearLogoPress() {
     if (logoPressTimer.current) {
       clearTimeout(logoPressTimer.current);
@@ -78,7 +97,7 @@ export function KioskShell({
   }
 
   return (
-    <div className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#eef3f9]">
+    <div className="flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none bg-[#eef3f9] touch-pan-x touch-pan-y">
       <header className="relative shrink-0 bg-gradient-to-r from-[#143d66] via-[#1a4d7c] to-[#1d6eb8] text-white shadow-md">
         <div className="w-full px-4 py-3 sm:px-6 xl:px-10">
           <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">

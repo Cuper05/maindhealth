@@ -83,12 +83,38 @@ function Move-EdgeToScreen($Window, $Screen) {
   [void][MaindHealthWin32]::SetWindowPos($hwnd, [IntPtr]::Zero, $b.X, $b.Y, $b.Width, $b.Height, 0x0040)
 }
 
+function Reset-EdgePageZoom([string]$ProfileDir) {
+  $prefs = Join-Path $ProfileDir "Default\Preferences"
+  if (-not (Test-Path $prefs)) { return }
+  $node = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $node) { return }
+  $script = @'
+const fs = require("fs");
+const p = process.argv[2];
+try {
+  const j = JSON.parse(fs.readFileSync(p, "utf8"));
+  if (j.partition) {
+    j.partition.default_zoom_level = {};
+    j.partition.per_host_zoom_levels = {};
+  }
+  fs.writeFileSync(p, JSON.stringify(j));
+} catch (e) {
+  process.stderr.write(String(e));
+}
+'@
+  $tmp = Join-Path $env:TEMP "maindhealth-reset-zoom.js"
+  Set-Content -Path $tmp -Value $script -Encoding ASCII
+  & $node.Source $tmp $prefs
+}
+
 function Start-EdgeApp {
   param(
     [string]$ProfileDir,
     [string]$Url,
     $Screen
   )
+
+  Reset-EdgePageZoom -ProfileDir $ProfileDir
 
   $edge = Get-MsEdgePath
   $b = $Screen.Bounds
@@ -98,6 +124,8 @@ function Start-EdgeApp {
     ("--window-position=" + $b.X + "," + $b.Y),
     ("--window-size=" + $b.Width + "," + $b.Height),
     "--start-fullscreen",
+    "--disable-pinch",
+    "--overscroll-history-navigation=0",
     "--no-first-run",
     "--disable-session-crashed-bubble",
     "--disable-features=TranslateUI,InfiniteSessionRestore",
