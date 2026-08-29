@@ -1,6 +1,6 @@
 /**
  * Lectura del baumanómetro USB (CP2110) en 127.0.0.1:3931.
- * El aparato no mide con el USB conectado: desconectar → medir → reconectar.
+ * El cable se queda puesto: la PC silencia el USB, el paciente mide, luego se lee.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3931";
@@ -11,11 +11,19 @@ export type StationBpSample = {
   heartRate?: number;
 };
 
+export async function confirmStationBpDone() {
+  try {
+    await fetch(`${BRIDGE_URL}/continue`, { method: "POST" });
+  } catch {
+    /* el POST /read sigue esperando */
+  }
+}
+
 export async function readStationBp(
   onProgress?: (msg: string) => void,
 ): Promise<StationBpSample> {
   onProgress?.(
-    "Desconecte el USB, mida en el aparato y, al ver el resultado, reconecte el cable…",
+    "Cable puesto. Coloque el brazalete, pulse inicio y, al ver el número, toque Ya vi el resultado.",
   );
 
   const ctrl = new AbortController();
@@ -48,7 +56,7 @@ export async function readStationBp(
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          "Sin lectura de presión. Desconecte el USB, mida, reconecte y toque Leer otra vez.",
+          "Sin lectura de presión. Pulse inicio en el aparato, espere el número y toque Ya vi el resultado.",
       );
     }
     const systolic = Number(data.systolicPressure);
@@ -70,7 +78,7 @@ export async function readStationBp(
     const name = err instanceof Error ? err.name : "";
     if (name === "AbortError" || /aborted/i.test(msg)) {
       throw new Error(
-        "La presión tardó demasiado. Mida sin USB, reconecte el cable y pulse Leer otra vez.",
+        "La presión tardó demasiado. Pulse inicio en el aparato y toque Ya vi el resultado cuando aparezca el número.",
       );
     }
     if (/Failed to fetch|NetworkError/i.test(msg)) {

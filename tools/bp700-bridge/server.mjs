@@ -7,7 +7,11 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import HID from "node-hid";
+
+const execFileAsync = promisify(execFile);
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.BP_BRIDGE_PORT || 3931);
@@ -28,6 +32,7 @@ let progress = {
   plugged: false,
 };
 let readingLock = false;
+let patientDone = false;
 
 function setProgress(phase, message) {
   progress = { phase, message, plugged: Boolean(findDevice()) };
@@ -61,6 +66,66 @@ function findDevice() {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function gateScriptPath() {
+  return path.join(process.cwd(), "usb-gate.ps1");
+}
+
+async function waitUntil(pred, ms, stepMs = 350) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (pred()) return true;
+    await sleep(stepMs);
+  }
+  return pred();
+}
+
+async function runSchtask(name) {
+  await execFileAsync("schtasks.exe", ["/Run", "/TN", name], {
+    windowsHide: true,
+    timeout: 20000,
+  });
+}
+
+async function runGateScript(action) {
+  await execFileAsync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      gateScriptPath(),
+      "-Action",
+      action,
+      "-Target",
+      "bp",
+    ],
+    { windowsHide: true, timeout: 25000 },
+  );
+}
+
+async function usbGate(action) {
+  const wantPresent = action === "enable";
+  try {
+    await runSchtask(action === "disable" ? "MaindHealthBpUsbDisable" : "MaindHealthBpUsbEnable");
+  } catch {
+    try {
+      await runGateScript(action);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `No se pudo ${action === "disable" ? "liberar" : "reactivar"} el USB (${detail}). Ejecute una sola vez tools\\bp700-bridge\\1-instalar-permiso-usb.bat (permiso de Windows, no se desconecta el cable).`,
+      );
+    }
+  }
+  const ok = await waitUntil(() => Boolean(findDevice()) === wantPresent, 10000);
+  if (!ok && action === "disable" && findDevice()) {
+    throw new Error(
+      "Windows no soltó el USB. Ejecute una sola vez tools\\bp700-bridge\\1-instalar-permiso-usb.bat y vuelva a intentar. El cable se queda puesto.",
+    );
+  }
 }
 
 function featureReport(bytes) {
@@ -252,7 +317,7 @@ function dumpAfterConnect(timeoutMs) {
         appendSniff("fail", buf);
         finish(
           new Error(
-            `USB listo pero no llegó la medición (${buf.length} bytes). Mida sin USB, reconecte y toque Leer otra vez.`,
+            `USB listo pero no llegó la medición (${buf.length} bytes). Pulse el botón del aparato, espere el resultado y toque Ya vi el resultado.`,
           ),
         );
         return;
@@ -286,58 +351,51 @@ function dumpAfterConnect(timeoutMs) {
       appendSniff("timeout", buf);
       finish(
         new Error(
-          `Sin lectura de presión (${buf.length} bytes). Mida sin USB, reconecte el cable y toque Leer otra vez.`,
+          `Sin lectura de presión (${buf.length} bytes). Pulse inicio en el aparato, espere el número y toque Ya vi el resultado.`,
         ),
       );
     }, timeoutMs);
   });
 }
 
-async function waitForUnplug(deadline) {
-  if (!findDevice()) return;
-  setProgress(
-    "unplug",
-    "Desconecte el cable USB del baumanómetro. Con el USB puesto no enciende.",
-  );
-  while (Date.now() < deadline) {
-    if (!findDevice()) {
-      await sleep(400);
-      return;
-    }
-    await sleep(400);
-  }
-  throw new Error(
-    "Sigue el USB conectado. Desconéctelo para que el aparato pueda encender y medir.",
-  );
-}
-
-async function waitForPlug(deadline) {
+async function waitForPatientDone(deadline) {
   setProgress(
     "measure",
-    "Coloque el brazalete, inicie la medición en el aparato y, al ver el resultado, reconecte el USB.",
+    "Cable puesto. Coloque el brazalete, pulse inicio en el aparato y, al ver el número, toque Ya vi el resultado.",
   );
   while (Date.now() < deadline) {
-    if (findDevice()) {
-      await sleep(700);
-      if (findDevice()) return;
+    if (patientDone) {
+      patientDone = false;
+      return;
     }
-    await sleep(400);
+    await sleep(250);
   }
-  throw new Error(
-    "No reapareció el USB. Cuando termine la medición, reconecte el cable y toque Leer otra vez.",
-  );
 }
 
 async function readSession() {
   const deadline = Date.now() + READ_TIMEOUT_MS;
-  const pluggedAtStart = Boolean(findDevice());
-  if (pluggedAtStart) {
-    await waitForUnplug(deadline);
+  patientDone = false;
+  let released = false;
+  setProgress("unplug", "Liberando el USB en la PC. El cable se queda puesto…");
+  await usbGate("disable");
+  released = true;
+  try {
+    await waitForPatientDone(deadline);
+    setProgress("dump", "Reactivando USB y leyendo la medición…");
+    await usbGate("enable");
+    released = false;
+    await sleep(1500);
+    const remaining = Math.max(8000, deadline - Date.now());
+    return await dumpAfterConnect(Math.min(remaining, 28000));
+  } finally {
+    if (released) {
+      try {
+        await usbGate("enable");
+      } catch {
+        /* ignore */
+      }
+    }
   }
-  await waitForPlug(deadline);
-  setProgress("dump", "USB detectado. Leyendo la medición guardada…");
-  const remaining = Math.max(8000, deadline - Date.now());
-  return dumpAfterConnect(Math.min(remaining, 28000));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -423,9 +481,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/continue") {
+    patientDone = true;
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   sendJson(res, 404, { ok: false, error: "Not found" });
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[bp700-bridge] http://${HOST}:${PORT} (medir SIN USB, luego reconectar)`);
+  console.log(`[bp700-bridge] http://${HOST}:${PORT} (USB silenciado por software, cable puesto)`);
 });

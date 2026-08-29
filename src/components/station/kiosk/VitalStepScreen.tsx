@@ -83,6 +83,7 @@ export function VitalStepScreen({
   captureHelp,
   captureOptional = false,
   capturing = false,
+  captureCanConfirm = false,
   /**
    * Layout de una sola pantalla: instrucciones en 2 columnas + botones grandes
    * aprovechando todo el alto disponible (sin achicar el tacto).
@@ -117,6 +118,8 @@ export function VitalStepScreen({
   captureHelp?: string;
   captureOptional?: boolean;
   capturing?: boolean;
+  /** Permite un segundo toque mientras espera (p. ej. «Ya vi el resultado»). */
+  captureCanConfirm?: boolean;
   compact?: boolean;
 }) {
   const showCapture = Boolean(onCapture) && deviceStatus !== "done";
@@ -171,7 +174,7 @@ export function VitalStepScreen({
             <button
               type="button"
               onClick={onCapture}
-              disabled={capturing}
+              disabled={capturing && !captureCanConfirm}
               className="flex w-full min-h-[72px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-2xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[84px] xl:text-3xl"
             >
               {capturing ? capturingLabel : captureLabel}

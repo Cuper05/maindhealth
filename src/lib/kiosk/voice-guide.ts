@@ -22,9 +22,9 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
-  "Toque Leer presión ahora. Luego desconecte el cable USB: con el USB puesto el aparato no enciende.",
-  "Coloque el brazalete en el brazo izquierdo, a la altura del corazón, e inicie la medición en el aparato.",
-  "Cuando vea el resultado, reconecte el USB. La pantalla leerá sola. Luego retire el brazalete y colóquelo en su lugar.",
+  "Toque Leer presión ahora. El cable USB se queda puesto.",
+  "Coloque el brazalete en el brazo izquierdo, a la altura del corazón, y pulse inicio en el aparato.",
+  "Cuando vea el número, toque Ya vi el resultado. Luego retire el brazalete y colóquelo en su lugar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
@@ -49,7 +49,7 @@ export const TEMPERATURE_VOICE_STEPS = [
 export const ECG_VOICE_STEPS = [
   "Paso cinco: electrocardiograma de un solo canal.",
   "Siéntese y coloque los dedos de ambas manos sobre las placas metálicas del aparato.",
-  "Mida unos treinta segundos. Si el aparato pide guardar, acepte. Si no inicia, desconecte el USB, mida, y vuelva a conectar.",
+  "Mida unos treinta segundos. Si el aparato pide guardar, acepte. El cable USB se queda puesto.",
   "Cuando termine, toque Leer electrocardiograma.",
 ] as const;
 
@@ -130,7 +130,7 @@ export const OXYGEN_SUCCESS_VOICE =
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
-  "Desconecte el cable USB del baumanómetro. Coloque el brazalete e inicie la medición en el aparato. Cuando vea el resultado, vuelva a conectar el USB. Estamos esperando.";
+  "El cable se queda puesto. Coloque el brazalete y pulse el botón de inicio en el aparato. Cuando vea el número, toque Ya vi el resultado.";
 
 /** Tras presión arterial: retirar brazalete y devolver. */
 export const BP_SUCCESS_VOICE =

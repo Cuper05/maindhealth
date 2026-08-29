@@ -240,6 +240,24 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function ejectRoot(root) {
+  const letter = String(root || "").replace(/[^A-Za-z]/g, "").slice(0, 1);
+  if (!letter) return;
+  try {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        `$d = (New-Object -ComObject Shell.Application).Namespace(17).ParseName('${letter}:'); if ($d) { $d.InvokeVerb('Eject') }`,
+      ],
+      { timeout: 8000, windowsHide: true },
+    );
+  } catch {
+    /* el cable se queda; si no expulsa, el aparato puede seguir en modo PC */
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     sendJson(res, 204, {});
@@ -293,8 +311,22 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    const recentWindowMs = Number(process.env.ECG_RECENT_MS || 180000);
     const before = listScpFiles(root);
     const newestBefore = before[0]?.mtimeMs ?? 0;
+    const alreadySaved = parseLatest(root, Date.now() - recentWindowMs);
+    if (alreadySaved?.heartRate && newestBefore >= started - recentWindowMs) {
+      sendJson(res, 200, {
+        ok: true,
+        heartRate: alreadySaved.heartRate,
+        rhythm: alreadySaved.rhythm,
+        quality: alreadySaved.quality,
+        file: alreadySaved.file,
+      });
+      return;
+    }
+
+    ejectRoot(root);
 
     while (Date.now() - started < READ_TIMEOUT_MS) {
       const parsed = parseLatest(root, newestBefore + 1);
@@ -311,23 +343,10 @@ const server = http.createServer(async (req, res) => {
       await sleep(1500);
     }
 
-    const fallback = parseLatest(root, Date.now() - 5 * 60 * 1000);
-    if (fallback?.heartRate) {
-      sendJson(res, 200, {
-        ok: true,
-        heartRate: fallback.heartRate,
-        rhythm: fallback.rhythm,
-        quality: fallback.quality,
-        file: fallback.file,
-        reused: true,
-      });
-      return;
-    }
-
     sendJson(res, 504, {
       ok: false,
       error:
-        "Sin registro nuevo del PC-80B. Mida 30 s en el aparato (si no inicia, desconecte el USB), acepte guardar, reconecte el cable y toque Leer otra vez.",
+        "Sin registro nuevo del PC-80B. Mida 30 s con los dedos en las placas, acepte guardar si lo pide, y toque Leer otra vez. El cable se queda puesto.",
     });
     return;
   }

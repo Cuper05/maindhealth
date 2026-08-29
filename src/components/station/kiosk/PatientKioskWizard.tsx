@@ -8,7 +8,7 @@ import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
 import { readStationEcg } from "@/lib/kiosk/station-ecg";
 import { readStationScale } from "@/lib/kiosk/station-scale";
-import { readStationBp } from "@/lib/kiosk/station-bp";
+import { confirmStationBpDone, readStationBp } from "@/lib/kiosk/station-bp";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
 import {
   KioskCard,
@@ -1447,12 +1447,15 @@ export function PatientKioskWizard() {
   }, []);
 
   const captureBp = useCallback(async () => {
-    if (bpCaptureLock.current) return;
+    if (bpCaptureLock.current) {
+      await confirmStationBpDone();
+      return;
+    }
     bpCaptureLock.current = true;
     setError(null);
     setBpCapturing(true);
     setDeviceStatus("reading");
-    setBpStatus("Iniciando lectura del baumanómetro…");
+    setBpStatus("Cable puesto. Coloque el brazalete y pulse inicio en el aparato…");
     speakKiosk(BP_START_VOICE, { force: true });
     try {
       const sample = await readStationBp((msg) => setBpStatus(msg));
@@ -2857,10 +2860,11 @@ export function PatientKioskWizard() {
           }
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
-          capturingLabel="Esperando USB…"
-          captureHelp="Con el USB puesto el aparato no enciende. Toque Leer, desconecte el cable, mida, y al ver el resultado reconecte el USB."
-          tips={["Si no enciende, desconecte el USB: solo mide sin cable."]}
+          capturingLabel="Ya vi el resultado"
+          captureHelp="El cable se queda puesto. Coloque el brazalete, pulse inicio en el aparato y, al ver el número, toque Ya vi el resultado."
+          tips={["No desconecte el USB. Si el aparato no enciende, avise al personal: falta un permiso de Windows en esta PC."]}
           capturing={bpCapturing}
+          captureCanConfirm
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}
           onContinue={async () => {
             if (!vitalsDraft.systolicPressure) {
@@ -3005,7 +3009,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureEcg()}
           captureLabel="Leer electrocardiograma"
           capturingLabel="Leyendo ECG…"
-          captureHelp="Mida 30 s en el PC-80B, acepte guardar si lo pide, deje el USB conectado y toque Leer. Si Edge pide red local, elija Permitir."
+          captureHelp="Mida 30 s en el PC-80B, acepte guardar si lo pide. El cable USB se queda puesto. Luego toque Leer electrocardiograma."
           captureOptional
           capturing={ecgCapturing}
           onSimulate={() =>
