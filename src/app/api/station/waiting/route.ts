@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
+import { stationDbErrorResponse } from "@/lib/db/errors";
 import {
   dismissWaitingDoctorForAppointment,
   getWaitingDoctorStationSessions,
@@ -12,22 +13,26 @@ export async function GET() {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const waiting = await getWaitingDoctorStationSessions();
-  return NextResponse.json({
-    waiting: waiting.map((item) => ({
-      sessionId: item.sessionId,
-      appointmentId: item.appointmentId,
-      patientId: item.patientId,
-      chartNumber: item.chartNumber,
-      patientName: item.patientName,
-      doctorName: item.doctorName,
-      meetingUrl: item.meetingUrl,
-      modality: item.modality,
-      updatedAt: item.updatedAt,
-      redFlags: item.redFlags,
-      summary: item.summary,
-    })),
-  });
+  try {
+    const waiting = await getWaitingDoctorStationSessions();
+    return NextResponse.json({
+      waiting: waiting.map((item) => ({
+        sessionId: item.sessionId,
+        appointmentId: item.appointmentId,
+        patientId: item.patientId,
+        chartNumber: item.chartNumber,
+        patientName: item.patientName,
+        doctorName: item.doctorName,
+        meetingUrl: item.meetingUrl,
+        modality: item.modality,
+        updatedAt: item.updatedAt,
+        redFlags: item.redFlags,
+        summary: item.summary,
+      })),
+    });
+  } catch (error) {
+    return stationDbErrorResponse(error, "No se pudo consultar la cola de teleconsulta");
+  }
 }
 
 /** Descarta una espera fantasma (Cancelar / No abrir en la Dell). */

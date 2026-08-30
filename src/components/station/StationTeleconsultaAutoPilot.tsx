@@ -18,7 +18,8 @@ type WaitingItem = {
 const STATION_MODE_KEY = "maindhealth:station-pc";
 const OPENED_KEY = "maindhealth:station-auto-opened";
 const COUNTDOWN_SEC = 6;
-const POLL_MS = 2000;
+const POLL_MS = 8000;
+const POLL_MAX_MS = 60000;
 const NAV_FAIL_MS = COUNTDOWN_SEC * 1000 + 4000;
 
 function readStationMode(): boolean {
@@ -143,6 +144,9 @@ export function StationTeleconsultaAutoPilot({
     if (!active || onSala) return;
 
     let cancelled = false;
+    let delay = POLL_MS;
+    let timer = 0;
+
     const poll = async () => {
       try {
         const res = await fetch("/api/station/waiting", { cache: "no-store" });
@@ -155,36 +159,41 @@ export function StationTeleconsultaAutoPilot({
         }
         if (!res.ok) {
           setPollError(`Error cola (${res.status})`);
-          return;
-        }
+          delay = Math.min(delay * 2, POLL_MAX_MS);
+        } else {
+          delay = POLL_MS;
+          setAuthLost(false);
+          setPollError(null);
+          const data = (await res.json()) as { waiting?: WaitingItem[] };
+          const waiting = data.waiting ?? [];
+          const opened = new Set(readOpened());
 
-        setAuthLost(false);
-        setPollError(null);
-        const data = (await res.json()) as { waiting?: WaitingItem[] };
-        const waiting = data.waiting ?? [];
-        const opened = new Set(readOpened());
+          const candidate =
+            waiting.find((item) => !opened.has(item.appointmentId)) ?? null;
 
-        const candidate =
-          waiting.find((item) => !opened.has(item.appointmentId)) ?? null;
-
-        if (candidate && !navigatingRef.current) {
-          setPending((prev) =>
-            prev?.appointmentId === candidate.appointmentId ? prev : candidate,
-          );
-        } else if (!candidate) {
-          setPending(null);
+          if (candidate && !navigatingRef.current) {
+            setPending((prev) =>
+              prev?.appointmentId === candidate.appointmentId ? prev : candidate,
+            );
+          } else if (!candidate) {
+            setPending(null);
+          }
         }
       } catch (err) {
         console.warn("[station-autopilot] poll failed", err);
         if (!cancelled) setPollError("Sin conexión a la cola");
+        delay = Math.min(delay * 2, POLL_MAX_MS);
+      } finally {
+        if (!cancelled) {
+          timer = window.setTimeout(() => void poll(), delay);
+        }
       }
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), POLL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
   }, [active, onSala]);
 

@@ -9,7 +9,15 @@ export async function kioskFetch<T>(url: string, init?: RequestInit): Promise<T>
       throw new Error(res.ok ? "Respuesta inválida del servidor" : `Error del servidor (${res.status})`);
     }
   }
-  if (!res.ok) throw new Error(data.error ?? `Error de red (${res.status})`);
+  if (!res.ok) {
+    const message =
+      typeof data.error === "string"
+        ? data.error
+        : res.status === 503 || res.status === 500
+          ? "La estación no puede guardar la sesión (base de datos saturada). Avise al personal."
+          : `Error de red (${res.status})`;
+    throw new Error(message);
+  }
   return data as T;
 }
 

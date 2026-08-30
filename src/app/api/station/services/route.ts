@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
+import { stationDbErrorResponse } from "@/lib/db/errors";
 import { listActiveStationServices } from "@/lib/kiosk/commerce";
 
 export async function GET() {
-  const services = await listActiveStationServices();
-  return NextResponse.json({
-    services: services.map((s) => ({
-      id: s.id,
-      code: s.code,
-      name: s.name,
-      description: s.description,
-      amountCents: s.amountCents,
-      currency: s.currency,
-    })),
-  });
+  try {
+    const services = await listActiveStationServices();
+    return NextResponse.json({
+      services: services.map((s) => ({
+        id: s.id,
+        code: s.code,
+        name: s.name,
+        description: s.description,
+        amountCents: s.amountCents,
+        currency: s.currency,
+      })),
+    });
+  } catch (error) {
+    return stationDbErrorResponse(error, "No se pudieron cargar los servicios");
+  }
 }

@@ -81,6 +81,7 @@ export async function expireStaleWaitingDoctorSessions(): Promise<number> {
 export async function dismissWaitingDoctorForAppointment(
   appointmentId: number,
 ): Promise<number> {
+  waitingCache = null;
   const rows = await db
     .select()
     .from(stationKioskSessionsTable)
@@ -115,15 +116,42 @@ export async function dismissWaitingDoctorForAppointment(
   return rows.length;
 }
 
+const WAITING_CACHE_MS = 4000;
+const EXPIRE_EVERY_MS = 60_000;
+let waitingCache: { at: number; data: WaitingDoctorRow[] } | null = null;
+let lastExpireAt = 0;
+
+type WaitingDoctorRow = {
+  sessionId: number;
+  appointmentId: number;
+  patientId: number;
+  chartNumber: string;
+  patientName: string;
+  doctorName: string;
+  meetingUrl: string | null;
+  modality: string;
+  updatedAt: Date;
+  redFlags: string[];
+  summary: string | null;
+  roomError: string | null;
+};
+
 /**
  * Pacientes de kiosk escalados a teleconsulta (status waiting_doctor), solo recientes
  * y que la Dell aún no haya abierto (si ya abrió, se archivan en expire).
  */
 export async function getWaitingDoctorStationSessions() {
-  try {
-    await expireStaleWaitingDoctorSessions();
-  } catch (err) {
-    console.error("[station-waiting] expire stale", err);
+  if (waitingCache && Date.now() - waitingCache.at < WAITING_CACHE_MS) {
+    return waitingCache.data;
+  }
+
+  if (Date.now() - lastExpireAt > EXPIRE_EVERY_MS) {
+    lastExpireAt = Date.now();
+    try {
+      await expireStaleWaitingDoctorSessions();
+    } catch (err) {
+      console.error("[station-waiting] expire stale", err);
+    }
   }
 
   const cutoff = new Date(Date.now() - WAITING_DOCTOR_MAX_AGE_MS);
@@ -183,7 +211,7 @@ export async function getWaitingDoctorStationSessions() {
     return true;
   });
 
-  return uniqueRows.map((row) => ({
+  const data: WaitingDoctorRow[] = uniqueRows.map((row) => ({
     sessionId: row.sessionId,
     appointmentId: row.appointmentId,
     patientId: row.patientId,
@@ -203,6 +231,8 @@ export async function getWaitingDoctorStationSessions() {
     summary: row.assessmentDraft?.summary ?? null,
     roomError: row.assessmentDraft?.roomError ?? null,
   }));
+  waitingCache = { at: Date.now(), data };
+  return data;
 }
 
 /** Estado de la sesión kiosk de una cita (para no abrir salas muertas). */

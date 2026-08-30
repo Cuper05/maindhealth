@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/schema";
 import { getKioskAppointmentContext } from "@/lib/queries/kiosk";
 import { getKioskCookie, newKioskToken } from "@/lib/kiosk/session-cookie";
+import { stationDbErrorResponse } from "@/lib/db/errors";
 
 async function loadSession(token: string) {
   const [session] = await db
@@ -99,15 +100,19 @@ export async function GET() {
 }
 
 export async function POST() {
-  const cookie = await getKioskCookie();
-  const token = newKioskToken();
-  const [session] = await db
-    .insert(stationKioskSessionsTable)
-    .values({ token, currentStep: "welcome", status: "active" })
-    .returning();
-  cookie.token = token;
-  await cookie.save();
-  return NextResponse.json({ session: { token: session.token, currentStep: session.currentStep } });
+  try {
+    const cookie = await getKioskCookie();
+    const token = newKioskToken();
+    const [session] = await db
+      .insert(stationKioskSessionsTable)
+      .values({ token, currentStep: "welcome", status: "active" })
+      .returning();
+    cookie.token = token;
+    await cookie.save();
+    return NextResponse.json({ session: { token: session.token, currentStep: session.currentStep } });
+  } catch (error) {
+    return stationDbErrorResponse(error, "No se pudo iniciar la sesión del kiosco");
+  }
 }
 
 export async function PATCH(request: Request) {

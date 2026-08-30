@@ -868,7 +868,7 @@ export function PatientKioskWizard() {
       } catch {
         /* ignore */
       }
-    }, 600);
+    }, 3000);
     return () => clearInterval(timer);
   }, [step]);
 
