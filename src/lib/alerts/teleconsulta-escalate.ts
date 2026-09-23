@@ -38,7 +38,9 @@ function parseQueue(queueJson: string): number[] {
 }
 
 /**
- * If a doctor has no phone, persist the station fallback so Twilio can ring.
+ * Si un médico no tiene teléfono, se le guarda el de respaldo para que Twilio
+ * pueda marcar. No se toca "disponible para teleconsulta": si el personal lo
+ * desmarcó en Configuración, es porque no quiere que le llamen.
  */
 export async function ensureDoctorsHaveAlertPhones(): Promise<string | null> {
   const fallback = extraTeleconsultaAlertPhones()[0] ?? null;
@@ -48,22 +50,16 @@ export async function ensureDoctorsHaveAlertPhones(): Promise<string | null> {
     .select({
       id: usersTable.id,
       phone: usersTable.phone,
-      teleconsultaAvailable: usersTable.teleconsultaAvailable,
     })
     .from(usersTable)
     .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
     .where(and(eq(rolesTable.code, "doctor"), eq(usersTable.active, true)));
 
   for (const doctor of doctors) {
-    const phone = normalizePhoneE164(doctor.phone);
-    if (phone && doctor.teleconsultaAvailable) continue;
+    if (normalizePhoneE164(doctor.phone)) continue;
     await db
       .update(usersTable)
-      .set({
-        phone: phone ?? fallback,
-        teleconsultaAvailable: true,
-        updatedAt: new Date(),
-      })
+      .set({ phone: fallback, updatedAt: new Date() })
       .where(eq(usersTable.id, doctor.id));
   }
 

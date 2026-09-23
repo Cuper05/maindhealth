@@ -22,21 +22,16 @@ export function isTwilioConfigured(): boolean {
 }
 
 /**
- * Extra E.164 numbers always alerted (comma/space separated).
- * Last-resort: verified station operator phone so the queue is never empty
- * when Configuración still has a doctor without teléfono.
+ * Números E.164 extra que se avisan además del médico en turno
+ * (separados por coma o espacio). Vacío por omisión: sin esto, la alerta
+ * llega solo al médico de la cola y no al personal de la estación.
  */
-const STATION_OPERATOR_ALERT_PHONE = "+524491523007";
-
 export function extraTeleconsultaAlertPhones(): string[] {
   const raw = process.env.TELECONSULTA_ALERT_PHONES?.trim() ?? "";
-  const parsed = raw
+  return raw
     .split(/[,;\s]+/)
     .map((part) => normalizePhoneE164(part))
     .filter((part): part is string => Boolean(part));
-  const builtin = normalizePhoneE164(STATION_OPERATOR_ALERT_PHONE);
-  if (builtin && !parsed.includes(builtin)) parsed.push(builtin);
-  return parsed;
 }
 
 /** Normalize MX / E.164 phones for Twilio. */
