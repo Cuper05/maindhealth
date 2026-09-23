@@ -105,6 +105,17 @@ Archivo de builds: `eas.json` (perfiles `development`, `preview`, `production`).
 
 ---
 
+## Tras actualizar la app (v1.1+)
+
+En cada teleconsulta verás:
+
+1. **Unirse a videollamada** — Daily + signos/síntomas del kiosco  
+2. **Crear / emitir receta** — abre la consulta web autenticada para guardar nota, emitir y firmar la receta  
+
+Si ya tenías la app instalada, **vuelve a hacer `eas build`** e instala el APK/IPA nuevo; el backend ya está en producción.
+
+---
+
 ## Metro local (solo si ya instalaste un development build)
 
 Si usaste `--profile development`, en la PC puedes arrancar el bundler con:

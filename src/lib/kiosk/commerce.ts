@@ -187,7 +187,12 @@ export async function confirmStationPayment(input: {
       status: input.status,
       provider: input.provider ?? order.provider,
       providerReference: input.providerReference ?? order.providerReference,
-      providerPayload: input.providerPayload ?? order.providerPayload,
+      providerPayload: {
+        ...(order.providerPayload && typeof order.providerPayload === "object"
+          ? (order.providerPayload as Record<string, unknown>)
+          : {}),
+        ...(input.providerPayload ?? {}),
+      },
       approvedAt: input.status === "approved" ? new Date() : null,
       updatedAt: new Date(),
     })

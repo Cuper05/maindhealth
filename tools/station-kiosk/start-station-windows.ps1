@@ -5,12 +5,22 @@
 param(
   [ValidateSet("station", "kiosk", "both")]
   [string]$Role = "both",
-  [switch]$WaitForNetwork
+  [switch]$WaitForNetwork,
+  [int]$WaitScreensSeconds = 25,
+  # Solo si el personal pide kiosk en blanco. Por defecto NO borra la visita en curso.
+  [switch]$NewKioskSession,
+  # No mata Edge si ese perfil ya esta abierto (para keep-awake).
+  [switch]$OnlyIfMissing,
+  [string]$StationUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
-$UrlStation = "https://health.maindsteel.com.mx/estacion"
-$UrlKiosk = "https://health.maindsteel.com.mx/estacion/paciente?nueva=1"
+$UrlStation = if ($StationUrl) { $StationUrl } else { "https://health.maindsteel.com.mx/estacion" }
+$UrlKiosk = if ($NewKioskSession) {
+  "https://health.maindsteel.com.mx/estacion/paciente?nueva=1"
+} else {
+  "https://health.maindsteel.com.mx/estacion/paciente"
+}
 $ProfileStation = Join-Path $env:LOCALAPPDATA "MaindHealthStationProfile"
 $ProfileKiosk = Join-Path $env:LOCALAPPDATA "MaindHealthKioskProfile"
 
@@ -57,6 +67,13 @@ function Stop-EdgeByNeedle([string]$Needle) {
   }
 }
 
+function Test-EdgeByNeedle([string]$Needle) {
+  $procs = @(Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" -ErrorAction SilentlyContinue | Where-Object {
+    $_.CommandLine -and ($_.CommandLine -like ("*" + $Needle + "*"))
+  })
+  return $procs.Count -gt 0
+}
+
 function Wait-EdgeWindow([string]$ProfileName, [int]$TimeoutSec = 25) {
   $deadline = (Get-Date).AddSeconds($TimeoutSec)
   do {
@@ -83,7 +100,7 @@ function Move-EdgeToScreen($Window, $Screen) {
   [void][MaindHealthWin32]::SetWindowPos($hwnd, [IntPtr]::Zero, $b.X, $b.Y, $b.Width, $b.Height, 0x0040)
 }
 
-function Reset-EdgePageZoom([string]$ProfileDir) {
+function Disable-EdgePasswordPrompts([string]$ProfileDir) {
   $prefs = Join-Path $ProfileDir "Default\Preferences"
   if (-not (Test-Path $prefs)) { return }
   $node = Get-Command node -ErrorAction SilentlyContinue
@@ -93,6 +110,19 @@ const fs = require("fs");
 const p = process.argv[2];
 try {
   const j = JSON.parse(fs.readFileSync(p, "utf8"));
+  j.credentials_enable_service = false;
+  j.credentials_enable_autosignin = false;
+  j.password_manager = Object.assign({}, j.password_manager, {
+    onboarding_shown: true,
+    leak_detection: false
+  });
+  j.profile = j.profile || {};
+  j.profile.password_manager_enabled = false;
+  j.profile.password_manager_leak_detection = false;
+  j.autofill = Object.assign({}, j.autofill, {
+    profile_enabled: false,
+    credit_card_enabled: false
+  });
   if (j.partition) {
     j.partition.default_zoom_level = {};
     j.partition.per_host_zoom_levels = {};
@@ -102,9 +132,22 @@ try {
   process.stderr.write(String(e));
 }
 '@
-  $tmp = Join-Path $env:TEMP "maindhealth-reset-zoom.js"
+  $tmp = Join-Path $env:TEMP "maindhealth-disable-passwords.js"
   Set-Content -Path $tmp -Value $script -Encoding ASCII
   & $node.Source $tmp $prefs
+}
+
+function Set-EdgeStationPasswordPolicy {
+  try {
+    $key = "HKCU:\SOFTWARE\Policies\Microsoft\Edge"
+    if (-not (Test-Path $key)) {
+      New-Item -Path $key -Force | Out-Null
+    }
+    New-ItemProperty -Path $key -Name "PasswordManagerEnabled" -Value 0 -PropertyType DWord -Force | Out-Null
+    New-ItemProperty -Path $key -Name "PasswordMonitorAllowed" -Value 0 -PropertyType DWord -Force | Out-Null
+  } catch {
+    Write-Host "Aviso: no se pudo escribir politica de Edge (se desactiva el gestor de contrasenas en el perfil)."
+  }
 }
 
 function Start-EdgeApp {
@@ -114,7 +157,7 @@ function Start-EdgeApp {
     $Screen
   )
 
-  Reset-EdgePageZoom -ProfileDir $ProfileDir
+  Disable-EdgePasswordPrompts -ProfileDir $ProfileDir
 
   $edge = Get-MsEdgePath
   $b = $Screen.Bounds
@@ -128,9 +171,20 @@ function Start-EdgeApp {
     "--overscroll-history-navigation=0",
     "--no-first-run",
     "--disable-session-crashed-bubble",
-    "--disable-features=TranslateUI,InfiniteSessionRestore",
+    "--disable-features=TranslateUI,InfiniteSessionRestore,LocalNetworkAccessChecks,LocalNetworkAccessChecksWebSockets,LocalNetworkAccessChecksWebRTC,PasswordManager,PasswordManagerOnboarding,PasswordImport",
+    "--disable-save-password-bubble",
     "--check-for-update-interval=31536000"
   )
+  $copyFix = Join-Path $PSScriptRoot "kiosk-copy-fix"
+  if (($ProfileDir -like "*Kiosk*") -and (Test-Path $copyFix)) {
+    $argList += ("--load-extension=" + $copyFix)
+    $argList += ("--disable-extensions-except=" + $copyFix)
+    $argList += "--remote-debugging-port=9229"
+  }
+  if ($ProfileDir -like "*Station*") {
+    $argList += "--remote-debugging-port=9228"
+    $argList += "--auto-accept-camera-and-microphone-capture"
+  }
   Start-Process -FilePath $edge -ArgumentList $argList | Out-Null
   $profileName = Split-Path $ProfileDir -Leaf
   $window = Wait-EdgeWindow -ProfileName $profileName
@@ -140,35 +194,97 @@ function Start-EdgeApp {
   }
 }
 
-if ($WaitForNetwork) {
-  Write-Host "Esperando red..."
-  Start-Sleep -Seconds 8
+function Wait-MaindHealthNetwork([int]$Seconds = 90) {
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  do {
+    try {
+      $r = Invoke-WebRequest -Uri $UrlStation -Method Head -TimeoutSec 8 -UseBasicParsing
+      if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 500) { return $true }
+    } catch {
+      Write-Host "Esperando red hacia MaindHealth..."
+    }
+    Start-Sleep -Seconds 3
+  } while ((Get-Date) -lt $deadline)
+  Write-Host "Aviso: la red no respondio a tiempo; se abre igual."
+  return $false
 }
 
-$screens = Get-StationScreens
+function Wait-SecondaryScreen([int]$Seconds) {
+  $deadline = (Get-Date).AddSeconds([Math]::Max(0, $Seconds))
+  do {
+    $now = Get-StationScreens
+    if ($now.Secondary) { return $now }
+    Write-Host "Esperando el monitor Dell (teleconsulta)..."
+    Start-Sleep -Seconds 3
+  } while ((Get-Date) -lt $deadline)
+  return Get-StationScreens
+}
+
+if ($WaitForNetwork) {
+  Write-Host "Esperando red..."
+  [void](Wait-MaindHealthNetwork -Seconds 90)
+}
+
 # En esta PC Windows marca la ViewSonic (touch / kiosk) como monitor principal.
-# La Dell de teleconsulta es el monitor secundario.
+# Al encender, la Dell a veces tarda en encenderse: hay que esperarla o la
+# teleconsulta se abre en el touch (o no se abre en la Dell).
+$screens = Get-StationScreens
+Set-EdgeStationPasswordPolicy
 $kioskScreen = $screens.Primary
+$needStation = ($Role -eq "station" -or $Role -eq "both")
+if ($needStation -and -not $screens.Secondary) {
+  $screens = Wait-SecondaryScreen -Seconds $WaitScreensSeconds
+}
 $stationScreen = $screens.Secondary
 if (-not $stationScreen) {
-  Write-Host "No hay pantalla secundaria; la teleconsulta usara el mismo monitor que el kiosk."
+  Write-Host "No aparecio la Dell; la teleconsulta usara el monitor disponible."
   $stationScreen = $screens.Primary
 }
 
 if ($Role -eq "station" -or $Role -eq "both") {
-  Write-Host "Cerrando Edge de estacion previo..."
-  Stop-EdgeByNeedle "MaindHealthStationProfile"
-  Write-Host ("Abriendo teleconsulta en Dell " + $stationScreen.Bounds)
-  Start-EdgeApp -ProfileDir $ProfileStation -Url $UrlStation -Screen $stationScreen
+  if ($OnlyIfMissing -and (Test-EdgeByNeedle "MaindHealthStationProfile")) {
+    Write-Host "Teleconsulta ya abierta; no se toca."
+  } else {
+    Write-Host "Cerrando Edge de estacion previo..."
+    Stop-EdgeByNeedle "MaindHealthStationProfile"
+    Write-Host ("Abriendo teleconsulta en Dell " + $stationScreen.Bounds)
+    Start-EdgeApp -ProfileDir $ProfileStation -Url $UrlStation -Screen $stationScreen
+    $openSala = Join-Path $PSScriptRoot "open-waiting-sala.mjs"
+    if (Test-Path $openSala) {
+      Start-Sleep -Milliseconds 800
+      try {
+        & node $openSala
+      } catch {
+        Write-Host ("Aviso: no se pudo abrir sala automaticamente: " + $_.Exception.Message)
+      }
+    }
+  }
 }
 
 if ($Role -eq "kiosk" -or $Role -eq "both") {
-  Write-Host "Cerrando Edge de kiosk previo..."
-  Stop-EdgeByNeedle "MaindHealthKioskProfile"
-  Stop-EdgeByNeedle "estacion/paciente"
-  Stop-EdgeByNeedle "User Data Kiosk"
-  Write-Host ("Abriendo kiosk paciente en " + $kioskScreen.Bounds)
-  Start-EdgeApp -ProfileDir $ProfileKiosk -Url $UrlKiosk -Screen $kioskScreen
+  if ($OnlyIfMissing -and (Test-EdgeByNeedle "MaindHealthKioskProfile")) {
+    Write-Host "Kiosk ya abierto; no se toca."
+  } else {
+    Write-Host "Cerrando Edge de kiosk previo..."
+    Stop-EdgeByNeedle "MaindHealthKioskProfile"
+    Stop-EdgeByNeedle "estacion/paciente"
+    Stop-EdgeByNeedle "User Data Kiosk"
+    Write-Host ("Abriendo kiosk paciente en " + $kioskScreen.Bounds)
+    Start-EdgeApp -ProfileDir $ProfileKiosk -Url $UrlKiosk -Screen $kioskScreen
+  }
 }
 
+function Start-KeepAwakeIfNeeded {
+  $awake = Join-Path $PSScriptRoot "keep-awake.ps1"
+  if (-not (Test-Path $awake)) { return }
+  $running = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object {
+    $_.CommandLine -and ($_.CommandLine -like "*keep-awake.ps1*")
+  })
+  if ($running.Count -gt 0) { return }
+  Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -ArgumentList @(
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $awake
+  ) | Out-Null
+}
+
+Start-KeepAwakeIfNeeded
 Write-Host "Listo."

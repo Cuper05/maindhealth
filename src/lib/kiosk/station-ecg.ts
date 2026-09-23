@@ -23,7 +23,7 @@ export async function readStationEcg(
   onProgress?: (msg: string) => void,
 ): Promise<StationEcgSample> {
   onProgress?.(
-    "Cable puesto. Ponga los dedos en las placas 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
+    "Cable puesto. Encienda el aparato, ponga los dedos 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
   );
 
   const ctrl = new AbortController();

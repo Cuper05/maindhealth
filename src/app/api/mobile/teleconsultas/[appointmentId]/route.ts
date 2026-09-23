@@ -90,6 +90,10 @@ export async function GET(
               vitalsDraft: kiosk.vitalsDraft,
               assessmentDraft: kiosk.assessmentDraft,
               paymentStatus: kiosk.paymentStatus,
+              kardiaFileUrl:
+                kiosk.vitalsDraft?.ecgKardiaReady === "1"
+                  ? `/api/station/kardia-file?appointmentId=${appointmentId}`
+                  : null,
             }
           : null,
       }),

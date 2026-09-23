@@ -5,18 +5,23 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import HID from "node-hid";
+
+const execFileAsync = promisify(execFile);
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.BP_BRIDGE_PORT || 3931);
 const VID = 0x10c4;
 const PID = 0xea80;
 const SERIAL = (process.env.BP_SERIAL || "TU0-700X").toUpperCase();
-const BAUDS = (process.env.BP_BAUDS || "115200,9600,38400,4800")
+const BAUDS = (process.env.BP_BAUDS || "9600,4800,115200,38400")
   .split(",")
   .map((n) => Number(n.trim()))
   .filter((n) => n > 0);
 const READ_TIMEOUT_MS = Number(process.env.BP_READ_TIMEOUT_MS || 150000);
+const MONITOR_URL = process.env.CMS_LAN_URL || "http://127.0.0.1:3932";
 const LOG_DIR = path.join(process.env.LOCALAPPDATA || ".", "MaindHealth", "logs");
 const SNIFF_LOG = path.join(LOG_DIR, "presion-sniff.log");
 
@@ -71,6 +76,30 @@ async function waitUntil(pred, ms, stepMs = 350) {
   return pred();
 }
 
+async function runSchtask(name) {
+  await execFileAsync("schtasks.exe", ["/Run", "/TN", name], {
+    windowsHide: true,
+    timeout: 20000,
+  });
+  await sleep(2000);
+}
+
+async function muteBpUsb() {
+  try {
+    await runSchtask("MaindHealthBpUsbDisable");
+  } catch (err) {
+    appendSniff(`mute-err ${err instanceof Error ? err.message : String(err)}`, Buffer.alloc(0));
+  }
+}
+
+async function unmuteBpUsb() {
+  try {
+    await runSchtask("MaindHealthBpUsbEnable");
+  } catch (err) {
+    appendSniff(`unmute-err ${err instanceof Error ? err.message : String(err)}`, Buffer.alloc(0));
+  }
+}
+
 function featureReport(bytes) {
   const buf = Buffer.alloc(64, 0);
   Buffer.from(bytes).copy(buf);
@@ -106,6 +135,15 @@ function plausible(sys, dia, hr) {
 function parseReading(buffer) {
   if (!buffer?.length) return null;
   const ascii = buffer.toString("latin1");
+  const par = ascii.match(/P(\d{3})(\d{3})(\d{3})/);
+  if (par) {
+    const sys = Number(par[1]);
+    const dia = Number(par[2]);
+    const hr = Number(par[3]);
+    if (plausible(sys, dia, hr >= 40 && hr <= 180 ? hr : 70)) {
+      return { sys, dia, hr: hr >= 40 && hr <= 180 ? hr : null, format: "par" };
+    }
+  }
   const slash = ascii.match(/(\d{2,3})\s*\/\s*(\d{2,3})(?:[^\d]{1,8}(\d{2,3}))?/);
   if (slash) {
     const sys = Number(slash[1]);
@@ -160,24 +198,49 @@ function parseReading(buffer) {
   return null;
 }
 
-function sendProbes(dev) {
-  const probes = [
+function parFrame(cmd, { fd = false } = {}) {
+  const c0 = cmd.charCodeAt(0);
+  const c1 = cmd.charCodeAt(1);
+  const sum = (c0 + c1 + 0x3b + 0x3b) & 0xff;
+  const hex = sum.toString(16).toUpperCase().padStart(2, "0");
+  return Buffer.from([
+    fd ? 0xfd : 0x02,
+    c0,
+    c1,
+    0x3b,
+    0x3b,
+    hex.charCodeAt(0),
+    hex.charCodeAt(1),
+    fd ? 0xfe : 0x03,
+  ]);
+}
+
+function sendStartFrames(dev) {
+  const frames = [
+    parFrame("24"),
+    parFrame("01"),
+    parFrame("27"),
+    parFrame("18"),
+    parFrame("01", { fd: true }),
+    Buffer.from([0x02, 0x43, 0x50, 0x43, 0x34, 0x30, 0x3a]),
+    Buffer.from([0x02, 0x43, 0x50, 0x43, 0x30, 0x35, 0x3b]),
+    Buffer.from("START\r\n", "ascii"),
     Buffer.from([0xaa, 0x55]),
     Buffer.from([0x55, 0xaa]),
-    Buffer.from([0xa5, 0x5a]),
-    Buffer.from([0xfd, 0xfd]),
-    Buffer.from([0xbe, 0x20, 0x00, 0x00]),
-    Buffer.from([0x01, 0x00]),
     Buffer.from("AT\r\n", "ascii"),
-    Buffer.from("READ\r\n", "ascii"),
-    Buffer.from("M\r", "ascii"),
   ];
-  for (const probe of probes) {
+  for (const frame of frames) {
     try {
-      uartWrite(dev, probe);
+      uartWrite(dev, frame);
     } catch {
       /* ignore */
     }
+  }
+  try {
+    dev.sendFeatureReport(featureReport([0x45, 0x00, 0x00, 0xff, 0x03]));
+    dev.sendFeatureReport(featureReport([0x45, 0xff, 0xff, 0xff, 0x03]));
+  } catch {
+    /* GPIO opcional */
   }
 }
 
@@ -267,17 +330,18 @@ function dumpAfterConnect(timeoutMs) {
       }
       const baud = BAUDS[baudIndex];
       baudIndex += 1;
-      setProgress("dump", `USB detectado. Leyendo a ${baud} baudios…`);
+      setProgress("dump", `Midiendo (${baud} baudios). Brazalete puesto, no mueva el brazo…`);
       try {
         configureUart(dev, baud);
+        sendStartFrames(dev);
       } catch (err) {
         finish(err);
         return;
       }
       phaseTimer = setTimeout(() => {
         if (settled) return;
-        sendProbes(dev);
-        phaseTimer = setTimeout(runBaud, 2500);
+        sendStartFrames(dev);
+        phaseTimer = setTimeout(runBaud, 40000);
       }, 3000);
     };
 
@@ -315,24 +379,75 @@ async function waitForPatientDone(deadline) {
   }
 }
 
+async function readFromEthernetMonitor() {
+  setProgress(
+    "measure",
+    "Usando el monitor Ethernet. Ponga el brazalete y pulse NIBP / Start en el monitor.",
+  );
+  const poll = setInterval(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`${MONITOR_URL}/progress`);
+        const data = await res.json();
+        if (data.message) setProgress("measure", String(data.message));
+      } catch {
+        /* el POST al monitor sigue en curso */
+      }
+    })();
+  }, 800);
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), READ_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${MONITOR_URL}/read?kind=nibp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctrl.signal,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(
+        data.error ||
+          "El monitor no envió la presión. Ponga el brazalete y pulse NIBP / Start.",
+      );
+    }
+    const sys = Number(data.systolicPressure);
+    const dia = Number(data.diastolicPressure);
+    const hr = Number(data.heartRate);
+    if (!(sys >= 80 && sys <= 230 && dia >= 40 && dia <= 140 && sys > dia)) {
+      throw new Error(
+        "La lectura del monitor no es confiable. Ajuste el brazalete y pulse NIBP otra vez.",
+      );
+    }
+    return {
+      sys,
+      dia,
+      hr: hr >= 40 && hr <= 180 ? hr : undefined,
+      format: "cms-lan",
+      bytes: 0,
+    };
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "AbortError") {
+      throw new Error("La presión tardó demasiado. Pulse NIBP en el monitor y espere el número.");
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  } finally {
+    clearInterval(poll);
+    clearTimeout(timer);
+  }
+}
+
 async function readSession() {
-  const deadline = Date.now() + READ_TIMEOUT_MS;
+  if (!findDevice()) {
+    return readFromEthernetMonitor();
+  }
   patientDone = false;
   setProgress(
     "measure",
-    "Cable puesto. Coloque el brazalete, pulse Start y, al ver el número, toque Ya vi el resultado.",
+    "Coloque el brazalete. El aparato va a inflar con el cable puesto…",
   );
-  await waitForPatientDone(deadline);
-  setProgress("dump", "Leyendo la medición. Deje el resultado en la pantalla del aparato…");
-  const appeared = await waitUntil(() => Boolean(findDevice()), 15000);
-  if (!appeared) {
-    throw new Error(
-      "No se ve el USB del baumanómetro. Deje el cable puesto, pulse Start y mantenga el resultado en pantalla.",
-    );
-  }
-  await sleep(600);
-  const remaining = Math.max(8000, deadline - Date.now());
-  return dumpAfterConnect(Math.min(remaining, 20000));
+  return dumpAfterConnect(READ_TIMEOUT_MS);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -351,6 +466,7 @@ const server = http.createServer(async (req, res) => {
       serial: info?.serialNumber || null,
       plugged: Boolean(info),
       hidDevices: listCp2110().length,
+      fallback: info ? "usb" : "cms-lan",
       phase: progress.phase,
       message: progress.message,
     });
@@ -428,5 +544,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[bp700-bridge] http://${HOST}:${PORT} (USB silenciado por software, cable puesto)`);
+  console.log(`[bp700-bridge] http://${HOST}:${PORT} (mute USB por software, cable puesto)`);
 });

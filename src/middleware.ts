@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/api/device-readings/ingest",
   "/estacion/paciente",
   "/estacion/pago-completado",
+  "/estacion/kardia",
 ];
 
 /** Station kiosk + doctor mobile app (Bearer JWT checked in route handlers). */

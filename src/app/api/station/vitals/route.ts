@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { stationKioskSessionsTable, vitalSignsTable } from "@/lib/db/schema";
 import { getKioskCookie } from "@/lib/kiosk/session-cookie";
 import { isVitalsComplete, mergeVitalsDraft } from "@/lib/kiosk/vitals";
+import { publicVitalsDraft } from "@/lib/kiosk/kardia";
 import { computeBmi } from "@/lib/validators/vitals";
 
 export async function PATCH(request: Request) {
@@ -34,7 +35,7 @@ export async function PATCH(request: Request) {
     .where(eq(stationKioskSessionsTable.token, cookie.token))
     .returning();
 
-  return NextResponse.json({ vitalsDraft: session.vitalsDraft });
+  return NextResponse.json({ vitalsDraft: publicVitalsDraft(session.vitalsDraft) });
 }
 
 export async function POST(request: Request) {
@@ -77,12 +78,14 @@ export async function POST(request: Request) {
       height: draft.height,
       bmi,
       symptoms: "Captura estación paciente",
-      deviceExtras: {
-        source: "kiosk",
-        ecgStatus: draft.ecgStatus ?? null,
-        ecgRhythm: draft.ecgRhythm ?? null,
-        ecgHeartRate: draft.ecgHeartRate ?? null,
-      },
+        deviceExtras: {
+          source: "kiosk",
+          ecgStatus: draft.ecgStatus ?? null,
+          ecgRhythm: draft.ecgRhythm ?? null,
+          ecgHeartRate: draft.ecgHeartRate ?? null,
+          ecgSource: draft.ecgSource ?? null,
+          ecgKardiaReady: draft.ecgKardiaReady ?? null,
+        },
     })
     .returning({ id: vitalSignsTable.id });
 

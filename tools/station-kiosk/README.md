@@ -13,7 +13,13 @@ Al encender la PC deben abrirse solas:
 2. La **primera vez**, inicie sesión como **personal** en la Dell (correo y contraseña del sistema).
 3. Esa sesión dura ~30 días. **No use el modo kiosk de Edge** (`--kiosk`): abre InPrivate, borra cookies y vuelve a pedir login en cada arranque.
 
+El arranque espera la red y el **monitor Dell**. Si al prender la Dell aún está apagada, Windows solo ve el touch y la teleconsulta no aparece en la pantalla de enfrente.
+
+Las dos pantallas **no deben apagarse por inactividad**. Windows ya está en “nunca suspender”; `keep-awake.ps1` se instala con el arranque para que el HDMI no se caiga y, si Edge se cierra, se reabra sin borrar la visita. Si un monitor se pone negro igual, desactive *Sleep / Eco / Auto Off* en el menú físico (OSD) de la Dell P2426H y de la ViewSonic TD2230.
+
 Para quitar el arranque: `uninstall-autostart-estacion-dell.ps1`.
+
+Si al prender pide la contraseña de **Windows**, entre con el usuario `telem`. El arranque corre después de esa entrada (no antes).
 
 Acceso manual:
 

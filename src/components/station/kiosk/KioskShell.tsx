@@ -59,8 +59,7 @@ export function KioskShell({
   const { open: keyboardOpen, target, close } = useKioskVirtualKeyboard(keyboardEnabled);
   const logoPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isWelcome = step === "welcome";
-  // Scroll global con teclado; en cada paso el contenido usa KioskScrollArea si no cabe.
-  const allowScroll = keyboardOpen || step !== "welcome";
+  const allowScroll = true;
 
   useEffect(() => {
     const blockPinch = (event: Event) => {
@@ -97,10 +96,10 @@ export function KioskShell({
   }
 
   return (
-    <div className="flex h-dvh max-h-dvh flex-col overflow-hidden overscroll-none bg-[#eef3f9] touch-pan-x touch-pan-y">
-      <header className="relative shrink-0 bg-gradient-to-r from-[#143d66] via-[#1a4d7c] to-[#1d6eb8] text-white shadow-md">
-        <div className="w-full px-4 py-3 sm:px-6 xl:px-10">
-          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-screen max-h-screen flex-col overflow-hidden overscroll-none bg-[#eef3f9] touch-pan-x touch-pan-y">
+      <header className="relative z-10 shrink-0 bg-gradient-to-r from-[#143d66] via-[#1a4d7c] to-[#1d6eb8] text-white shadow-md">
+        <div className="w-full px-4 py-4 sm:px-6 xl:px-10">
+          <div className="relative z-10 flex flex-nowrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
                 type="button"
@@ -126,25 +125,25 @@ export function KioskShell({
             <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
               <MaindOsLogo width={260} priority className="max-w-[42vw]" />
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2 md:min-w-[260px]">
+            <div className="relative z-10 flex shrink-0 flex-nowrap items-center justify-end gap-2">
               {onToggleVoice ? (
                 <button
                   type="button"
                   onClick={onToggleVoice}
-                  className="min-h-[48px] rounded-xl border border-white/40 bg-white/10 px-5 py-2.5 text-lg font-semibold text-white backdrop-blur transition hover:bg-white/20"
+                  className="min-h-[48px] rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-base font-semibold text-white backdrop-blur transition hover:bg-white/20 xl:px-5 xl:text-lg"
                   aria-pressed={voiceMuted === true}
                 >
                   {voiceMuted ? "Activar voz" : "Silenciar voz"}
                 </button>
               ) : null}
-              <p className="rounded-lg bg-white/10 px-4 py-2 text-lg font-medium text-blue-50">
+              <p className="rounded-lg bg-white/10 px-3 py-2 text-base font-medium text-blue-50 xl:px-4 xl:text-lg">
                 {KIOSK_STEP_SHORT[step]}
               </p>
               {onNewSession && step !== "welcome" ? (
                 <button
                   type="button"
                   onClick={onNewSession}
-                  className="min-h-[48px] rounded-xl border border-white/40 bg-white/10 px-5 py-2.5 text-lg font-semibold text-white backdrop-blur transition hover:bg-white/20"
+                  className="min-h-[48px] rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-base font-semibold text-white backdrop-blur transition hover:bg-white/20 xl:px-5 xl:text-lg"
                 >
                   Nueva atención
                 </button>
@@ -152,7 +151,7 @@ export function KioskShell({
               <button
                 type="button"
                 onClick={reloadKioskApp}
-                className="min-h-[48px] rounded-xl border border-white/40 bg-white/10 px-5 py-2.5 text-lg font-semibold text-white backdrop-blur transition hover:bg-white/20"
+                className="min-h-[48px] rounded-xl border border-white/40 bg-white/10 px-4 py-2 text-base font-semibold text-white backdrop-blur transition hover:bg-white/20 xl:px-5 xl:text-lg"
                 title="Personal: recarga tras deploy"
               >
                 Recargar

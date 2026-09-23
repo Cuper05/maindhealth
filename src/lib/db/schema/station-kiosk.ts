@@ -111,6 +111,14 @@ export type KioskVitalsDraft = {
   ecgStatus?: string;
   ecgRhythm?: string;
   ecgHeartRate?: string;
+  /** pc80b | kardia */
+  ecgSource?: string;
+  /** "1" si hay PDF/imagen Kardia guardado (el binario no se manda en el poll). */
+  ecgKardiaReady?: string;
+  ecgKardiaFileName?: string;
+  ecgKardiaMime?: string;
+  /** PDF/imagen en base64. Solo en DB; se omite en GET de sesión. */
+  ecgKardiaData?: string;
 };
 
 export type KioskDeviceStatus = "idle" | "waiting" | "reading" | "done" | "retry";

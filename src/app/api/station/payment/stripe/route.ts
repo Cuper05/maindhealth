@@ -1,14 +1,108 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import type Stripe from "stripe";
 import { db } from "@/lib/db";
 import { stationKioskSessionsTable, stationPaymentOrdersTable } from "@/lib/db/schema";
 import { confirmStationPayment } from "@/lib/kiosk/commerce";
 import { getKioskCookie } from "@/lib/kiosk/session-cookie";
 import { getAppOrigin, getStripe, isStripeConfigured } from "@/lib/payments/stripe";
 
+type StripeOrderPayload = {
+  stripeCheckoutSessionId?: unknown;
+  stripeCheckoutUrl?: unknown;
+  checkoutSessionIds?: unknown;
+};
+
+function checkoutIdsFromOrder(order: {
+  providerReference?: string | null;
+  providerPayload?: unknown;
+}): string[] {
+  const ids = new Set<string>();
+  const payload = (order.providerPayload ?? {}) as StripeOrderPayload;
+  if (
+    typeof payload.stripeCheckoutSessionId === "string" &&
+    payload.stripeCheckoutSessionId.startsWith("cs_")
+  ) {
+    ids.add(payload.stripeCheckoutSessionId);
+  }
+  if (Array.isArray(payload.checkoutSessionIds)) {
+    for (const id of payload.checkoutSessionIds) {
+      if (typeof id === "string" && id.startsWith("cs_")) ids.add(id);
+    }
+  }
+  if (order.providerReference?.startsWith("cs_")) ids.add(order.providerReference);
+  return [...ids];
+}
+
+function paymentIntentId(checkout: Stripe.Checkout.Session) {
+  return typeof checkout.payment_intent === "string"
+    ? checkout.payment_intent
+    : checkout.payment_intent?.id ?? checkout.id;
+}
+
+async function confirmPaidCheckout(input: {
+  cookieToken: string;
+  paidCheckout: Stripe.Checkout.Session;
+  paymentOrderId: number;
+}) {
+  const [cookieSession] = await db
+    .select()
+    .from(stationKioskSessionsTable)
+    .where(eq(stationKioskSessionsTable.token, input.cookieToken));
+  const [order] = await db
+    .select()
+    .from(stationPaymentOrdersTable)
+    .where(eq(stationPaymentOrdersTable.id, input.paymentOrderId));
+
+  const metaToken = input.paidCheckout.metadata?.sessionToken;
+  let sessionToken = input.cookieToken;
+  if (order?.sessionId && cookieSession && order.sessionId !== cookieSession.id && metaToken) {
+    sessionToken = metaToken;
+  }
+
+  const result = await confirmStationPayment({
+    sessionToken,
+    paymentOrderId: input.paymentOrderId,
+    status: "approved",
+    provider: "stripe",
+    providerReference: input.paidCheckout.id,
+    providerPayload: {
+      stripeCheckoutSessionId: input.paidCheckout.id,
+      stripePaymentIntentId: paymentIntentId(input.paidCheckout),
+      stripePaymentStatus: input.paidCheckout.payment_status,
+    },
+  });
+
+  if (result.ok && input.cookieToken !== sessionToken) {
+    await db
+      .update(stationKioskSessionsTable)
+      .set({
+        paymentOrderId: result.order.id,
+        paymentStatus: "approved",
+        currentStep: "identification",
+        updatedAt: new Date(),
+      })
+      .where(eq(stationKioskSessionsTable.token, input.cookieToken));
+  }
+
+  return result;
+}
+
+function paidResponse(order: { id: number; reference: string; status: string }) {
+  return NextResponse.json({
+    paid: true,
+    order: {
+      id: order.id,
+      reference: order.reference,
+      status: order.status,
+    },
+    nextStep: "identification",
+  });
+}
+
 /**
  * Crea Stripe Checkout para la orden de pago de la estación.
- * El paciente paga en la pantalla táctil (tarjeta) y vuelve al kiosco.
+ * El paciente paga en el celular (QR) y el kiosco confirma por polling.
  */
 export async function POST(request: Request) {
   if (!isStripeConfigured()) {
@@ -63,9 +157,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Stripe no disponible" }, { status: 503 });
   }
 
+  const knownIds = checkoutIdsFromOrder(order);
+  let openCheckout: Stripe.Checkout.Session | null = null;
+  for (const id of knownIds) {
+    const existing = await stripe.checkout.sessions.retrieve(id);
+    if (existing.payment_status === "paid") {
+      const result = await confirmPaidCheckout({
+        cookieToken: cookie.token,
+        paidCheckout: existing,
+        paymentOrderId: order.id,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      return NextResponse.json({ alreadyPaid: true, url: null });
+    }
+    if (existing.status === "open" && existing.url && !openCheckout) {
+      openCheckout = existing;
+    }
+  }
+
+  if (openCheckout?.url) {
+    return NextResponse.json({
+      url: openCheckout.url,
+      checkoutSessionId: openCheckout.id,
+    });
+  }
+
   const origin = getAppOrigin();
-  // Sin payment_method_types: Stripe muestra métodos dinámicos del Dashboard (best practice).
-  // customer_email prellenado: en kiosco táctil no hay teclado en la página de Stripe.
   const checkout = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: customerEmail,
@@ -90,12 +209,12 @@ export async function POST(request: Request) {
       customerEmail,
     },
     client_reference_id: order.reference,
-    // El paciente paga en el celular (QR). El kiosco hace polling; el móvil solo ve confirmación.
     success_url: `${origin}/estacion/pago-completado?stripe=success`,
     cancel_url: `${origin}/estacion/pago-completado?stripe=cancel`,
     locale: "es",
   });
 
+  const checkoutSessionIds = [...new Set([...knownIds, checkout.id])];
   await db
     .update(stationPaymentOrdersTable)
     .set({
@@ -104,6 +223,7 @@ export async function POST(request: Request) {
       providerPayload: {
         stripeCheckoutSessionId: checkout.id,
         stripeCheckoutUrl: checkout.url,
+        checkoutSessionIds,
       },
       updatedAt: new Date(),
     })
@@ -116,7 +236,7 @@ export async function POST(request: Request) {
 }
 
 /**
- * Tras volver de Stripe: verifica el Checkout Session y aprueba la orden en estación.
+ * El kiosco consulta este endpoint cada pocos segundos mientras muestra el QR.
  */
 export async function GET(request: Request) {
   if (!isStripeConfigured()) {
@@ -144,7 +264,45 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Checkout sin orden de estación" }, { status: 400 });
   }
 
-  if (checkout.payment_status !== "paid" && checkout.status !== "complete") {
+  const [order] = await db
+    .select()
+    .from(stationPaymentOrdersTable)
+    .where(eq(stationPaymentOrdersTable.id, paymentOrderId));
+
+  if (order?.status === "approved") {
+    const [cookieSession] = await db
+      .select()
+      .from(stationKioskSessionsTable)
+      .where(eq(stationKioskSessionsTable.token, cookie.token));
+    if (cookieSession && cookieSession.paymentStatus !== "approved") {
+      await db
+        .update(stationKioskSessionsTable)
+        .set({
+          paymentOrderId: order.id,
+          paymentStatus: "approved",
+          currentStep: "identification",
+          updatedAt: new Date(),
+        })
+        .where(eq(stationKioskSessionsTable.token, cookie.token));
+    }
+    return paidResponse(order);
+  }
+
+  let paidCheckout: Stripe.Checkout.Session | null =
+    checkout.payment_status === "paid" ? checkout : null;
+
+  if (!paidCheckout && order) {
+    for (const id of checkoutIdsFromOrder(order)) {
+      if (id === checkout.id) continue;
+      const other = await stripe.checkout.sessions.retrieve(id);
+      if (other.payment_status === "paid") {
+        paidCheckout = other;
+        break;
+      }
+    }
+  }
+
+  if (!paidCheckout) {
     return NextResponse.json({
       paid: false,
       paymentStatus: checkout.payment_status,
@@ -152,32 +310,15 @@ export async function GET(request: Request) {
     });
   }
 
-  const result = await confirmStationPayment({
-    sessionToken: cookie.token,
+  const result = await confirmPaidCheckout({
+    cookieToken: cookie.token,
+    paidCheckout,
     paymentOrderId,
-    status: "approved",
-    provider: "stripe",
-    providerReference:
-      typeof checkout.payment_intent === "string"
-        ? checkout.payment_intent
-        : checkout.payment_intent?.id ?? checkout.id,
-    providerPayload: {
-      stripeCheckoutSessionId: checkout.id,
-      stripePaymentStatus: checkout.payment_status,
-    },
   });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  return NextResponse.json({
-    paid: true,
-    order: {
-      id: result.order.id,
-      reference: result.order.reference,
-      status: result.order.status,
-    },
-    nextStep: "identification",
-  });
+  return paidResponse(result.order);
 }

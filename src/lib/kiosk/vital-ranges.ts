@@ -42,7 +42,7 @@ export const VITAL_RANGE_COPY = {
   bloodPressure: "Presión normal adulto en reposo: 90–140 / 60–90 mmHg",
   heartRate: "Pulso normal adulto en reposo: 60 – 100 lpm",
   spo2: "Oxígeno (SpO₂) normal: 94 – 100 %",
-  temperature: "Temperatura axilar normal: 36.0 – 37.5 °C",
+  temperature: "Temperatura en la frente, normal: 36.0 – 37.5 °C",
   ecg: "ECG: el ritmo lo interpreta el equipo / médico",
   disclaimer:
     "Rangos orientativos para adultos en reposo. El médico interpreta su caso completo.",

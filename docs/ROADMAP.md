@@ -23,7 +23,7 @@ Documentos clínicos, dispositivos médicos, bitácora, catálogos extendidos, n
 ## Fase 4 — Portal avanzado e integraciones ✅
 
 1. ✅ Autocita en portal (`/portal/citas/nueva`) + pago pendiente automático
-2. ✅ Stripe Checkout — pagos en línea (`STRIPE_SECRET_KEY` + webhook)
+2. ✅ Stripe Checkout — portal + kiosco estación (`STRIPE_SECRET_KEY` + webhook)
 3. ✅ Daily.co + recordatorios de videollamada en notificaciones
 4. ✅ Mensajería paciente–clínica (`/portal/mensajes`, `/mensajes`)
 5. ✅ API ingest hardware — `POST /api/device-readings/ingest` con `x-api-key`

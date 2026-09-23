@@ -12,7 +12,7 @@ import {
 
 /**
  * Al emitir receta: se envía al correo; el paciente elige si también quiere impresión.
- * SI o NO terminan la sesión y vuelven al inicio del kiosco.
+ * SÍ o NO terminan la sesión y vuelven al inicio del kiosco.
  */
 export function DownloadPrescriptionButton({
   prescriptionId,
@@ -29,6 +29,9 @@ export function DownloadPrescriptionButton({
   const [error, setError] = useState<string | null>(null);
   const [emailStatus, setEmailStatus] = useState<"sending" | "sent" | "failed">("sending");
   const [sentTo, setSentTo] = useState<string | null>(email?.trim() || null);
+  const [previewError, setPreviewError] = useState(false);
+
+  const previewUrl = `/api/station/prescription/${prescriptionId}/print`;
 
   useEffect(() => {
     let cancelled = false;
@@ -43,8 +46,6 @@ export function DownloadPrescriptionButton({
         const data = (await res.json().catch(() => null)) as {
           error?: string;
           email?: string;
-          alreadySent?: boolean;
-          skipped?: boolean;
         } | null;
         if (cancelled) return;
         if (!res.ok) {
@@ -123,20 +124,35 @@ export function DownloadPrescriptionButton({
   const displayEmail = sentTo || email || "su correo registrado";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col justify-center gap-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {folio ? (
         <p className={`shrink-0 text-center ${kioskHelperClassName}`}>
           Folio <strong className="text-slate-800">{folio}</strong>
         </p>
       ) : null}
 
-      <div className="rounded-2xl border-2 border-[#1d6eb8]/35 bg-[#f0f7ff] px-5 py-6 text-center">
+      <div className="h-[22vh] min-h-[140px] shrink-0 overflow-hidden rounded-2xl border-2 border-slate-200 bg-white">
+        {previewError ? (
+          <p className={`flex h-full items-center justify-center p-6 text-center ${kioskBodyClassName}`}>
+            La receta se enviará a su correo. Si desea ver el detalle, revíselo ahí.
+          </p>
+        ) : (
+          <iframe
+            title="Receta médica"
+            src={previewUrl}
+            className="h-full w-full border-0 bg-white"
+            onError={() => setPreviewError(true)}
+          />
+        )}
+      </div>
+
+      <div className="shrink-0 rounded-2xl border-2 border-[#1d6eb8]/35 bg-[#f0f7ff] px-5 py-4 text-center">
         <p className={`${kioskTitleClassName} text-[#0b4f8a]`}>Su receta por correo</p>
-        <p className={`mt-4 ${kioskBodyClassName}`}>
+        <p className={`mt-2 ${kioskBodyClassName}`}>
           La receta <strong>será enviada a su correo electrónico</strong>:
         </p>
-        <p className="mt-3 break-all text-2xl font-bold text-slate-900 xl:text-3xl">{displayEmail}</p>
-        <p className={`mt-4 ${kioskHelperClassName}`}>
+        <p className="mt-2 break-all text-2xl font-bold text-slate-900 xl:text-3xl">{displayEmail}</p>
+        <p className={`mt-2 ${kioskHelperClassName}`}>
           {emailStatus === "sending"
             ? "Enviando receta…"
             : emailStatus === "sent"
@@ -145,11 +161,11 @@ export function DownloadPrescriptionButton({
         </p>
       </div>
 
-      <div className="rounded-2xl border-2 border-slate-200 bg-white px-5 py-6 text-center">
+      <div className="shrink-0 rounded-2xl border-2 border-slate-200 bg-white px-5 py-4 text-center">
         <p className={`font-bold text-slate-900 ${kioskBodyClassName}`}>
           ¿Desea también una copia impresa de su receta?
         </p>
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <KioskPrimaryButton
             className="w-full !min-h-[80px] !text-3xl"
             disabled={busy}
@@ -165,13 +181,13 @@ export function DownloadPrescriptionButton({
             {busy ? "…" : "NO"}
           </KioskSecondaryButton>
         </div>
-        <p className={`mt-4 ${kioskHelperClassName}`}>
+        <p className={`mt-3 ${kioskHelperClassName}`}>
           Cualquier opción termina la atención y regresa a la pantalla inicial.
         </p>
       </div>
 
       {error ? (
-        <p role="alert" className={`text-center font-medium text-rose-700 ${kioskHelperClassName}`}>
+        <p role="alert" className={`shrink-0 text-center font-medium text-rose-700 ${kioskHelperClassName}`}>
           {error}
         </p>
       ) : null}

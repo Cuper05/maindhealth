@@ -16,6 +16,8 @@ export type VitalDeviceExtras = {
   ecgStatus?: string | null;
   ecgRhythm?: string | null;
   ecgHeartRate?: string | null;
+  ecgSource?: string | null;
+  ecgKardiaReady?: string | null;
   source?: "kiosk" | "manual" | "device" | null;
 };
 

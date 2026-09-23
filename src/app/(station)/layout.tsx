@@ -9,7 +9,7 @@ export const viewport: Viewport = {
 
 export default function StationKioskLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen touch-pan-x touch-pan-y overscroll-none antialiased selection:bg-[#1d6eb8]/20">
+    <div className="min-h-screen cursor-none touch-pan-x touch-pan-y overscroll-none antialiased selection:bg-[#1d6eb8]/20 [&_*]:cursor-none">
       {children}
     </div>
   );

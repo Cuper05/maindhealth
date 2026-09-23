@@ -14,6 +14,7 @@ import { formatPersonName } from "@/lib/format/name";
 import {
   appBaseUrl,
   buildTeleconsultaVoiceTwiml,
+  extraTeleconsultaAlertPhones,
   isTwilioConfigured,
   normalizePhoneE164,
   placeVoiceCall,
@@ -37,33 +38,71 @@ function parseQueue(queueJson: string): number[] {
 }
 
 /**
+ * If a doctor has no phone, persist the station fallback so Twilio can ring.
+ */
+export async function ensureDoctorsHaveAlertPhones(): Promise<string | null> {
+  const fallback = extraTeleconsultaAlertPhones()[0] ?? null;
+  if (!fallback) return null;
+
+  const doctors = await db
+    .select({
+      id: usersTable.id,
+      phone: usersTable.phone,
+      teleconsultaAvailable: usersTable.teleconsultaAvailable,
+    })
+    .from(usersTable)
+    .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
+    .where(and(eq(rolesTable.code, "doctor"), eq(usersTable.active, true)));
+
+  for (const doctor of doctors) {
+    const phone = normalizePhoneE164(doctor.phone);
+    if (phone && doctor.teleconsultaAvailable) continue;
+    await db
+      .update(usersTable)
+      .set({
+        phone: phone ?? fallback,
+        teleconsultaAvailable: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(usersTable.id, doctor.id));
+  }
+
+  return fallback;
+}
+
+/**
  * Ordered queue: assigned → responsible → remaining active doctors
- * with phone and teleconsultaAvailable.
+ * with a callable phone. Assigned/preferred doctors are included even if
+ * they opted out of the on-call flag.
  */
 export async function buildDoctorAlertQueue(input: {
   assignedDoctorId?: number | null;
   responsibleDoctorId?: number | null;
   preferredIds?: number[];
 }): Promise<number[]> {
+  await ensureDoctorsHaveAlertPhones();
+
   const doctors = await db
     .select({
       id: usersTable.id,
       phone: usersTable.phone,
+      teleconsultaAvailable: usersTable.teleconsultaAvailable,
     })
     .from(usersTable)
     .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
-    .where(
-      and(
-        eq(rolesTable.code, "doctor"),
-        eq(usersTable.active, true),
-        eq(usersTable.teleconsultaAvailable, true),
-        isNotNull(usersTable.phone),
-        ne(usersTable.phone, ""),
-      ),
-    )
+    .where(and(eq(rolesTable.code, "doctor"), eq(usersTable.active, true)))
     .orderBy(asc(usersTable.lastNamePaternal), asc(usersTable.firstName));
 
-  const withPhone = doctors.filter((d) => normalizePhoneE164(d.phone));
+  const forced = new Set<number>(
+    [input.assignedDoctorId, input.responsibleDoctorId, ...(input.preferredIds ?? [])].filter(
+      (id): id is number => typeof id === "number" && id > 0,
+    ),
+  );
+
+  const withPhone = doctors.filter((d) => {
+    if (!normalizePhoneE164(d.phone)) return false;
+    return d.teleconsultaAvailable || forced.has(d.id);
+  });
   const idSet = new Set(withPhone.map((d) => d.id));
 
   const ordered: number[] = [];
@@ -103,6 +142,15 @@ async function createJoinToken(input: {
   };
 }
 
+function uniquePhones(...raw: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  for (const value of raw) {
+    const phone = normalizePhoneE164(value);
+    if (phone && !out.includes(phone)) out.push(phone);
+  }
+  return out;
+}
+
 async function alertDoctorChannels(input: {
   appointmentId: number;
   doctorUserId: number;
@@ -110,6 +158,7 @@ async function alertDoctorChannels(input: {
   attemptId: number;
   patientLabel: string;
   redFlags: string[];
+  extraPhones?: boolean;
 }): Promise<{
   voiceCallSid: string | null;
   smsSid: string | null;
@@ -126,7 +175,12 @@ async function alertDoctorChannels(input: {
     .from(usersTable)
     .where(eq(usersTable.id, input.doctorUserId));
 
-  const phone = doctor?.phone ?? "";
+  const phones = uniquePhones(
+    doctor?.phone,
+    ...(input.extraPhones === false ? [] : extraTeleconsultaAlertPhones()),
+  );
+  const phone = phones[0] ?? "";
+  const extraDestinations = phones.slice(1);
   const doctorName = doctor ? formatPersonName(doctor) : "Doctor";
   const flags =
     input.redFlags.length > 0
@@ -164,6 +218,11 @@ async function alertDoctorChannels(input: {
       ),
     ]);
 
+  if (!phone) {
+    errors.push("sin teléfono de médico ni TELECONSULTA_ALERT_PHONES");
+    return { voiceCallSid, smsSid, whatsappSid, errors };
+  }
+
   const voice = await timed(
     placeVoiceCall({ to: phone, twimlUrl: voiceUrl, twiml }),
     10_000,
@@ -181,6 +240,11 @@ async function alertDoctorChannels(input: {
   if (wa.ok) whatsappSid = wa.sid;
   else if (!wa.skipped) errors.push(`whatsapp: ${wa.error}`);
 
+  for (const extra of extraDestinations) {
+    await timed(placeVoiceCall({ to: extra, twimlUrl: voiceUrl, twiml }), 10_000, "voz-extra");
+    await timed(sendSms({ to: extra, body: smsBody }), 8_000, "sms-extra");
+  }
+
   return { voiceCallSid, smsSid, whatsappSid, errors };
 }
 
@@ -189,6 +253,7 @@ async function alertDoctorInEscalation(input: {
   appointmentId: number;
   doctorUserId: number;
   redFlags: string[];
+  extraPhones?: boolean;
 }): Promise<void> {
   const [patientRow] = await db
     .select({
@@ -233,6 +298,7 @@ async function alertDoctorInEscalation(input: {
       attemptId: attempt.id,
       patientLabel,
       redFlags: input.redFlags,
+      extraPhones: input.extraPhones,
     });
 
     await db
@@ -277,6 +343,7 @@ export async function startTeleconsultaEscalation(input: {
   responsibleDoctorId?: number | null;
   preferredIds?: number[];
   redFlags?: string[];
+  force?: boolean;
 }): Promise<{ started: boolean; queueSize: number; reason?: string }> {
   const [existing] = await db
     .select({
@@ -289,8 +356,18 @@ export async function startTeleconsultaEscalation(input: {
   if (existing?.status === "joined") {
     return { started: false, queueSize: 0, reason: "already_joined" };
   }
-  if (existing?.status === "active") {
-    return { started: false, queueSize: 0, reason: "already_active" };
+  if (existing?.status === "active" && !input.force) {
+    const [attempt] = await db
+      .select({
+        voiceCallSid: teleconsultaAlertAttemptsTable.voiceCallSid,
+        smsSid: teleconsultaAlertAttemptsTable.smsSid,
+      })
+      .from(teleconsultaAlertAttemptsTable)
+      .where(eq(teleconsultaAlertAttemptsTable.escalationId, existing.id))
+      .limit(1);
+    if (attempt?.voiceCallSid || attempt?.smsSid) {
+      return { started: false, queueSize: 0, reason: "already_active" };
+    }
   }
 
   const queue = await buildDoctorAlertQueue({
@@ -348,6 +425,7 @@ export async function startTeleconsultaEscalation(input: {
     appointmentId: input.appointmentId,
     doctorUserId: firstDoctorId,
     redFlags,
+    extraPhones: true,
   });
 
   return { started: true, queueSize: queue.length };

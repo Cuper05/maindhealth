@@ -119,6 +119,13 @@ export async function buildPrescriptionPrintHtml(data: PrescriptionPdfData): Pro
     .sign { margin-top: 36px; text-align: center; }
     .sign p { margin: 2px 0; }
     .muted { color: #64748b; font-size: 9pt; }
+    @media screen {
+      body { font-size: 16pt; line-height: 1.4; }
+      .brand { font-size: 26pt; }
+      .sub { font-size: 16pt; }
+      h2 { font-size: 18pt; }
+      .muted { font-size: 12pt; }
+    }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }

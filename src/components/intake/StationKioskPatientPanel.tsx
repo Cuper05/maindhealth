@@ -6,6 +6,7 @@ type Props = {
   vitalsDraft?: KioskVitalsDraft | null;
   assessmentDraft?: KioskAssessmentDraft | null;
   paymentStatus?: string | null;
+  appointmentId?: number | null;
 };
 
 function str(v: unknown): string | null {
@@ -23,6 +24,7 @@ export function StationKioskPatientPanel({
   vitalsDraft,
   assessmentDraft,
   paymentStatus,
+  appointmentId,
 }: Props) {
   const clinical = clinicalDraft ?? {};
   const chief = str(clinical.chiefComplaint);
@@ -121,8 +123,29 @@ export function StationKioskPatientPanel({
                 <p>
                   ECG: {vitals.ecgRhythm ?? vitals.ecgStatus}
                   {vitals.ecgHeartRate ? ` · FC ${vitals.ecgHeartRate}` : ""}
+                  {vitals.ecgSource === "kardia" ? " · KardiaMobile" : ""}
                 </p>
               )}
+              {appointmentId && vitals.ecgKardiaReady === "1" ? (
+                <div className="sm:col-span-2 mt-2 overflow-hidden rounded-lg border border-teal-200 bg-white">
+                  <p className="px-3 py-2 text-sm font-medium text-teal-900">
+                    Trazado Kardia (PDF / imagen)
+                  </p>
+                  {vitals.ecgKardiaMime?.startsWith("image/") ? (
+                    <img
+                      src={`/api/station/kardia-file?appointmentId=${appointmentId}`}
+                      alt="ECG KardiaMobile"
+                      className="max-h-[28rem] w-full object-contain"
+                    />
+                  ) : (
+                    <iframe
+                      title="ECG KardiaMobile"
+                      src={`/api/station/kardia-file?appointmentId=${appointmentId}`}
+                      className="h-[28rem] w-full border-0"
+                    />
+                  )}
+                </div>
+              ) : null}
             </dd>
           </div>
         ) : null}

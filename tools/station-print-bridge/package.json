@@ -1,0 +1,12 @@
+{
+  "name": "station-print-bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "printers": "node -e \"import('pdf-to-printer').then(m=>m.getPrinters().then(p=>console.log(JSON.stringify(p,null,2))))\""
+  },
+  "dependencies": {
+    "pdf-to-printer": "^5.6.0"
+  }
+}

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.0.10"],
   // pdfkit reads AFM/ICC files from node_modules at runtime; keep it external
   // and force those assets into the serverless trace (otherwise Vercel 500s / no email PDF).
   serverExternalPackages: ["pdfkit", "qrcode"],

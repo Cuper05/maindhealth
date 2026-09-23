@@ -59,7 +59,7 @@ npm run once
 | `MAINHEALTH_API_URL` | Default `https://health.maindsteel.com.mx` |
 | `DEVICE_SERIAL` | Default `22040300012` |
 | `CMS50_PORT` | Ej. `COM4` |
-| `CMS50_BAUD` | Default `115200` (prueba `19200` si falla) |
+| `CMS50_BAUD` | Default `19200` (este CMS50D+ responde ahí; si falla prueba `115200`) |
 
 ## Nota
 

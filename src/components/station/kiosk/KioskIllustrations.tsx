@@ -101,12 +101,12 @@ export function ThermometerIllustration() {
     <figure className="mx-auto flex h-full min-h-0 w-full max-w-md flex-col items-center justify-center gap-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/kiosk/thermometer-axilla-placement.png"
-        alt="Cómo medir la temperatura: termómetro en la axila, brazo pegado al cuerpo, punta contra la piel"
+        src="/kiosk/thermometer-forehead.png"
+        alt="Termómetro de frente, a dos o tres centímetros de la frente, sin tocar la piel. Primero el botón de encendido y luego START."
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-base font-semibold leading-snug text-slate-700 xl:text-lg">
-        Coloque el termómetro en la axila
+        Encienda, espere, colóquelo en la frente y pulse START
       </figcaption>
     </figure>
   );

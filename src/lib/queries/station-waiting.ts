@@ -28,8 +28,8 @@ function draftFlags(draft: unknown): {
 /**
  * Cierra esperas abandonadas por antigüedad o ya marcadas callEnded.
  * NO cierra solo porque la Dell abrió video: eso mataba la espera mientras
- * el médico aún entraba (y hacía callEnded=true → sacaba a la Dell de la sala).
- * El bucle de reabrir se evita filtrando videoOpened en la cola del autopilot.
+ * el médico aún entraba. El autopilot deja de reabrir cuando está en /sala
+ * o cuando callEnded es true — no por videoOpened.
  */
 export async function expireStaleWaitingDoctorSessions(): Promise<number> {
   const cutoff = new Date(Date.now() - WAITING_DOCTOR_MAX_AGE_MS);
@@ -116,10 +116,14 @@ export async function dismissWaitingDoctorForAppointment(
   return rows.length;
 }
 
-const WAITING_CACHE_MS = 4000;
+const WAITING_CACHE_MS = 1500;
 const EXPIRE_EVERY_MS = 60_000;
 let waitingCache: { at: number; data: WaitingDoctorRow[] } | null = null;
 let lastExpireAt = 0;
+
+export function invalidateWaitingDoctorCache() {
+  waitingCache = null;
+}
 
 type WaitingDoctorRow = {
   sessionId: number;
@@ -138,7 +142,7 @@ type WaitingDoctorRow = {
 
 /**
  * Pacientes de kiosk escalados a teleconsulta (status waiting_doctor), solo recientes
- * y que la Dell aún no haya abierto (si ya abrió, se archivan en expire).
+ * y cuya llamada no ha terminado. La Dell debe abrir (o reabrir) esas salas.
  */
 export async function getWaitingDoctorStationSessions() {
   if (waitingCache && Date.now() - waitingCache.at < WAITING_CACHE_MS) {
@@ -190,17 +194,11 @@ export async function getWaitingDoctorStationSessions() {
     )
     .orderBy(desc(stationKioskSessionsTable.updatedAt));
 
-  // Solo esperas “nuevas”: la Dell aún no abrió la sala.
+  // Sigue en cola mientras el paciente espera médico. videoOpened / video_ready
+  // no se ocultan: si la Dell volvió a standby, debe reabrir sola.
   const fresh = rows.filter((row) => {
     const flags = draftFlags(row.assessmentDraft);
-    if (flags.videoOpened || flags.doctorPresent || flags.callEnded) return false;
-    if (
-      row.deviceStatus === "video_ready" ||
-      row.deviceStatus === "doctor_live" ||
-      row.deviceStatus === "call_ended"
-    ) {
-      return false;
-    }
+    if (flags.callEnded || row.deviceStatus === "call_ended") return false;
     return true;
   });
 

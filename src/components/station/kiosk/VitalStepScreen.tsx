@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { VitalBand, VitalReadingView } from "@/lib/kiosk/vital-ranges";
 import { bandTone, VITAL_RANGE_COPY } from "@/lib/kiosk/vital-ranges";
 import { VitalIllustration, type VitalIllustrationType } from "./KioskIllustrations";
@@ -88,7 +89,8 @@ export function VitalStepScreen({
    * Layout de una sola pantalla: instrucciones en 2 columnas + botones grandes
    * aprovechando todo el alto disponible (sin achicar el tacto).
    */
-  compact = false,
+   compact = false,
+  extra,
 }: {
   stepNumber: number;
   totalSteps: number;
@@ -121,6 +123,7 @@ export function VitalStepScreen({
   /** Permite un segundo toque mientras espera (p. ej. «Ya vi el resultado»). */
   captureCanConfirm?: boolean;
   compact?: boolean;
+  extra?: ReactNode;
 }) {
   const showCapture = Boolean(onCapture) && deviceStatus !== "done";
   const continueBlocked =
@@ -189,6 +192,8 @@ export function VitalStepScreen({
             ) : null}
           </div>
         ) : null}
+
+        {extra}
 
         {showReading && readingViews && readingViews.length > 0 ? (
           <ReadingVerdict views={readingViews} />

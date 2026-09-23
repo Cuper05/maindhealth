@@ -22,35 +22,36 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
-  "Toque Leer presión ahora. El cable USB se queda puesto.",
-  "Coloque el brazalete en el brazo izquierdo, a la altura del corazón, y pulse inicio en el aparato.",
-  "Cuando vea el número, toque Ya vi el resultado. Luego retire el brazalete y colóquelo en su lugar.",
+  "Toque Leer presión ahora.",
+  "Coloque el brazalete del monitor en el brazo izquierdo, a la altura del corazón, y pulse inicio o NIBP en el monitor.",
+  "Cuando el kiosko reciba el número, retire el brazalete y colóquelo en su lugar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
   "Paso tres: oxígeno y pulso.",
-  "Encienda el oxímetro, coloque el dedo hasta el fondo y toque Leer oxímetro ahora para iniciar.",
+  "Coloque el dedo en el sensor de oxígeno del monitor y toque Leer oxímetro ahora.",
   "Espere la lectura estable.",
-  "Al terminar, retire el oxímetro y colóquelo en su lugar asignado.",
+  "Al terminar, retire el sensor y déjelo en su lugar asignado.",
 ] as const;
 
 /** Nota visible/hablada: uñas largas o artificiales. */
 export const OXYGEN_NAIL_TIP =
   "Si tiene uñas largas o artificiales, coloque el dedo de lado para obtener una buena lectura.";
 
+/** Mismas frases, palabra por palabra, que las tarjetas del paso en pantalla. */
 export const TEMPERATURE_VOICE_STEPS = [
-  "Paso cuatro: temperatura.",
-  "Tome el termómetro de su lugar asignado.",
-  "Colóquelo en la axila, bien pegado a la piel, y baje el brazo para sujetarlo.",
-  "Manténgalo así hasta que termine la medición.",
-  "Al terminar, retire el termómetro y colóquelo de nuevo en su lugar asignado.",
+  "Tome el termómetro de su lugar.",
+  "Enciéndalo y espere unos segundos.",
+  "Póngalo en la frente, a 2 cm.",
+  "Pulse START en el termómetro.",
+  "Deje el termómetro en su lugar.",
 ] as const;
 
 export const ECG_VOICE_STEPS = [
-  "Paso cinco: electrocardiograma de un solo canal.",
-  "Toque Leer electrocardiograma. El cable USB se queda puesto.",
-  "Siéntese y ponga los dedos de ambas manos sobre las placas metálicas unos treinta segundos. Si pide guardar, acepte.",
-  "Cuando termine, toque Ya terminó.",
+  "Paso cinco: electrocardiograma.",
+  "Con KardiaMobile, escanee el código con el celular, tome el ECG en la app Kardia y suba el PDF.",
+  "El aparato USB de la estación no mide con el cable puesto. Puede omitir ese botón.",
+  "Cuando el kiosko reciba el PDF, toque Continuar.",
 ] as const;
 
 /** Frases humanas por paso — guía hablada del kiosko táctil. */
@@ -82,7 +83,7 @@ export const KIOSK_VOICE_SCRIPTS: Partial<Record<KioskStep, string>> = {
   analysis:
     "Un momento, por favor. El equipo médico de la estación está revisando su información con cuidado. Quédese aquí.",
   result:
-    "Su receta se enviará a su correo electrónico. Indique si también desea una copia impresa: toque Sí o No. Cualquier opción termina la atención y vuelve al inicio.",
+    "La revisión ya terminó. Aquí está el resultado. Léalo con calma. Cuando esté listo, toque Continuar para ver su receta.",
   waiting: `Respire despacio. Mire la pantalla principal frente a usted, donde está la cámara. Hable hacia el micrófono de la estación. Un doctor se conectará pronto. Aquí en la pantalla táctil ya no necesita tocar nada.`,
   consultation:
     "La teleconsulta está en la pantalla principal. Mire a la cámara y hable con claridad hacia el micrófono. Está en buenas manos.",
@@ -92,7 +93,9 @@ export const KIOSK_VOICE_SCRIPTS: Partial<Record<KioskStep, string>> = {
 export const CRISIS_PAY_FIRST_VOICE =
   "Entendido. Primero realizaremos el pago de la consulta general. Escriba su correo, genere el código QR y páguelo con su celular. Cuando el pago quede aprobado, avisaremos al médico de inmediato.";
 
-/** Tras mostrar el QR de Stripe: guía mientras espera el pago en el celular. */
+/** Tras Continuar: receta, correo automático, Sí/No para imprimir. */
+export const RESULT_PRESCRIPTION_VOICE =
+  "Su receta se enviará a su correo electrónico. Indique si también desea una copia impresa: toque Sí o No. Cualquier opción termina la atención y vuelve al inicio.";
 export const STRIPE_QR_WAITING_VOICE =
   "Escanee el código QR con su celular y complete el pago allí. Puede escribir el número de tarjeta en su teléfono. Esta pantalla detectará el pago sola; no hace falta acercar la tarjeta a ningún terminal.";
 
@@ -122,7 +125,7 @@ export const SCALE_SUCCESS_VOICE =
 
 /** Al iniciar lectura del oxímetro (botón). */
 export const OXYGEN_START_VOICE =
-  "Iniciamos la lectura del oxímetro. Mantenga el dedo quieto hasta que terminemos. Si tiene uñas largas o artificiales, coloque el dedo de lado para obtener una buena lectura.";
+  "Iniciamos la lectura de oxígeno. Coloque el dedo en el sensor del monitor y manténgalo quieto. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
 
 /** Tras SpO₂/FC: retirar y devolver al lugar. */
 export const OXYGEN_SUCCESS_VOICE =
@@ -130,7 +133,10 @@ export const OXYGEN_SUCCESS_VOICE =
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
-  "El cable se queda puesto. Coloque el brazalete y pulse el botón de inicio en el aparato. Cuando vea el número, toque Ya vi el resultado.";
+  "Coloque el brazalete del monitor y pulse NIBP o inicio en el monitor. El kiosko tomará el número solo.";
+
+export const TEMP_START_VOICE =
+  "Tome el termómetro de su lugar. Enciéndalo y espere unos segundos. Póngalo en la frente, a 2 cm. Pulse START en el termómetro.";
 
 /** Tras presión arterial: retirar brazalete y devolver. */
 export const BP_SUCCESS_VOICE =
@@ -138,11 +144,11 @@ export const BP_SUCCESS_VOICE =
 
 /** Tras temperatura: retirar termómetro y devolver. */
 export const TEMP_SUCCESS_VOICE =
-  "Listo. Terminó la medición de temperatura. Retire el termómetro de la axila y colóquelo de nuevo en su lugar asignado. Luego toque Continuar.";
+  "Listo. La temperatura ya se registró. Deje el termómetro en su lugar. Luego toque Continuar.";
 
 /** Al iniciar lectura del ECG (botón). */
 export const ECG_START_VOICE =
-  "El cable se queda puesto. Ponga los dedos de ambas manos en las placas unos treinta segundos. Si pide guardar, acepte. Cuando termine, toque Ya terminó.";
+  "Si usa KardiaMobile, escanee el código, tome el electrocardiograma en el celular y suba el PDF. El aparato USB de la estación no mide con el cable puesto.";
 
 /** Tras ECG. */
 export const ECG_SUCCESS_VOICE =

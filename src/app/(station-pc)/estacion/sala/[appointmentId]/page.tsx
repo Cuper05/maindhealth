@@ -72,7 +72,7 @@ export default async function EstacionSalaPage({
     })
     .from(appointmentsTable)
     .innerJoin(patientsTable, eq(appointmentsTable.patientId, patientsTable.id))
-    .innerJoin(usersTable, eq(appointmentsTable.doctorId, usersTable.id))
+    .leftJoin(usersTable, eq(appointmentsTable.doctorId, usersTable.id))
     .where(eq(appointmentsTable.id, appointmentId));
 
   if (!appointment) notFound();
@@ -90,11 +90,13 @@ export default async function EstacionSalaPage({
     lastNamePaternal: appointment.patientLastNamePaternal,
     lastNameMaternal: appointment.patientLastNameMaternal,
   });
-  const doctorName = formatPersonName({
-    firstName: appointment.doctorFirstName,
-    lastNamePaternal: appointment.doctorLastNamePaternal,
-    lastNameMaternal: appointment.doctorLastNameMaternal,
-  });
+  const doctorName = appointment.doctorFirstName
+    ? formatPersonName({
+        firstName: appointment.doctorFirstName,
+        lastNamePaternal: appointment.doctorLastNamePaternal ?? "",
+        lastNameMaternal: appointment.doctorLastNameMaternal,
+      })
+    : "Sin asignar";
   const stationUserName = `Paciente — ${patientName}`;
 
   const roomName = parseDailyRoomName(meetingUrl);

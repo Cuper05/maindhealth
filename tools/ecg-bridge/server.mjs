@@ -1,12 +1,16 @@
 /**
  * Bridge ECG Lepu/Creative PC-80B (Easy ECG Monitor).
- * Disco USB "EASY ECG" con .SCP. El cable se queda puesto: la PC silencia el USB,
- * el paciente mide, luego se reactiva y se lee el registro nuevo.
+ * Disco USB "EASY ECG" con .SCP. El cable se queda puesto: se silencia solo
+ * el USB del ECG (no el hub), el paciente mide, se reactiva y se lee el .SCP.
  * http://127.0.0.1:3928
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.ECG_BRIDGE_PORT || 3928);
@@ -204,12 +208,17 @@ function parseScp(buf) {
   };
 }
 
-function parseLatest(root, afterMs) {
+function fileKey(f) {
+  return `${path.basename(f.filePath).toLowerCase()}|${f.size}|${Math.round(f.mtimeMs)}`;
+}
+
+function parseLatest(root, afterMs, knownKeys = []) {
   const files = listScpFiles(root);
-  const fresh = afterMs
-    ? files.filter((f) => f.mtimeMs >= afterMs - 2000)
-    : files;
-  const pick = (fresh.length ? fresh : files)[0];
+  const fresh = files.filter((f) => {
+    if (knownKeys.length && !knownKeys.includes(fileKey(f))) return true;
+    return afterMs ? f.mtimeMs > afterMs : false;
+  });
+  const pick = fresh[0];
   if (!pick) return null;
   const buf = fs.readFileSync(pick.filePath);
   const parsed = parseScp(buf);
@@ -219,6 +228,68 @@ function parseLatest(root, afterMs) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const BASELINE_PATH = path.join(
+  process.env.LOCALAPPDATA || ".",
+  "MaindHealth",
+  "ecg-baseline.json",
+);
+
+function snapshotBaseline() {
+  const root = findEasyEcgRoot();
+  if (root) {
+    const files = listScpFiles(root);
+    const snap = {
+      newestMtime: files[0]?.mtimeMs ?? 0,
+      keys: files.map(fileKey),
+    };
+    try {
+      fs.mkdirSync(path.dirname(BASELINE_PATH), { recursive: true });
+      fs.writeFileSync(BASELINE_PATH, JSON.stringify(snap));
+    } catch {
+      /* ignore */
+    }
+    return snap;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(BASELINE_PATH, "utf8"));
+  } catch {
+    return { newestMtime: 0, keys: [] };
+  }
+}
+
+async function waitUntil(pred, ms, stepMs = 400) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (pred()) return true;
+    await sleep(stepMs);
+  }
+  return pred();
+}
+
+async function runSchtask(name) {
+  await execFileAsync("schtasks.exe", ["/Run", "/TN", name], {
+    windowsHide: true,
+    timeout: 20000,
+  });
+  await sleep(2000);
+}
+
+async function muteEcgUsb() {
+  await runSchtask("MaindHealthEcgUsbDisable");
+}
+
+async function unmuteEcgUsb() {
+  await runSchtask("MaindHealthEcgUsbEnable");
+  try {
+    await execFileAsync("pnputil.exe", ["/scan-devices"], {
+      timeout: 15000,
+      windowsHide: true,
+    });
+  } catch {
+    /* ignore */
+  }
 }
 
 let progress = {
@@ -236,7 +307,7 @@ function setProgress(phase, message) {
 async function waitForPatientDone(deadline) {
   setProgress(
     "measure",
-    "Cable puesto. Ponga los dedos en las placas unos 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
+    "Cable puesto. Encienda el aparato, ponga los dedos ~30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
   );
   while (Date.now() < deadline) {
     if (patientDone) {
@@ -248,31 +319,8 @@ async function waitForPatientDone(deadline) {
 }
 
 async function readSession() {
-  const deadline = Date.now() + READ_TIMEOUT_MS;
-  patientDone = false;
-  const root = findEasyEcgRoot();
-  if (!root) {
-    throw new Error("No se ve el disco EASY ECG. Encienda el PC-80B y deje el USB puesto.");
-  }
-
-  const before = listScpFiles(root);
-  const newestBefore = before[0]?.mtimeMs ?? 0;
-
-  setProgress(
-    "measure",
-    "Cable puesto. Ponga los dedos en las placas unos 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
-  );
-  await waitForPatientDone(deadline);
-  setProgress("dump", "Leyendo el electrocardiograma…");
-  const fileDeadline = Date.now() + 25000;
-  while (Date.now() < fileDeadline) {
-    const disk = findEasyEcgRoot();
-    const parsed = parseLatest(disk, newestBefore + 1);
-    if (parsed?.heartRate) return parsed;
-    await sleep(800);
-  }
   throw new Error(
-    "Sin registro nuevo. Mida 30 s, acepte guardar si lo pide, y toque Ya terminó.",
+    "El ECG está en Connecting with PC. Windows no corta los 5 V del USB, así que no puede medir con el cable puesto. Omita este paso.",
   );
 }
 
@@ -356,6 +404,13 @@ const server = http.createServer(async (req, res) => {
       setProgress("idle", message);
       sendJson(res, 503, { ok: false, error: message });
     } finally {
+      if (!findEasyEcgRoot()) {
+        try {
+          await unmuteEcgUsb();
+        } catch {
+          /* no dejar el ECG silenciado si falló la lectura */
+        }
+      }
       readingLock = false;
     }
     return;
@@ -365,5 +420,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[ecg-bridge] http://${HOST}:${PORT} (USB silenciado por software, cable puesto)`);
+  console.log(`[ecg-bridge] http://${HOST}:${PORT} (silencia USB del ECG, cable puesto)`);
 });

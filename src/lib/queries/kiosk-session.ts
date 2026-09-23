@@ -5,9 +5,13 @@ import type {
   KioskAssessmentDraft,
   KioskVitalsDraft,
 } from "@/lib/db/schema/station-kiosk";
+import { publicVitalsDraft } from "@/lib/kiosk/kardia";
 
 /** Última sesión de kiosco ligada a una cita (para vista del médico). */
-export async function getKioskSessionByAppointment(appointmentId: number) {
+export async function getKioskSessionByAppointment(
+  appointmentId: number,
+  opts?: { includeKardiaFile?: boolean },
+) {
   const [row] = await db
     .select({
       id: stationKioskSessionsTable.id,
@@ -26,10 +30,11 @@ export async function getKioskSessionByAppointment(appointmentId: number) {
 
   if (!row) return null;
 
+  const raw = (row.vitalsDraft ?? null) as KioskVitalsDraft | null;
   return {
     ...row,
     clinicalDraft: (row.clinicalDraft ?? {}) as Record<string, unknown>,
-    vitalsDraft: (row.vitalsDraft ?? null) as KioskVitalsDraft | null,
+    vitalsDraft: opts?.includeKardiaFile ? raw : publicVitalsDraft(raw),
     assessmentDraft: (row.assessmentDraft ?? null) as KioskAssessmentDraft | null,
   };
 }

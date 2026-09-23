@@ -1,6 +1,6 @@
 # Detiene los bridges MaindHealth (oxímetro, impresora, báscula).
 
-$ports = @(3927, 3929, 3930)
+$ports = @(3927, 3929, 3930, 3933)
 foreach ($port in $ports) {
   try {
     $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue

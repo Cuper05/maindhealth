@@ -308,12 +308,24 @@ async function main() {
         lastNamePaternal: "Méndez",
         lastNameMaternal: "López",
         email: "doctor@maindhealth.local",
+        phone: "+524491523007",
+        teleconsultaAvailable: true,
         passwordHash,
         specialty: "Medicina general",
         professionalLicense: "12345678",
       })
       .returning();
     console.log("Médico demo creado");
+  } else if (!doctorUser.phone) {
+    await db
+      .update(usersTable)
+      .set({
+        phone: "+524491523007",
+        teleconsultaAvailable: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(usersTable.id, doctorUser.id));
+    console.log("Médico demo: teléfono de alerta teleconsulta asignado");
   }
 
   let [patient] = await db

@@ -21,6 +21,7 @@ import { notifyDoctorsStationTeleconsulta } from "@/lib/kiosk/notify-escalation"
 import { isVitalsComplete } from "@/lib/kiosk/vitals";
 import { buildPrescriptionFolio } from "@/lib/prescriptions/folio";
 import { getActiveDoctors, getAppointmentStatusByCode } from "@/lib/queries/catalogs";
+import { invalidateWaitingDoctorCache } from "@/lib/queries/station-waiting";
 import { createDailyRoom } from "@/lib/video/daily";
 import { computeBmi } from "@/lib/validators/vitals";
 
@@ -87,6 +88,8 @@ export async function completeKioskVisit(sessionToken: string) {
           ecgStatus: draft.ecgStatus ?? null,
           ecgRhythm: draft.ecgRhythm ?? null,
           ecgHeartRate: draft.ecgHeartRate ?? null,
+          ecgSource: draft.ecgSource ?? null,
+          ecgKardiaReady: draft.ecgKardiaReady ?? null,
         },
       })
       .returning({ id: vitalSignsTable.id });
@@ -112,6 +115,8 @@ export async function completeKioskVisit(sessionToken: string) {
           ecgStatus: draft.ecgStatus ?? null,
           ecgRhythm: draft.ecgRhythm ?? null,
           ecgHeartRate: draft.ecgHeartRate ?? null,
+          ecgSource: draft.ecgSource ?? null,
+          ecgKardiaReady: draft.ecgKardiaReady ?? null,
         },
       })
       .where(eq(vitalSignsTable.id, vitalSignId));
@@ -275,9 +280,12 @@ async function escalateToDoctor(params: {
       assessmentDraft,
       currentStep: "waiting",
       status: "waiting_doctor",
+      deviceStatus: "waiting",
       updatedAt: new Date(),
     })
     .where(eq(stationKioskSessionsTable.token, sessionToken));
+
+  invalidateWaitingDoctorCache();
 
   revalidatePath("/estacion");
   revalidatePath("/estacion/panel");

@@ -9,6 +9,8 @@ import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
 import { readStationEcg, confirmStationEcgDone } from "@/lib/kiosk/station-ecg";
 import { readStationScale } from "@/lib/kiosk/station-scale";
 import { confirmStationBpDone, readStationBp } from "@/lib/kiosk/station-bp";
+import { probeStationMonitor, readStationMonitor } from "@/lib/kiosk/station-monitor";
+import { readStationThermometer } from "@/lib/kiosk/station-thermometer";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
 import {
   KioskCard,
@@ -26,6 +28,7 @@ import {
   kioskTitleClassName,
 } from "./KioskTheme";
 import { VitalStepScreen } from "./VitalStepScreen";
+import { KardiaStationConnector } from "./KardiaStationConnector";
 import { VitalsSummaryGrid } from "./VitalsPanel";
 import { KioskShell } from "./KioskShell";
 import { kioskTextFieldProps } from "./KioskOnScreenKeyboard";
@@ -37,11 +40,13 @@ import {
   CRISIS_CALM_SCRIPTS,
   CRISIS_PAY_FIRST_VOICE,
   STRIPE_QR_WAITING_VOICE,
+  RESULT_PRESCRIPTION_VOICE,
   TELECONSULTA_ENDED_VOICE,
   ANTECEDENTS_PAGE2_VOICE,
   SCALE_MOUNT_VOICE,
   OXYGEN_START_VOICE,
   BP_START_VOICE,
+  TEMP_START_VOICE,
   ECG_START_VOICE,
   VITAL_DONE_VOICE,
   WEIGHT_HEIGHT_VOICE_STEPS,
@@ -79,6 +84,7 @@ import {
 } from "@/lib/kiosk/vital-ranges";
 import {
   kioskApi,
+  stripeCheckoutIdOf,
   type AppointmentPayload,
   type AssessmentPayload,
   type KioskAntecedents,
@@ -87,6 +93,19 @@ import {
   type StationService,
   type VitalsDraft,
 } from "./kiosk-api";
+
+const STRIPE_QR_OPTIONS = {
+  width: 420,
+  margin: 2,
+  errorCorrectionLevel: "M" as const,
+  color: { dark: "#0f172a", light: "#ffffff" },
+};
+
+async function buildStripeQr(url: string, sessionId: string) {
+  const QRCode = (await import("qrcode")).default;
+  const qrDataUrl = await QRCode.toDataURL(url, STRIPE_QR_OPTIONS);
+  return { url, sessionId, qrDataUrl };
+}
 
 type ClinicalForm = {
   chiefComplaint: string;
@@ -199,7 +218,7 @@ const VITAL_FIELDS: Record<string, (keyof VitalsDraft)[]> = {
   blood_pressure: ["systolicPressure", "diastolicPressure"],
   oxygen: ["oxygenSaturation"],
   temperature: ["temperature"],
-  ecg: ["ecgStatus"],
+  ecg: ["ecgStatus", "ecgRhythm", "ecgHeartRate", "ecgSource", "ecgKardiaReady", "ecgKardiaFileName", "ecgKardiaMime"],
 };
 
 /** Si ya hay lectura del paso, no bloquear en "reading" (evita Continuar/Atrás trabados). */
@@ -272,6 +291,7 @@ export function PatientKioskWizard() {
   const [deviceStatus, setDeviceStatus] = useState("idle");
   const [clinical, setClinical] = useState<ClinicalForm>(emptyClinical);
   const [assessment, setAssessment] = useState<AssessmentPayload | null>(null);
+  const [showPrescription, setShowPrescription] = useState(false);
   const [services, setServices] = useState<StationService[]>([]);
   const [selectedService, setSelectedService] = useState<StationService | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<PaymentOrder | null>(null);
@@ -290,6 +310,7 @@ export function PatientKioskWizard() {
   const [clinicalError, setClinicalError] = useState<string | null>(null);
   const [highlightSymptomGaps, setHighlightSymptomGaps] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
+  const [kioskToken, setKioskToken] = useState("");
   /**
    * La voz se activa al tocar “Iniciar atención” / crisis (gesto del usuario).
    * Ya no hay pantalla bloqueante de audífonos: al recargar se va al inicio.
@@ -328,6 +349,9 @@ export function PatientKioskWizard() {
   const [bpStatus, setBpStatus] = useState<string>("");
   const [bpCapturing, setBpCapturing] = useState(false);
   const bpCaptureLock = useRef(false);
+  const [tempStatus, setTempStatus] = useState<string>("");
+  const [tempCapturing, setTempCapturing] = useState(false);
+  const tempCaptureLock = useRef(false);
   const [ecgStatusMsg, setEcgStatusMsg] = useState<string>("");
   const [ecgCapturing, setEcgCapturing] = useState(false);
   const ecgCaptureLock = useRef(false);
@@ -342,6 +366,7 @@ export function PatientKioskWizard() {
   regPageRef.current = regPage;
   const crisisIntentRef = useRef(crisisIntent);
   crisisIntentRef.current = crisisIntent;
+  const advancingPaidRef = useRef(false);
 
   const patchRegistration = useCallback(<K extends keyof RegistrationDraft>(key: K, value: RegistrationDraft[K]) => {
     setRegistrationDraft((prev) => ({ ...prev, [key]: value }));
@@ -480,6 +505,7 @@ export function PatientKioskWizard() {
   const clearVitalFields = useCallback(async (fields: (keyof VitalsDraft)[]) => {
     const patch: Record<string, string> = {};
     for (const field of fields) patch[field] = "";
+    if (fields.includes("ecgStatus")) patch.ecgKardiaData = "";
     setVitalsDraft((prev) => {
       const next = { ...prev };
       for (const field of fields) delete next[field];
@@ -551,6 +577,7 @@ export function PatientKioskWizard() {
 
       const data = await kioskApi.getSession();
       if (data.session) {
+        setKioskToken(data.session.token);
         let restoredStep = data.session.currentStep as KioskStep;
         const rawStep = restoredStep;
         // "analysis" es transitorio: si recargan a mitad, no dejar la UI en "Procesando…"
@@ -586,57 +613,88 @@ export function PatientKioskWizard() {
           data.session.status === "completed" ||
           data.session.status === "abandoned" ||
           (callEndedFlag && postConsultStep);
-        if (sessionDone) {
+        const showWelcome = sessionDone || restoredStep === "welcome";
+
+        if (showWelcome) {
+          if (sessionDone || data.patient) {
+            try {
+              await kioskApi.resetSession();
+            } catch {
+              /* cookie ya inválida */
+            }
+          }
           setStep("welcome");
           setVoiceEnabled(false);
-        } else if (restoredStep !== "welcome") {
+          setPatient(null);
+          setAppointment(null);
+          setAppointmentId(null);
+          setPatientType(null);
+          setVitalsDraft({});
+          setClinical(emptyClinical());
+          setAssessment(null);
+          setShowPrescription(false);
+          setPaymentOrder(null);
+          setPaymentStatus("unpaid");
+          setReceiptEmail("");
+          setStripePay(null);
+          setDataConfirmed(false);
+          setDeviceStatus("idle");
+          setCrisisMode(false);
+          setCrisisIntent(false);
+        } else {
           setStep(restoredStep);
           setVoiceEnabled(true);
-        }
-        setPatientType((data.session.patientType as "new" | "returning") ?? null);
-        setAppointmentId(data.session.appointmentId ?? null);
-        setVitalsDraft(data.session.vitalsDraft ?? {});
-        // "reading" persistido ocultaba el botón de oxímetro para siempre.
-        setDeviceStatus(restoredStatus === "reading" ? "waiting" : restoredStatus);
-        setClinical(clinicalFromDraft(data.session.clinicalDraft));
-        const draft = data.session.clinicalDraft as Record<string, unknown> | null | undefined;
-        if (draft?.crisisIntent === true || draft?.crisisMode === true) {
-          setCrisisIntent(true);
-          crisisIntentRef.current = true;
-        }
-        if (
-          !sessionDone &&
-          restoredStep === "waiting" &&
-          (draft?.crisisMode === true ||
-            assessmentRestored?.redFlags?.includes("Modo crisis estación"))
-        ) {
-          setCrisisMode(true);
-        }
-        if (assessmentRestored) setAssessment(assessmentRestored);
-        setPaymentStatus(data.session.paymentStatus ?? "unpaid");
-        if (data.paymentOrder) {
-          setPaymentOrder(data.paymentOrder);
-          setPaymentStatus(data.paymentOrder.status);
-        } else if (restoredStep === "payment" && !sessionDone) {
-          // Sesión en pago sin orden recuperable: vuelve a elegir servicio
-          setStep("service");
-          await kioskApi.patchSession({ currentStep: "service" });
-        }
-        if (data.patient) {
-          setPatient(data.patient);
-          setDataConfirmed(true);
-          if (data.patient.email?.includes("@")) {
-            setReceiptEmail(data.patient.email.trim().toLowerCase());
+          setPatientType((data.session.patientType as "new" | "returning") ?? null);
+          setAppointmentId(data.session.appointmentId ?? null);
+          setVitalsDraft(data.session.vitalsDraft ?? {});
+          setDeviceStatus(restoredStatus === "reading" ? "waiting" : restoredStatus);
+          setClinical(clinicalFromDraft(data.session.clinicalDraft));
+          const draft = data.session.clinicalDraft as Record<string, unknown> | null | undefined;
+          if (draft?.crisisIntent === true || draft?.crisisMode === true) {
+            setCrisisIntent(true);
+            crisisIntentRef.current = true;
           }
-          // El nombre del alta debe servir para firmar el consentimiento.
-          const patientName = data.patient.name?.trim();
-          if (patientName) {
-            setClinical((c) =>
-              c.consentSignerName.trim() ? c : { ...c, consentSignerName: patientName },
-            );
+          if (
+            restoredStep === "waiting" &&
+            (draft?.crisisMode === true ||
+              assessmentRestored?.redFlags?.includes("Modo crisis estación"))
+          ) {
+            setCrisisMode(true);
           }
+          if (assessmentRestored) setAssessment(assessmentRestored);
+          setPaymentStatus(data.session.paymentStatus ?? "unpaid");
+          if (data.paymentOrder) {
+            setPaymentOrder(data.paymentOrder);
+            setPaymentStatus(data.paymentOrder.status);
+            const checkoutId = stripeCheckoutIdOf(data.paymentOrder);
+            const checkoutUrl = data.paymentOrder.stripeCheckoutUrl;
+            if (
+              restoredStep === "payment" &&
+              data.paymentOrder.status !== "approved" &&
+              checkoutId &&
+              checkoutUrl
+            ) {
+              setStripePay(await buildStripeQr(checkoutUrl, checkoutId));
+            }
+          } else if (restoredStep === "payment") {
+            setStep("service");
+            await kioskApi.patchSession({ currentStep: "service" });
+          }
+          if (data.patient) {
+            setPatient(data.patient);
+            setDataConfirmed(true);
+            if (data.patient.email?.includes("@")) {
+              setReceiptEmail(data.patient.email.trim().toLowerCase());
+            }
+            const patientName = data.patient.name?.trim();
+            if (patientName) {
+              setClinical((c) =>
+                c.consentSignerName.trim() ? c : { ...c, consentSignerName: patientName },
+              );
+            }
+          }
+          if (data.appointment) setAppointment(data.appointment);
         }
-        if (data.appointment) setAppointment(data.appointment);
       }
     } catch {
       /* sin sesión previa */
@@ -690,24 +748,47 @@ export function PatientKioskWizard() {
     })();
   }, [sessionReady]);
 
-  /** Mientras hay QR de Stripe: el kiosco espera a que el celular complete el pago. */
+  const stripeCheckoutId = stripePay?.sessionId ?? stripeCheckoutIdOf(paymentOrder);
+
   useEffect(() => {
-    if (!stripePay?.sessionId || step !== "payment") return;
+    if (step !== "payment") {
+      advancingPaidRef.current = false;
+      return;
+    }
     let cancelled = false;
+    const continuePaid = async (order: PaymentOrder) => {
+      if (advancingPaidRef.current) return;
+      advancingPaidRef.current = true;
+      setStripePay(null);
+      setPaymentOrder(order);
+      setPaymentStatus(order.status);
+      setBusy(true);
+      try {
+        await continueAfterPaymentApproved(order, crisisIntentRef.current);
+      } catch (e) {
+        advancingPaidRef.current = false;
+        setError(e instanceof Error ? e.message : "No se pudo continuar tras el pago");
+      } finally {
+        setBusy(false);
+      }
+    };
     const tick = async () => {
       try {
-        const result = await kioskApi.verifyStripeCheckout(stripePay.sessionId);
-        if (cancelled) return;
-        if (result.paid && result.order) {
-          setStripePay(null);
-          setPaymentOrder(result.order);
-          setPaymentStatus(result.order.status);
-          setBusy(true);
-          try {
-            await continueAfterPaymentApproved(result.order, crisisIntentRef.current);
-          } finally {
-            setBusy(false);
+        if (stripeCheckoutId) {
+          const result = await kioskApi.verifyStripeCheckout(stripeCheckoutId);
+          if (cancelled) return;
+          if (result.paid && result.order) {
+            await continuePaid(result.order);
+            return;
           }
+        }
+        const data = await kioskApi.getSession();
+        if (cancelled) return;
+        if (
+          data.paymentOrder?.status === "approved" ||
+          data.session?.paymentStatus === "approved"
+        ) {
+          if (data.paymentOrder) await continuePaid(data.paymentOrder);
         }
       } catch {
         /* reintento en el siguiente intervalo */
@@ -719,7 +800,7 @@ export function PatientKioskWizard() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [stripePay?.sessionId, step]);
+  }, [stripeCheckoutId, step, paymentOrder?.id]);
 
   // Si el paso actual ya tiene lecturas, desbloquear (evita atascos en "reading").
   useEffect(() => {
@@ -889,6 +970,7 @@ export function PatientKioskWizard() {
       setLookupDraft(emptyLookupDraft());
       setProfileDraft(emptyProfileDraft());
       setAssessment(null);
+      setShowPrescription(false);
       setSelectedService(null);
       setPaymentOrder(null);
       setPaymentStatus("unpaid");
@@ -906,7 +988,7 @@ export function PatientKioskWizard() {
       setRegPage(1);
       setAntePage(1);
       endingCallRef.current = false;
-      await kioskApi.startSession();
+      await kioskApi.startSession().then((s) => setKioskToken(s.session.token));
       await goToStep("service");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -933,7 +1015,7 @@ export function PatientKioskWizard() {
     setPaymentStatus("unpaid");
     setRegistrationDraft(emptyRegistrationDraft());
     try {
-      await kioskApi.startSession();
+      await kioskApi.startSession().then((s) => setKioskToken(s.session.token));
       await kioskApi.patchSession({
         clinicalDraft: {
           crisisIntent: true,
@@ -1043,14 +1125,18 @@ export function PatientKioskWizard() {
       if (!url || !checkoutSessionId) {
         throw new Error("Stripe no devolvió URL de pago");
       }
-      const QRCode = (await import("qrcode")).default;
-      const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 420,
-        margin: 2,
-        errorCorrectionLevel: "M",
-        color: { dark: "#0f172a", light: "#ffffff" },
-      });
-      setStripePay({ url, sessionId: checkoutSessionId, qrDataUrl });
+      setPaymentOrder((current) =>
+        current
+          ? {
+              ...current,
+              provider: "stripe",
+              providerReference: checkoutSessionId,
+              stripeCheckoutSessionId: checkoutSessionId,
+              stripeCheckoutUrl: url,
+            }
+          : current,
+      );
+      setStripePay(await buildStripeQr(url, checkoutSessionId));
       speakKiosk(STRIPE_QR_WAITING_VOICE, { force: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo abrir el pago con Stripe");
@@ -1391,18 +1477,31 @@ export function PatientKioskWizard() {
     setError(null);
     setOxygenCapturing(true);
     setDeviceStatus("reading");
-    setOxygenStatus("Iniciando lectura del oxímetro…");
+    setOxygenStatus("Iniciando lectura de oxígeno…");
     speakKiosk(OXYGEN_START_VOICE, { force: true });
     try {
-      const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
+      let spo2;
+      let hr;
+      if (await probeStationMonitor()) {
+        const sample = await readStationMonitor("spo2", (msg) => setOxygenStatus(msg));
+        spo2 = sample.spo2;
+        hr = sample.heartRate;
+      } else {
+        const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
+        spo2 = sample.spo2;
+        hr = sample.hr;
+      }
+      if (spo2 == null || hr == null) {
+        throw new Error("El monitor no envió SpO₂ y pulso. Deje el dedo en el sensor.");
+      }
       const patch: VitalsDraft = {
-        oxygenSaturation: String(sample.spo2),
-        heartRate: String(sample.hr),
+        oxygenSaturation: String(spo2),
+        heartRate: String(hr),
       };
       setVitalsDraft((prev) => ({ ...prev, ...patch }));
       await kioskApi.patchVitals(patch, "done");
       setDeviceStatus("done");
-      setOxygenStatus(`SpO₂ ${sample.spo2}% · FC ${sample.hr} lpm`);
+      setOxygenStatus(`SpO₂ ${spo2}% · FC ${hr} lpm`);
     } catch (err) {
       setDeviceStatus("retry");
       const msg = err instanceof Error ? err.message : "No se pudo leer el oxímetro";
@@ -1455,20 +1554,36 @@ export function PatientKioskWizard() {
     setError(null);
     setBpCapturing(true);
     setDeviceStatus("reading");
-    setBpStatus("Cable puesto. Coloque el brazalete y pulse inicio en el aparato…");
+    setBpStatus("Coloque el brazalete y pulse NIBP en el monitor…");
     speakKiosk(BP_START_VOICE, { force: true });
     try {
-      const sample = await readStationBp((msg) => setBpStatus(msg));
+      let systolic;
+      let diastolic;
+      let heartRate;
+      if (await probeStationMonitor()) {
+        const sample = await readStationMonitor("nibp", (msg) => setBpStatus(msg));
+        systolic = sample.systolic;
+        diastolic = sample.diastolic;
+        heartRate = sample.heartRate;
+      } else {
+        const sample = await readStationBp((msg) => setBpStatus(msg));
+        systolic = sample.systolic;
+        diastolic = sample.diastolic;
+        heartRate = sample.heartRate;
+      }
+      if (systolic == null || diastolic == null) {
+        throw new Error("El monitor no envió la presión. Pulse NIBP y espere el número.");
+      }
       const patch: VitalsDraft = {
-        systolicPressure: String(sample.systolic),
-        diastolicPressure: String(sample.diastolic),
-        ...(sample.heartRate ? { heartRate: String(sample.heartRate) } : {}),
+        systolicPressure: String(systolic),
+        diastolicPressure: String(diastolic),
+        ...(heartRate ? { heartRate: String(heartRate) } : {}),
       };
       setVitalsDraft((prev) => ({ ...prev, ...patch }));
       await kioskApi.patchVitals(patch, "done");
       setDeviceStatus("done");
       setBpStatus(
-        `${sample.systolic}/${sample.diastolic} mmHg${sample.heartRate ? ` · FC ${sample.heartRate}` : ""}`,
+        `${systolic}/${diastolic} mmHg${heartRate ? ` · FC ${heartRate}` : ""}`,
       );
     } catch (err) {
       setDeviceStatus("retry");
@@ -1478,6 +1593,35 @@ export function PatientKioskWizard() {
     } finally {
       setBpCapturing(false);
       bpCaptureLock.current = false;
+    }
+  }, []);
+
+  const captureTemperature = useCallback(async () => {
+    if (tempCaptureLock.current) return;
+    tempCaptureLock.current = true;
+    setError(null);
+    setTempCapturing(true);
+    setDeviceStatus("reading");
+    setTempStatus("Encienda el termómetro, colóquelo en la frente y pulse START…");
+    speakKiosk(TEMP_START_VOICE, { force: true });
+    try {
+      const sample = await readStationThermometer((msg) => setTempStatus(msg));
+      if (sample.temperature == null) {
+        throw new Error("El termómetro no envió la temperatura. Enciéndalo, colóquelo en la frente y pulse START.");
+      }
+      const patch: VitalsDraft = { temperature: sample.temperature.toFixed(1) };
+      setVitalsDraft((prev) => ({ ...prev, ...patch }));
+      await kioskApi.patchVitals(patch, "done");
+      setDeviceStatus("done");
+      setTempStatus(`${sample.temperature.toFixed(1)} °C`);
+    } catch (err) {
+      setDeviceStatus("retry");
+      const msg = err instanceof Error ? err.message : "No se pudo leer la temperatura";
+      setTempStatus(msg);
+      setError(msg);
+    } finally {
+      setTempCapturing(false);
+      tempCaptureLock.current = false;
     }
   }, []);
 
@@ -1550,6 +1694,17 @@ export function PatientKioskWizard() {
     setBpStatus("Pulsa el botón verde «Leer presión ahora».");
   }, [step, vitalsDraft.systolicPressure, vitalsDraft.diastolicPressure]);
 
+  useEffect(() => {
+    if (step !== "temperature") return;
+    if (vitalsDraft.temperature) {
+      setDeviceStatus("done");
+      return;
+    }
+    setTempCapturing(false);
+    setDeviceStatus("idle");
+    setTempStatus("Pulsa el botón verde «Leer temperatura ahora».");
+  }, [step, vitalsDraft.temperature]);
+
   // Al entrar a ECG sin lectura, idle (no bloquear con reading de sesión vieja).
   useEffect(() => {
     if (step !== "ecg") return;
@@ -1560,6 +1715,26 @@ export function PatientKioskWizard() {
     setEcgCapturing(false);
     setDeviceStatus("idle");
     setEcgStatusMsg("Toque Leer electrocardiograma cuando esté listo.");
+  }, [step, vitalsDraft.ecgStatus]);
+
+  useEffect(() => {
+    if (step !== "ecg") return;
+    if (vitalsDraft.ecgStatus === "done" || vitalsDraft.ecgStatus === "skipped") return;
+    const timer = setInterval(async () => {
+      try {
+        const data = await kioskApi.getSession();
+        const draft = data.session?.vitalsDraft;
+        if (!draft?.ecgStatus) return;
+        setVitalsDraft(draft);
+        if (draft.ecgStatus === "done") {
+          setDeviceStatus("done");
+          setEcgStatusMsg(draft.ecgRhythm ?? "ECG Kardia recibido");
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 2000);
+    return () => clearInterval(timer);
   }, [step, vitalsDraft.ecgStatus]);
 
   // Revisar consistencia de dispositivos al llegar al resumen.
@@ -1580,6 +1755,8 @@ export function PatientKioskWizard() {
     setError(null);
     try {
       // Paso local primero para feedback inmediato; el patch no debe borrar errores luego.
+      const analysisStartedAt = Date.now();
+      setShowPrescription(false);
       setStep("analysis");
       await kioskApi.patchSession({ currentStep: "analysis" });
       const result = await Promise.race([
@@ -1591,6 +1768,12 @@ export function PatientKioskWizard() {
           );
         }),
       ]);
+      // El protocolo autónomo responde en 1–2 s; sin esta pausa la pantalla de
+      // revisión parpadea y salta directo a la receta.
+      const remain = 6500 - (Date.now() - analysisStartedAt);
+      if (remain > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remain));
+      }
       setAssessment(result.assessment);
       if (result.meetingUrl) {
         setAppointment((prev) =>
@@ -1659,6 +1842,7 @@ export function PatientKioskWizard() {
       setLookupDraft(emptyLookupDraft());
       setProfileDraft(emptyProfileDraft());
       setAssessment(null);
+      setShowPrescription(false);
       setSelectedService(null);
       setPaymentOrder(null);
       setPaymentStatus("unpaid");
@@ -1697,7 +1881,7 @@ export function PatientKioskWizard() {
   return (
     <KioskShell
       step={step}
-      patientName={patient?.name}
+      patientName={step === "welcome" ? undefined : patient?.name}
       deviceStatus={deviceStatus}
       vitalsDraft={vitalsDraft}
       showVitalsPanel={showVitalsPanel}
@@ -1718,61 +1902,50 @@ export function PatientKioskWizard() {
       {error && step !== "summary" && <KioskError message={error} />}
 
       {step === "welcome" && (
-        <KioskCard className="justify-between gap-4 !p-4 sm:!p-6">
-          <div className="min-h-0 shrink space-y-3 overflow-hidden">
-            <div>
-              <BrandLogo width={200} priority className="mb-2" />
-              <h2 className={kioskTitleClassName}>Estación virtual 24/7</h2>
-              {!sessionReady ? (
-                <p className={`mt-2 ${kioskHelperClassName}`}>Cargando estación…</p>
-              ) : (
-                <p className={kioskSubtitleClassName}>
-                  Para empezar su atención médica, toque el botón azul grande de abajo.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <p className={`mb-2 ${kioskHelperClassName}`}>
-                Así será su visita (solo información — no se toca):
+        <KioskCard className="gap-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+            <BrandLogo width={180} priority className="mb-2" />
+            <h2 className={kioskTitleClassName}>Estación virtual 24/7</h2>
+            {!sessionReady ? (
+              <p className={`mt-2 ${kioskHelperClassName}`}>Cargando estación…</p>
+            ) : (
+              <p className={kioskSubtitleClassName}>
+                Para empezar su atención médica, toque el botón azul grande de abajo.
               </p>
-              <ol className="grid min-h-0 grid-cols-3 gap-3">
-                {[
-                  { n: "1", title: "Elija y pague", desc: "Servicio + pago con QR en su celular." },
-                  { n: "2", title: "Cuéntenos", desc: "Datos, síntomas y signos vitales." },
-                  { n: "3", title: "Atención", desc: "Indicaciones o videoconsulta." },
-                ].map((item) => (
-                  <li
-                    key={item.n}
-                    aria-hidden="true"
-                    className="pointer-events-none select-none flex flex-col justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-4"
-                  >
-                    <p className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-2xl font-bold text-slate-600">
-                      {item.n}
-                    </p>
-                    <p className="mt-2 text-xl font-bold text-slate-800 xl:text-2xl">{item.title}</p>
-                    <p className="mt-1 text-base leading-snug text-slate-600 xl:text-lg">{item.desc}</p>
-                  </li>
-                ))}
-              </ol>
-            </div>
+            )}
 
-            <KioskInfo>
+            <p className={`mb-2 mt-4 ${kioskHelperClassName}`}>
+              Así será su visita (solo información — no se toca):
+            </p>
+            <ol className="grid grid-cols-3 gap-3">
+              {[
+                { n: "1", title: "Elija y pague", desc: "Servicio + pago con QR en su celular." },
+                { n: "2", title: "Cuéntenos", desc: "Datos, síntomas y signos vitales." },
+                { n: "3", title: "Atención", desc: "Indicaciones o videoconsulta." },
+              ].map((item) => (
+                <li
+                  key={item.n}
+                  aria-hidden="true"
+                  className="pointer-events-none select-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                >
+                  <p className="text-xl font-bold leading-snug text-slate-800 xl:text-2xl">
+                    <span className="mr-2 text-[#1d6eb8]">{item.n}.</span>
+                    {item.title}
+                  </p>
+                  <p className="mt-1 text-base leading-snug text-slate-600 xl:text-lg">{item.desc}</p>
+                </li>
+              ))}
+            </ol>
+
+            <KioskInfo className="mt-4">
               <strong>Importante:</strong> escuche la <strong>bocina</strong> y hable al{" "}
               <strong>micrófono fijo</strong> (sin audífonos).
             </KioskInfo>
-
-            {patient ? (
-              <KioskImportant>
-                Sesión anterior de <strong>{patient.name}</strong>. Use Nueva atención para
-                empezar de cero.
-              </KioskImportant>
-            ) : null}
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col justify-end gap-2 border-t-2 border-[#1d6eb8]/25 bg-[#f0f7ff]/80 pt-3 -mx-4 px-4 sm:-mx-5 sm:px-5 pb-1">
-            <p className="text-center text-3xl font-bold leading-tight text-[#0f3d66] xl:text-4xl">
-              ↓ Toque aquí para comenzar ↓
+          <div className="shrink-0 space-y-4 border-t-2 border-[#1d6eb8]/20 pt-5">
+            <p className="text-center text-xl font-bold leading-snug text-[#0f3d66] xl:text-2xl">
+              Toque aquí para comenzar
             </p>
             <KioskPrimaryButton
               disabled={busy || !sessionReady}
@@ -1780,15 +1953,6 @@ export function PatientKioskWizard() {
             >
               Iniciar atención
             </KioskPrimaryButton>
-            {patient ? (
-              <KioskSecondaryButton
-                className="w-full"
-                disabled={busy}
-                onClick={() => void resetKiosk()}
-              >
-                Nueva atención
-              </KioskSecondaryButton>
-            ) : null}
             <CrisisButton
               tone="soft"
               disabled={busy || !sessionReady}
@@ -2158,7 +2322,7 @@ export function PatientKioskWizard() {
           )}
 
           {idMode === "login" && (
-            <form onSubmit={handleKioskLogin} className="mt-6 grid gap-4 sm:grid-cols-2">
+            <form onSubmit={handleKioskLogin} autoComplete="off" className="mt-6 grid gap-4 sm:grid-cols-2">
               <p className={`sm:col-span-2 ${kioskBodyClassName}`}>
                 Escriba el usuario y la contraseña que creó en su primera visita.
               </p>
@@ -2363,7 +2527,7 @@ export function PatientKioskWizard() {
           <p className={`mt-2 shrink-0 ${kioskHelperClassName}`}>
             Paso {regPage} de 3 — {regPage === 1 ? "Nombre" : regPage === 2 ? "Contacto" : "Usuario y contraseña"}
           </p>
-          <form onSubmit={handleRegister} className="mt-5 flex min-h-0 flex-1 flex-col">
+          <form onSubmit={handleRegister} autoComplete="off" className="mt-5 flex min-h-0 flex-1 flex-col">
             <KioskScrollArea className="min-h-0 flex-1">
               <div className={regPage === 1 ? "grid gap-4 sm:grid-cols-2" : "hidden"}>
                 <Field
@@ -2730,7 +2894,7 @@ export function PatientKioskWizard() {
 
       {step === "preparation" && (
         <KioskCard className="justify-between gap-3">
-          <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
             <h2 className={kioskTitleClassName}>Preparación para signos vitales</h2>
             <p className={kioskSubtitleClassName}>
               Tomaremos sus signos uno por uno. La voz le guiará en cada paso.
@@ -2864,8 +3028,8 @@ export function PatientKioskWizard() {
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
           capturingLabel="Ya vi el resultado"
-          captureHelp="El cable se queda puesto. Coloque el brazalete, pulse inicio en el aparato y, al ver el número, toque Ya vi el resultado."
-          tips={["No desconecte el USB. Si el aparato no enciende, avise al personal: falta un permiso de Windows en esta PC."]}
+          captureHelp="Coloque el brazalete del monitor, pulse NIBP e inicie la lectura. El kiosko toma el número solo."
+          tips={["Use el brazalete y el botón NIBP del monitor de signos vitales, no el baumanómetro USB."]}
           capturing={bpCapturing}
           captureCanConfirm
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}
@@ -2918,7 +3082,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureOximeter()}
           captureLabel="Leer oxímetro ahora"
           capturingLabel="Esperando lectura estable…"
-          captureHelp="No se guarda hasta que SpO₂ y pulso estén estables. Si Edge pide red local, elija Permitir."
+          captureHelp="Dedo en el sensor de SpO₂ del monitor. Si Edge pide red local, elija Permitir."
           capturing={oxygenCapturing}
           onSimulate={() =>
             simulateReading({
@@ -2953,21 +3117,32 @@ export function PatientKioskWizard() {
           title="Temperatura"
           instruction=""
           steps={[...TEMPERATURE_VOICE_STEPS]}
-          tips={["El termómetro va en la axila, no en la frente."]}
+          tips={[
+            "Tome el termómetro de su lugar. Presione encendido, espere unos segundos, colóquelo en la frente a 2–3 cm y pulse START.",
+          ]}
           illustration="temperature"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.temperature))}
           referenceRanges={[VITAL_RANGE_COPY.temperature]}
+          statusMessage={
+            tempStatus ||
+            (vitalsDraft.temperature
+              ? undefined
+              : "Listo para leer — pulse el botón verde de abajo")
+          }
           readingViews={
             vitalsDraft.temperature
               ? [interpretTemperature(vitalsDraft.temperature)!]
               : undefined
           }
+          onCapture={() => void captureTemperature()}
+          captureLabel="Leer temperatura ahora"
+          capturingLabel="Esperando el FT95…"
+          captureHelp="Después de pulsar START, toque este botón mientras parpadea el Bluetooth. Al registrarse, deje el termómetro en su lugar."
+          capturing={tempCapturing}
           onSimulate={() => simulateReading({ temperature: "36.7" })}
           onContinue={async () => {
             if (!vitalsDraft.temperature) {
-              failWithVoice(
-                "Todavía no llega la lectura de temperatura. Mantenga el termómetro en la axila un momento.",
-              );
+              failWithVoice("Primero toque el botón verde «Leer temperatura ahora».");
               return;
             }
             setError(null);
@@ -2975,7 +3150,11 @@ export function PatientKioskWizard() {
             await goToStep("ecg");
           }}
           onBack={goBack}
-          onRetry={() => clearVitalFields(VITAL_FIELDS.temperature)}
+          onRetry={() => {
+            void clearVitalFields(VITAL_FIELDS.temperature);
+            setTempStatus("Pulsa Leer temperatura ahora");
+            setDeviceStatus("idle");
+          }}
         />
       )}
 
@@ -2987,7 +3166,10 @@ export function PatientKioskWizard() {
           title="Electrocardiograma"
           instruction=""
           steps={[...ECG_VOICE_STEPS]}
-          tips={["Es un ECG de un solo canal: ponga los dedos en las placas metálicas, no en el pecho."]}
+          tips={[
+            "Con KardiaMobile: escanee el QR, tome el ECG en el celular y suba el PDF.",
+            "El PC-80B USB de estación no mide con el cable puesto; puede omitirlo.",
+          ]}
           illustration="ecg"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.ecgStatus))}
           referenceRanges={[VITAL_RANGE_COPY.ecg, VITAL_RANGE_COPY.heartRate]}
@@ -3007,12 +3189,27 @@ export function PatientKioskWizard() {
               ? undefined
               : vitalsDraft.ecgStatus === "skipped"
                 ? "ECG omitido"
-                : "Cuando esté listo, toque Leer electrocardiograma")
+                : "Use Kardia con el QR, o toque Leer si el PC-80B ya midió")
+          }
+          extra={
+            kioskToken ? (
+              <KardiaStationConnector
+                token={kioskToken}
+                received={vitalsDraft.ecgSource === "kardia" && vitalsDraft.ecgStatus === "done"}
+                onReceived={(msg) => {
+                  setEcgStatusMsg(msg);
+                  setDeviceStatus("done");
+                  void kioskApi.getSession().then((data) => {
+                    if (data.session?.vitalsDraft) setVitalsDraft(data.session.vitalsDraft);
+                  });
+                }}
+              />
+            ) : null
           }
           onCapture={() => void captureEcg()}
-          captureLabel="Leer electrocardiograma"
+          captureLabel="Leer electrocardiograma USB"
           capturingLabel="Ya terminó"
-          captureHelp="El cable se queda puesto. Toque Leer, ponga los dedos 30 s, acepte guardar si lo pide, y toque Ya terminó."
+          captureHelp="Opcional. El PC-80B entra en Connecting with PC con el USB puesto."
           captureOptional
           capturing={ecgCapturing}
           captureCanConfirm
@@ -3117,30 +3314,11 @@ export function PatientKioskWizard() {
         </KioskCard>
       )}
 
-      {step === "result" && assessment && assessment.prescriptionId && (
-        <KioskCard className="flex h-full min-h-0 flex-col">
-          <div className="shrink-0">
-            <h2 className={kioskTitleClassName}>Su receta</h2>
-            <p className={kioskSubtitleClassName}>
-              Se enviará a su correo. Indique si también desea una copia impresa.
-            </p>
-          </div>
-          <div className="mt-2 flex min-h-0 flex-1 flex-col">
-            <DownloadPrescriptionButton
-              prescriptionId={assessment.prescriptionId}
-              folio={assessment.prescriptionFolio}
-              email={patient?.email || receiptEmail || null}
-              onDone={resetKiosk}
-            />
-          </div>
-        </KioskCard>
-      )}
-
-      {step === "result" && assessment && !assessment.prescriptionId && (
+      {step === "result" && assessment && !showPrescription && (
         <KioskCard>
           <KioskScrollArea>
           <p className="text-base font-semibold uppercase tracking-wide text-emerald-600 sm:text-lg">
-            Evaluación preliminar completada
+            Evaluación completada
           </p>
           <h2 className={`mt-2 ${kioskTitleClassName}`}>{assessment.diagnosis}</h2>
           <p className={`mt-4 ${kioskBodyClassName}`}>{assessment.summary}</p>
@@ -3168,9 +3346,40 @@ export function PatientKioskWizard() {
           </div>
           </KioskScrollArea>
           <div className="mt-3 flex w-full shrink-0 justify-center border-t border-slate-100 pt-3">
-            <KioskPrimaryButton className="w-full" onClick={resetKiosk}>
-              Finalizar
-            </KioskPrimaryButton>
+            {assessment.prescriptionId ? (
+              <KioskPrimaryButton
+                className="w-full"
+                onClick={() => {
+                  setShowPrescription(true);
+                  speakKiosk(RESULT_PRESCRIPTION_VOICE, { force: true });
+                }}
+              >
+                Continuar
+              </KioskPrimaryButton>
+            ) : (
+              <KioskPrimaryButton className="w-full" onClick={resetKiosk}>
+                Finalizar
+              </KioskPrimaryButton>
+            )}
+          </div>
+        </KioskCard>
+      )}
+
+      {step === "result" && assessment && showPrescription && assessment.prescriptionId && (
+        <KioskCard className="flex h-full min-h-0 flex-col">
+          <div className="shrink-0">
+            <h2 className={kioskTitleClassName}>Su receta</h2>
+            <p className={kioskSubtitleClassName}>
+              Se enviará a su correo. Indique si también desea una copia impresa.
+            </p>
+          </div>
+          <div className="mt-2 flex min-h-0 flex-1 flex-col">
+            <DownloadPrescriptionButton
+              prescriptionId={assessment.prescriptionId}
+              folio={assessment.prescriptionFolio}
+              email={patient?.email || receiptEmail || null}
+              onDone={resetKiosk}
+            />
           </div>
         </KioskCard>
       )}
@@ -3187,7 +3396,7 @@ export function PatientKioskWizard() {
             {callEnded
               ? "Consulta finalizada"
               : doctorJoined
-                ? "El médico ya se está conectando"
+                ? "El médico ya está en la videollamada"
                 : "Teleconsulta en camino"}
           </h2>
           <p className="mt-5 w-full text-2xl leading-snug text-slate-700 xl:text-3xl">
@@ -3494,6 +3703,7 @@ function ConfirmDataPanel({
       {canManageProfile && showResetForm ? (
         <form
           className="mt-5 grid gap-4 sm:grid-cols-2"
+          autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault();
             const username = profileDraft.username.trim();
@@ -3631,6 +3841,10 @@ function Field({
         required={required}
         {...(controlled ? { value, onChange: (e) => onValueChange(e.target.value) } : {})}
         {...(usesVirtualKeyboard ? kioskTextFieldProps : {})}
+        autoComplete="off"
+        autoCorrect="off"
+        data-lpignore="true"
+        data-1p-ignore="true"
         className={kioskInputClassName}
       />
       {helper ? <p className={`mt-1 ${kioskHelperClassName}`}>{helper}</p> : null}

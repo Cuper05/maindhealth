@@ -68,7 +68,16 @@ export type PaymentOrder = {
   provider: string;
   approvedAt?: string | Date | null;
   providerReference?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  stripeCheckoutUrl?: string | null;
 };
+
+export function stripeCheckoutIdOf(order: PaymentOrder | null | undefined): string | null {
+  if (!order) return null;
+  if (order.stripeCheckoutSessionId?.startsWith("cs_")) return order.stripeCheckoutSessionId;
+  if (order.providerReference?.startsWith("cs_")) return order.providerReference;
+  return null;
+}
 
 export const kioskApi = {
   getSession: () =>
@@ -157,6 +166,24 @@ export const kioskApi = {
       body: JSON.stringify({ email }),
     }),
   crisis: () => kioskFetch<CrisisResult>("/api/station/crisis", { method: "POST" }),
+  uploadKardia: async (file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    const res = await fetch("/api/station/kardia", { method: "POST", body });
+    const text = await res.text();
+    let data: { error?: string; vitalsDraft?: VitalsDraft } = {};
+    if (text) {
+      try {
+        data = JSON.parse(text) as typeof data;
+      } catch {
+        throw new Error(res.ok ? "Respuesta inválida" : `Error (${res.status})`);
+      }
+    }
+    if (!res.ok) {
+      throw new Error(data.error || `Error (${res.status})`);
+    }
+    return data;
+  },
 };
 
 export type VitalsDraft = {
@@ -172,6 +199,10 @@ export type VitalsDraft = {
   ecgStatus?: string;
   ecgRhythm?: string;
   ecgHeartRate?: string;
+  ecgSource?: string;
+  ecgKardiaReady?: string;
+  ecgKardiaFileName?: string;
+  ecgKardiaMime?: string;
 };
 
 export type KioskSessionPayload = {

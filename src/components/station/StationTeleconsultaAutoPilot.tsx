@@ -17,9 +17,10 @@ type WaitingItem = {
 
 const STATION_MODE_KEY = "maindhealth:station-pc";
 const OPENED_KEY = "maindhealth:station-auto-opened";
-const COUNTDOWN_SEC = 6;
-const POLL_MS = 8000;
-const POLL_MAX_MS = 60000;
+const COUNTDOWN_SEC = 2;
+const POLL_MS = 2000;
+const POLL_MAX_MS = 12000;
+const ATTEMPT_DEBOUNCE_MS = 4000;
 const NAV_FAIL_MS = COUNTDOWN_SEC * 1000 + 4000;
 
 function readStationMode(): boolean {
@@ -46,20 +47,36 @@ function disableStationMode() {
   }
 }
 
-function readOpened(): number[] {
+function readAttempts(): Record<string, number> {
   try {
     const raw = sessionStorage.getItem(OPENED_KEY);
-    if (!raw) return [];
+    if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((n) => typeof n === "number") : [];
+    if (Array.isArray(parsed)) {
+      const now = Date.now();
+      const migrated: Record<string, number> = {};
+      for (const n of parsed) {
+        if (typeof n === "number") migrated[String(n)] = now;
+      }
+      return migrated;
+    }
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, number>;
+    }
+    return {};
   } catch {
-    return [];
+    return {};
   }
+}
+
+function recentlyAttempted(appointmentId: number): boolean {
+  const at = readAttempts()[String(appointmentId)];
+  return typeof at === "number" && Date.now() - at < ATTEMPT_DEBOUNCE_MS;
 }
 
 function markOpened(appointmentId: number) {
   try {
-    const next = Array.from(new Set([...readOpened(), appointmentId]));
+    const next = { ...readAttempts(), [String(appointmentId)]: Date.now() };
     sessionStorage.setItem(OPENED_KEY, JSON.stringify(next));
   } catch {
     /* ignore */
@@ -68,13 +85,17 @@ function markOpened(appointmentId: number) {
 
 function unmarkOpened(appointmentId: number) {
   try {
-    sessionStorage.setItem(
-      OPENED_KEY,
-      JSON.stringify(readOpened().filter((id) => id !== appointmentId)),
-    );
+    const next = { ...readAttempts() };
+    delete next[String(appointmentId)];
+    sessionStorage.setItem(OPENED_KEY, JSON.stringify(next));
   } catch {
     /* ignore */
   }
+}
+
+function currentPath(pathname: string) {
+  if (typeof window !== "undefined") return window.location.pathname || pathname;
+  return pathname;
 }
 
 function salaPath(appointmentId: number) {
@@ -87,6 +108,74 @@ function goToSala(appointmentId: number) {
   window.location.assign(salaPath(appointmentId));
 }
 
+let incomingAlarm: { stop: () => void } | null = null;
+
+function stopIncomingAlarm() {
+  incomingAlarm?.stop();
+  incomingAlarm = null;
+}
+
+function startIncomingAlarm(patientName: string) {
+  if (typeof window === "undefined") return;
+  stopIncomingAlarm();
+
+  const AudioCtx =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  let ctx: AudioContext | null = null;
+  let osc: OscillatorNode | null = null;
+  let beep = 0;
+
+  try {
+    if (AudioCtx) {
+      ctx = new AudioCtx();
+      osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 880;
+      gain.gain.value = 0.07;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      beep = window.setInterval(() => {
+        if (osc) osc.frequency.value = osc.frequency.value === 880 ? 620 : 880;
+      }, 350);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(
+      `Teleconsulta en espera. ${patientName || "Un paciente"} necesita médico ahora.`,
+    );
+    utter.lang = "es-MX";
+    utter.rate = 0.95;
+    utter.volume = 1;
+    window.speechSynthesis.speak(utter);
+  } catch {
+    /* ignore */
+  }
+
+  incomingAlarm = {
+    stop() {
+      if (beep) window.clearInterval(beep);
+      try {
+        osc?.stop();
+        void ctx?.close();
+      } catch {
+        /* ignore */
+      }
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        /* ignore */
+      }
+    },
+  };
+}
+
 async function dismissWaiting(appointmentId: number) {
   await fetch("/api/station/waiting", {
     method: "POST",
@@ -96,8 +185,9 @@ async function dismissWaiting(appointmentId: number) {
 }
 
 /**
- * Dell: abre /estacion/sala cuando hay paciente NUEVO en waiting_doctor.
- * No reabre citas ya intentadas. En /sala no hace nada (evita parpadeo).
+ * Dell: abre /estacion/sala cuando hay paciente en waiting_doctor.
+ * Si la sala no queda abierta, reintenta (no bloquea para siempre).
+ * En /sala no hace nada (evita parpadeo).
  */
 export function StationTeleconsultaAutoPilot({
   initialWaiting = [],
@@ -120,8 +210,9 @@ export function StationTeleconsultaAutoPilot({
   const navigatingRef = useRef(false);
   const pendingIdRef = useRef<number | null>(null);
 
-  const onEstacionSection = pathname === "/estacion" || pathname.startsWith("/estacion/");
-  const onSala = pathname.startsWith("/estacion/sala/");
+  const path = currentPath(pathname);
+  const onEstacionSection = path === "/estacion" || path.startsWith("/estacion/");
+  const onSala = path.startsWith("/estacion/sala/");
   const active = forceEnabled || stationMode;
 
   useEffect(() => {
@@ -135,8 +226,7 @@ export function StationTeleconsultaAutoPilot({
 
   useEffect(() => {
     if (!active || onSala || navigatingRef.current) return;
-    const opened = new Set(readOpened());
-    const first = initialWaiting.find((item) => !opened.has(item.appointmentId));
+    const first = initialWaiting.find((item) => !recentlyAttempted(item.appointmentId));
     if (first) setPending((prev) => prev ?? first);
   }, [active, initialWaiting, onSala]);
 
@@ -149,7 +239,10 @@ export function StationTeleconsultaAutoPilot({
 
     const poll = async () => {
       try {
-        const res = await fetch("/api/station/waiting", { cache: "no-store" });
+        const res = await fetch("/api/station/waiting", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
         if (cancelled) return;
 
         if (res.status === 401) {
@@ -166,10 +259,8 @@ export function StationTeleconsultaAutoPilot({
           setPollError(null);
           const data = (await res.json()) as { waiting?: WaitingItem[] };
           const waiting = data.waiting ?? [];
-          const opened = new Set(readOpened());
-
           const candidate =
-            waiting.find((item) => !opened.has(item.appointmentId)) ?? null;
+            waiting.find((item) => !recentlyAttempted(item.appointmentId)) ?? null;
 
           if (candidate && !navigatingRef.current) {
             setPending((prev) =>
@@ -201,19 +292,44 @@ export function StationTeleconsultaAutoPilot({
     if (!pending || onSala || navigatingRef.current || !active) return;
 
     pendingIdRef.current = pending.appointmentId;
-    setSecondsLeft(COUNTDOWN_SEC);
+    setSecondsLeft(dedicatedUi ? 1 : COUNTDOWN_SEC);
     setNavFailed(null);
     stopKioskVoice();
+    startIncomingAlarm(pending.patientName);
+
+    const launch = () => {
+      if (navigatingRef.current || pendingIdRef.current !== pending.appointmentId) return;
+      navigatingRef.current = true;
+      stopIncomingAlarm();
+      stopKioskVoice();
+      goToSala(pending.appointmentId);
+    };
+
+    if (dedicatedUi) {
+      const go = window.setTimeout(launch, 400);
+      const failTimer = window.setTimeout(() => {
+        if (navigatingRef.current && pendingIdRef.current === pending.appointmentId) {
+          const stillHere = window.location.pathname !== salaPath(pending.appointmentId);
+          if (stillHere) {
+            navigatingRef.current = false;
+            unmarkOpened(pending.appointmentId);
+            setNavFailed(pending);
+          }
+        }
+      }, NAV_FAIL_MS);
+      return () => {
+        window.clearTimeout(go);
+        window.clearTimeout(failTimer);
+        stopIncomingAlarm();
+        stopKioskVoice();
+      };
+    }
 
     const tick = window.setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
           window.clearInterval(tick);
-          if (!navigatingRef.current && pendingIdRef.current === pending.appointmentId) {
-            navigatingRef.current = true;
-            stopKioskVoice();
-            goToSala(pending.appointmentId);
-          }
+          launch();
           return 0;
         }
         return s - 1;
@@ -234,9 +350,10 @@ export function StationTeleconsultaAutoPilot({
     return () => {
       window.clearInterval(tick);
       window.clearTimeout(failTimer);
+      stopIncomingAlarm();
       stopKioskVoice();
     };
-  }, [pending, onSala, active]);
+  }, [pending, onSala, active, dedicatedUi]);
 
   // En sala no mostrar controles flotantes (la videollamada es prioridad).
   if (onSala) return null;

@@ -35,7 +35,7 @@ export function StationSalaCallEndWatcher({
     };
 
     void poll();
-    const timer = window.setInterval(() => void poll(), 1000);
+    const timer = window.setInterval(() => void poll(), 2000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

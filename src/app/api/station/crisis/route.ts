@@ -10,6 +10,7 @@ import { notifyDoctorsStationTeleconsulta } from "@/lib/kiosk/notify-escalation"
 import { getKioskCookie } from "@/lib/kiosk/session-cookie";
 import { ensureCrisisPlaceholderForSession } from "@/lib/kiosk/walk-in";
 import { getActiveDoctors, getAppointmentStatusByCode } from "@/lib/queries/catalogs";
+import { invalidateWaitingDoctorCache } from "@/lib/queries/station-waiting";
 import type { KioskAssessmentDraft } from "@/lib/db/schema/station-kiosk";
 
 export const maxDuration = 60;
@@ -185,9 +186,12 @@ export async function POST() {
         assessmentDraft,
         currentStep: "waiting",
         status: "waiting_doctor",
+        deviceStatus: "waiting",
         updatedAt: new Date(),
       })
       .where(eq(stationKioskSessionsTable.token, cookie.token));
+
+    invalidateWaitingDoctorCache();
 
     const allDoctors = await getActiveDoctors();
     const notifyIds = [

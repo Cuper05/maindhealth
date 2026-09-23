@@ -101,6 +101,11 @@ function KeyButton({
   const handlePointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
     onPress();
   };
 
@@ -110,7 +115,7 @@ function KeyButton({
       tabIndex={-1}
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={handlePointerDown}
-      className={`min-h-[56px] rounded-xl text-xl font-semibold shadow-sm ring-1 transition active:scale-[0.97] ${
+      className={`min-h-[56px] touch-none select-none rounded-xl text-xl font-semibold shadow-sm ring-1 ${
         wide ? "min-w-[96px] flex-[1.4] px-3" : "min-w-[44px] flex-1 px-1"
       } ${
         active
@@ -235,7 +240,7 @@ export function KioskOnScreenKeyboard({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[80] border-t border-slate-200 bg-[#e8eef5]/95 p-3 shadow-[0_-8px_30px_rgba(15,45,90,0.12)] backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-[80] touch-none border-t border-slate-200 bg-[#e8eef5]/95 p-3 shadow-[0_-8px_30px_rgba(15,45,90,0.12)] backdrop-blur"
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={(e) => e.preventDefault()}
       role="group"

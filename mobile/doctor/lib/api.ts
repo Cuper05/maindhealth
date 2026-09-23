@@ -16,6 +16,17 @@ export type MobileUser = {
   email?: string;
 };
 
+export type ClinicalSummary = {
+  crisis: boolean;
+  chiefComplaint: string | null;
+  vitalsLine: string | null;
+  redFlags: string[];
+  diagnosis: string | null;
+  severity: string | null;
+  summary: string | null;
+  paymentStatus: string | null;
+};
+
 export type TeleconsultaItem = {
   id: number;
   title: string;
@@ -26,6 +37,34 @@ export type TeleconsultaItem = {
   readAt: string | null;
   createdAt: string;
   unread: boolean;
+  clinicalSummary?: ClinicalSummary;
+};
+
+export type TeleconsultaDetail = {
+  ok: true;
+  appointment: {
+    id: number;
+    reason: string | null;
+    meetingUrl: string | null;
+    patientId: number;
+    patientName: string;
+    chartNumber: string;
+    birthDate: string | null;
+    sex: string | null;
+    phone: string | null;
+    crisis: boolean;
+  };
+  kiosk: {
+    clinicalDraft: Record<string, unknown>;
+    vitalsDraft: Record<string, unknown> | null;
+    assessmentDraft: {
+      diagnosis?: string | null;
+      severity?: string | null;
+      summary?: string | null;
+      redFlags?: string[];
+    } | null;
+    paymentStatus: string | null;
+  } | null;
 };
 
 async function apiFetch<T>(
@@ -80,23 +119,44 @@ export async function fetchTeleconsultas(unread = false) {
   );
 }
 
-/** Absolute URL for WebView / browser: Daily room or web consulta page. */
+export async function fetchTeleconsultaDetail(appointmentId: number) {
+  return apiFetch<TeleconsultaDetail>(`/api/mobile/teleconsultas/${appointmentId}`);
+}
+
+/**
+ * Sala Daily para el celular del médico.
+ * La cámara del celular se publica, pero no se muestra: en pantalla va el paciente.
+ */
+export function resolveVideoUrl(item: {
+  meetingUrl?: string | null;
+}): string | null {
+  if (!item.meetingUrl || !/^https?:\/\//i.test(item.meetingUrl)) return null;
+  try {
+    const url = new URL(item.meetingUrl);
+    const host = url.hostname.toLowerCase();
+    if (host === "daily.co" || host.endsWith(".daily.co")) {
+      url.searchParams.set("showLocalVideo", "false");
+      url.searchParams.set("activeSpeakerMode", "true");
+    }
+    return url.toString();
+  } catch {
+    return item.meetingUrl;
+  }
+}
+
+/** @deprecated Prefer resolveVideoUrl + appointmentId + pestaña receta (bridge). */
 export function resolveMeetingOpenUrl(item: {
   meetingUrl?: string | null;
   href?: string | null;
   appointmentId?: number | null;
 }): string | null {
-  if (item.meetingUrl && /^https?:\/\//i.test(item.meetingUrl)) {
-    return item.meetingUrl;
-  }
-  if (item.href && /^https?:\/\//i.test(item.href)) {
-    return item.href;
-  }
-  if (item.appointmentId) {
-    return `${getApiUrl()}/consultas/cita/${item.appointmentId}#video`;
-  }
-  if (item.href?.startsWith("/")) {
-    return `${getApiUrl()}${item.href}`;
-  }
-  return null;
+  return resolveVideoUrl(item);
+}
+
+/** WebView: autentica cookie de sesión y abre la consulta para emitir receta. */
+export async function buildConsultaBridgeUrl(appointmentId: number): Promise<string | null> {
+  const token = await getToken();
+  if (!token || !appointmentId) return null;
+  const api = getApiUrl();
+  return `${api}/api/mobile/session/bridge?token=${encodeURIComponent(token)}&appointmentId=${appointmentId}`;
 }

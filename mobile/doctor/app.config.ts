@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: "MaindHealth Médicos",
     slug: "maindhealth-doctor",
-    version: "1.0.0",
+    version: "1.1.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: "maindhealth-doctor",

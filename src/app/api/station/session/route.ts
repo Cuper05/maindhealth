@@ -9,7 +9,42 @@ import {
 } from "@/lib/db/schema";
 import { getKioskAppointmentContext } from "@/lib/queries/kiosk";
 import { getKioskCookie, newKioskToken } from "@/lib/kiosk/session-cookie";
+import { publicVitalsDraft } from "@/lib/kiosk/kardia";
 import { stationDbErrorResponse } from "@/lib/db/errors";
+
+function publicPaymentOrder(order: {
+  id: number;
+  reference: string;
+  amountCents: number;
+  currency: string;
+  concept: string;
+  status: string;
+  provider: string;
+  approvedAt: Date | null;
+  providerReference: string | null;
+  providerPayload: unknown;
+  serviceId: number;
+}) {
+  const payload =
+    order.providerPayload && typeof order.providerPayload === "object"
+      ? (order.providerPayload as Record<string, unknown>)
+      : {};
+  return {
+    id: order.id,
+    reference: order.reference,
+    amountCents: order.amountCents,
+    currency: order.currency,
+    concept: order.concept,
+    status: order.status,
+    provider: order.provider,
+    approvedAt: order.approvedAt,
+    providerReference: order.providerReference,
+    serviceId: order.serviceId,
+    stripeCheckoutSessionId:
+      typeof payload.stripeCheckoutSessionId === "string" ? payload.stripeCheckoutSessionId : null,
+    stripeCheckoutUrl: typeof payload.stripeCheckoutUrl === "string" ? payload.stripeCheckoutUrl : null,
+  };
+}
 
 async function loadSession(token: string) {
   const [session] = await db
@@ -55,11 +90,12 @@ async function loadSession(token: string) {
         provider: stationPaymentOrdersTable.provider,
         approvedAt: stationPaymentOrdersTable.approvedAt,
         providerReference: stationPaymentOrdersTable.providerReference,
+        providerPayload: stationPaymentOrdersTable.providerPayload,
         serviceId: stationPaymentOrdersTable.serviceId,
       })
       .from(stationPaymentOrdersTable)
       .where(eq(stationPaymentOrdersTable.id, session.paymentOrderId));
-    paymentOrder = order ?? null;
+    paymentOrder = order ? publicPaymentOrder(order) : null;
   }
 
   return { session, patient, appointment, paymentOrder };
@@ -76,6 +112,36 @@ export async function GET() {
     await cookie.save();
     return NextResponse.json({ session: null });
   }
+
+  const sealed =
+    data.session.status === "completed" ||
+    data.session.status === "abandoned" ||
+    data.session.currentStep === "welcome";
+
+  if (sealed) {
+    return NextResponse.json({
+      session: {
+        token: data.session.token,
+        currentStep: "welcome",
+        patientType: null,
+        patientId: null,
+        appointmentId: null,
+        serviceId: null,
+        paymentOrderId: null,
+        paymentStatus: "unpaid",
+        deviceStatus: "idle",
+        vitalsDraft: {},
+        clinicalDraft: {},
+        assessmentDraft: null,
+        vitalSignId: null,
+        status: data.session.status,
+      },
+      patient: null,
+      appointment: null,
+      paymentOrder: null,
+    });
+  }
+
   return NextResponse.json({
     session: {
       token: data.session.token,
@@ -87,7 +153,7 @@ export async function GET() {
       paymentOrderId: data.session.paymentOrderId,
       paymentStatus: data.session.paymentStatus,
       deviceStatus: data.session.deviceStatus,
-      vitalsDraft: data.session.vitalsDraft ?? {},
+      vitalsDraft: publicVitalsDraft(data.session.vitalsDraft),
       clinicalDraft: data.session.clinicalDraft ?? {},
       assessmentDraft: data.session.assessmentDraft ?? null,
       vitalSignId: data.session.vitalSignId,
@@ -172,10 +238,21 @@ export async function PATCH(request: Request) {
 export async function DELETE() {
   const cookie = await getKioskCookie();
   if (cookie.token) {
-    await db
-      .update(stationKioskSessionsTable)
-      .set({ status: "abandoned", updatedAt: new Date() })
+    const [row] = await db
+      .select({
+        id: stationKioskSessionsTable.id,
+        status: stationKioskSessionsTable.status,
+      })
+      .from(stationKioskSessionsTable)
       .where(eq(stationKioskSessionsTable.token, cookie.token));
+
+    // A new kiosk visit must not kill a patient already waiting for the doctor.
+    if (row && row.status !== "waiting_doctor") {
+      await db
+        .update(stationKioskSessionsTable)
+        .set({ status: "abandoned", updatedAt: new Date() })
+        .where(eq(stationKioskSessionsTable.id, row.id));
+    }
   }
   cookie.token = undefined;
   await cookie.save();

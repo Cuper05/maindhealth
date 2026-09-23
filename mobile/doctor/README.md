@@ -39,15 +39,8 @@ Demo médico (seed): `doctor@maindhealth.local` / `admin123`
 1. Login → `POST /api/mobile/auth/login` → Bearer (30 días)
 2. Home registra token Expo → `POST /api/mobile/push-token`
 3. Escalación en estación → push Expo (canal Android `teleconsulta`)
-4. Tap → pantalla `call` (WebView) con Daily o consulta web
-
-## Metro local (opcional)
-
-Solo si ya instalaste un **development build** EAS:
-
-```bat
-iniciar-app-medico.bat
-```
+4. Tap **Unirse a videollamada** → pantalla `call` (Daily + signos/síntomas)
+5. Tap **Crear / emitir receta** (o pestaña en la llamada) → puente de sesión web → `/consultas/cita/[id]` para guardar consulta, emitir y firmar receta
 
 ## API backend
 
@@ -56,3 +49,5 @@ iniciar-app-medico.bat
 | POST | `/api/mobile/auth/login` | — |
 | POST | `/api/mobile/push-token` | Bearer |
 | GET | `/api/mobile/teleconsultas` | Bearer |
+| GET | `/api/mobile/teleconsultas/[appointmentId]` | Bearer |
+| GET | `/api/mobile/session/bridge?token=&appointmentId=` | token en query (WebView) |

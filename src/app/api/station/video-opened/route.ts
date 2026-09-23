@@ -5,6 +5,7 @@ import { stationKioskSessionsTable } from "@/lib/db/schema";
 import { can } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { getKioskCookie } from "@/lib/kiosk/session-cookie";
+import { invalidateWaitingDoctorCache } from "@/lib/queries/station-waiting";
 
 /**
  * Estado de la sesión de kiosco ligada a la cita (backup para que la Dell vuelva a standby).
@@ -137,6 +138,8 @@ export async function POST(request: Request) {
         })
         .where(eq(stationKioskSessionsTable.id, row.id));
     }
+
+    invalidateWaitingDoctorCache();
 
     return NextResponse.json({ ok: true, updated: rows.length, event });
   } catch (error) {

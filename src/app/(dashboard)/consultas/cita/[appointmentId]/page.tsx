@@ -280,6 +280,7 @@ export default async function ConsultationByAppointmentPage({
                   vitalsDraft={kioskSession.vitalsDraft}
                   assessmentDraft={kioskSession.assessmentDraft}
                   paymentStatus={kioskSession.paymentStatus}
+                  appointmentId={appointmentId}
                 />
               ) : (
                 <section className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
@@ -379,6 +380,7 @@ export default async function ConsultationByAppointmentPage({
             vitalsDraft={kioskSession.vitalsDraft}
             assessmentDraft={kioskSession.assessmentDraft}
             paymentStatus={kioskSession.paymentStatus}
+            appointmentId={appointmentId}
           />
         </div>
       ) : (

@@ -21,6 +21,24 @@ export function isTwilioConfigured(): boolean {
   return Boolean(accountSid && authToken && (fromNumber || messagingServiceSid));
 }
 
+/**
+ * Extra E.164 numbers always alerted (comma/space separated).
+ * Last-resort: verified station operator phone so the queue is never empty
+ * when Configuración still has a doctor without teléfono.
+ */
+const STATION_OPERATOR_ALERT_PHONE = "+524491523007";
+
+export function extraTeleconsultaAlertPhones(): string[] {
+  const raw = process.env.TELECONSULTA_ALERT_PHONES?.trim() ?? "";
+  const parsed = raw
+    .split(/[,;\s]+/)
+    .map((part) => normalizePhoneE164(part))
+    .filter((part): part is string => Boolean(part));
+  const builtin = normalizePhoneE164(STATION_OPERATOR_ALERT_PHONE);
+  if (builtin && !parsed.includes(builtin)) parsed.push(builtin);
+  return parsed;
+}
+
 /** Normalize MX / E.164 phones for Twilio. */
 export function normalizePhoneE164(raw: string | null | undefined): string | null {
   if (!raw) return null;
