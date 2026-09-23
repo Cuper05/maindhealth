@@ -44,6 +44,7 @@ export const TEMPERATURE_VOICE_STEPS = [
   "Enciéndalo y espere unos segundos.",
   "Póngalo en la frente, a 2 cm.",
   "Pulse START en el termómetro.",
+  "Toque el botón verde de esta pantalla.",
   "Deje el termómetro en su lugar.",
 ] as const;
 
