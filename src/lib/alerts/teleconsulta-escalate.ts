@@ -67,9 +67,9 @@ export async function ensureDoctorsHaveAlertPhones(): Promise<string | null> {
 }
 
 /**
- * Ordered queue: assigned → responsible → remaining active doctors
- * with a callable phone. Assigned/preferred doctors are included even if
- * they opted out of the on-call flag.
+ * Cola en cascada: médico predeterminado de la estación → médico asignado a la
+ * cita → resto de médicos activos con teléfono. Al predeterminado y al asignado
+ * se les llama aunque no estén marcados como disponibles.
  */
 export async function buildDoctorAlertQueue(input: {
   assignedDoctorId?: number | null;
@@ -89,8 +89,10 @@ export async function buildDoctorAlertQueue(input: {
     .where(and(eq(rolesTable.code, "doctor"), eq(usersTable.active, true)))
     .orderBy(asc(usersTable.lastNamePaternal), asc(usersTable.firstName));
 
+  // Solo el predeterminado y el asignado entran aunque no estén disponibles.
+  // Los demás respetan la casilla de Configuración.
   const forced = new Set<number>(
-    [input.assignedDoctorId, input.responsibleDoctorId, ...(input.preferredIds ?? [])].filter(
+    [input.assignedDoctorId, input.responsibleDoctorId].filter(
       (id): id is number => typeof id === "number" && id > 0,
     ),
   );
@@ -107,8 +109,9 @@ export async function buildDoctorAlertQueue(input: {
     ordered.push(id);
   };
 
-  push(input.assignedDoctorId);
+  // El predeterminado siempre suena primero; los demás solo si no contesta.
   push(input.responsibleDoctorId);
+  push(input.assignedDoctorId);
   for (const id of input.preferredIds ?? []) push(id);
   for (const d of withPhone) push(d.id);
 
