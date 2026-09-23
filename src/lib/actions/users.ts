@@ -8,7 +8,7 @@ import {
   getActionSession,
 } from "@/lib/auth/action-session";
 import { db } from "@/lib/db";
-import { usersTable } from "@/lib/db/schema";
+import { rolesTable, usersTable } from "@/lib/db/schema";
 import { logActivity } from "@/lib/audit/log-activity";
 import { normalizePhoneE164 } from "@/lib/alerts/twilio";
 
@@ -64,6 +64,113 @@ export async function updateDoctorTeleconsultaContact(
   revalidatePath("/configuracion");
   revalidatePath("/medicos");
   return actionSuccess({ userId });
+}
+
+/**
+ * Alta de usuario interno. Un médico queda listo para teleconsulta: activo,
+ * en la cola de alertas y con acceso a la app del celular con este correo.
+ */
+export async function createUser(_prev: unknown, formData: FormData) {
+  const session = await getActionSession("users:write");
+  if ("error" in session) return actionError(session.error);
+
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastNamePaternal = String(formData.get("lastNamePaternal") ?? "").trim();
+  const lastNameMaternal = String(formData.get("lastNameMaternal") ?? "").trim() || null;
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const phoneRaw = String(formData.get("phone") ?? "").trim();
+  const specialty = String(formData.get("specialty") ?? "").trim() || null;
+  const professionalLicense =
+    String(formData.get("professionalLicense") ?? "").trim() || null;
+  const roleCode = String(formData.get("roleCode") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const teleconsultaAvailable =
+    formData.get("teleconsultaAvailable") === "on" ||
+    formData.get("teleconsultaAvailable") === "true" ||
+    formData.get("teleconsultaAvailable") === "1";
+
+  if (!firstName || !lastNamePaternal) {
+    return actionError("Nombre y apellido paterno son requeridos");
+  }
+  if (!email || !email.includes("@")) {
+    return actionError("Correo inválido");
+  }
+  if (password.length < 6) {
+    return actionError("La contraseña debe tener al menos 6 caracteres.");
+  }
+  if (!roleCode) {
+    return actionError("Elija el rol del usuario");
+  }
+  if (roleCode === "patient") {
+    return actionError("Los pacientes se dan de alta desde Pacientes, no aquí.");
+  }
+
+  const [role] = await db
+    .select({ id: rolesTable.id, code: rolesTable.code, name: rolesTable.name })
+    .from(rolesTable)
+    .where(eq(rolesTable.code, roleCode))
+    .limit(1);
+  if (!role) return actionError("Rol no encontrado");
+
+  const isDoctor = role.code === "doctor";
+  if (isDoctor && !professionalLicense) {
+    return actionError("La cédula profesional es requerida: se imprime en las recetas.");
+  }
+
+  let phone: string | null = phoneRaw || null;
+  if (phone) {
+    const normalized = normalizePhoneE164(phone);
+    if (!normalized) {
+      return actionError("Teléfono inválido. Use 10 dígitos MX o formato +52…");
+    }
+    phone = normalized;
+  }
+  if (isDoctor && teleconsultaAvailable && !phone) {
+    return actionError(
+      "Para recibir alertas de teleconsulta el médico necesita teléfono.",
+    );
+  }
+
+  const [emailTaken] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1);
+  if (emailTaken) {
+    return actionError("Ese correo ya está registrado.");
+  }
+
+  const bcrypt = await import("bcryptjs");
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const [created] = await db
+    .insert(usersTable)
+    .values({
+      roleId: role.id,
+      firstName,
+      lastNamePaternal,
+      lastNameMaternal,
+      email,
+      phone,
+      specialty,
+      professionalLicense,
+      passwordHash,
+      active: true,
+      teleconsultaAvailable: isDoctor ? teleconsultaAvailable : false,
+    })
+    .returning({ id: usersTable.id });
+
+  await logActivity({
+    userId: session.userId,
+    module: "configuracion",
+    action: "crear_usuario",
+    recordId: created.id,
+    detail: `${role.name} ${email}${isDoctor ? ` · cédula ${professionalLicense}` : ""}`,
+  });
+
+  revalidatePath("/configuracion");
+  revalidatePath("/medicos");
+  return actionSuccess({ userId: created.id, roleCode: role.code });
 }
 
 /** Edición completa de perfil de usuario / médico (admin). */

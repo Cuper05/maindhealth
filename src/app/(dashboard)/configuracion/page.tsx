@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { rolesTable, usersTable } from "@/lib/db/schema";
 import { ModulePlaceholder } from "@/components/ModulePlaceholder";
 import { EditUserProfileForm } from "@/components/forms/EditUserProfileForm";
+import { NewUserForm } from "@/components/forms/NewUserForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default async function ConfiguracionPage() {
@@ -43,6 +44,14 @@ export default async function ConfiguracionPage() {
     .innerJoin(rolesTable, eq(usersTable.roleId, rolesTable.id))
     .orderBy(asc(usersTable.lastNamePaternal), asc(usersTable.firstName));
 
+  // Los pacientes se dan de alta desde Pacientes, no como usuarios internos.
+  const staffRoles = (
+    await db
+      .select({ code: rolesTable.code, name: rolesTable.name })
+      .from(rolesTable)
+      .orderBy(asc(rolesTable.name))
+  ).filter((role) => role.code !== "patient");
+
   const doctors = users.filter((u) => u.roleCode === "doctor");
   const otherUsers = users.filter((u) => u.roleCode !== "doctor");
 
@@ -67,6 +76,16 @@ export default async function ConfiguracionPage() {
           Catálogos clínicos →
         </Link>
       </div>
+
+      {canEditUsers ? (
+        <section className="mb-10">
+          <h2 className="text-lg font-medium text-slate-800">Nuevo usuario o médico</h2>
+          <p className="mt-1 mb-4 text-sm text-slate-600">
+            Da de alta médicos, enfermería, recepción y administradores.
+          </p>
+          <NewUserForm roles={staffRoles} />
+        </section>
+      ) : null}
 
       <section className="mb-10">
         <h2 className="text-lg font-medium text-slate-800">Médicos</h2>
