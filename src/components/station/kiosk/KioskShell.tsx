@@ -97,7 +97,10 @@ export function KioskShell({
 
   return (
     <div className="flex h-screen max-h-screen flex-col overflow-hidden overscroll-none bg-[#eef3f9] touch-pan-x touch-pan-y">
-      <header className="relative z-10 shrink-0 bg-gradient-to-r from-[#143d66] via-[#1a4d7c] to-[#1d6eb8] text-white shadow-md">
+      <header
+        data-kiosk-chrome
+        className="relative z-10 shrink-0 bg-gradient-to-r from-[#143d66] via-[#1a4d7c] to-[#1d6eb8] text-white shadow-md"
+      >
         <div className="w-full px-4 py-4 sm:px-6 xl:px-10">
           <div className="relative z-10 flex flex-nowrap items-center justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -193,11 +196,13 @@ export function KioskShell({
       </header>
 
       <div
+        data-kiosk-stage
         className={`flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden p-3 sm:p-5 xl:p-6 ${
           showVitalsPanel ? "md:flex-row" : ""
-        } ${keyboardOpen ? "pb-[320px]" : ""}`}
+        }`}
       >
         <main
+          data-kiosk-main
           className={`h-full min-h-0 min-w-0 flex-1 ${
             allowScroll ? "overflow-y-auto overscroll-contain" : "overflow-hidden"
           }`}
@@ -205,15 +210,15 @@ export function KioskShell({
           {children}
         </main>
         {showVitalsPanel && (
-          <div className="hidden h-full min-h-0 w-64 shrink-0 lg:block xl:w-72">
+          <div data-kiosk-chrome className="hidden h-full min-h-0 w-64 shrink-0 lg:block xl:w-72">
             <VitalsPanel draft={vitalsDraft} />
           </div>
         )}
       </div>
 
       <footer
+        data-kiosk-chrome
         className="shrink-0 border-t border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur sm:px-6"
-        style={{ marginBottom: keyboardOpen ? "var(--kiosk-keyboard-height, 300px)" : undefined }}
       >
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <StatusPill status={status} />

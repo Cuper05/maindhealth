@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --kiosk-keyboard-height: 0px;
 }
 
 @theme inline {
@@ -85,4 +86,129 @@ html.kiosk-kb-open [data-kiosk-clinical-footer] {
   padding: 0 !important;
   border: 0 !important;
   overflow: hidden !important;
+}
+
+/* Teclado del kiosco: ocupa la mayor parte de la pantalla para que cada tecla
+   sea fácil de acertar. Arriba solo quedan los campos que se escriben con él. */
+html.kiosk-kb-open {
+  --kiosk-keyboard-height: clamp(440px, 64vh, 760px);
+}
+
+.kiosk-keyboard,
+.kiosk-keyboard button {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.kiosk-keyboard {
+  height: clamp(440px, 64vh, 760px);
+  max-height: clamp(440px, 64vh, 760px);
+}
+
+html.kiosk-kb-open [data-kiosk-chrome] {
+  display: none !important;
+}
+
+html.kiosk-kb-open [data-kiosk-stage] {
+  flex: 0 0 auto !important;
+  height: calc(100vh - var(--kiosk-keyboard-height)) !important;
+  max-height: calc(100vh - var(--kiosk-keyboard-height)) !important;
+  padding: 0.5rem !important;
+  gap: 0 !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] > section {
+  height: auto !important;
+  max-height: 100% !important;
+  margin-top: auto !important;
+  flex: 0 1 auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* Los contenedores flex-1 dejarían un hueco enorme; al escribir se ajustan al campo. */
+html.kiosk-kb-open [data-kiosk-main] .flex-1 {
+  flex: 0 0 auto !important;
+  height: auto !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] .min-h-0 {
+  min-height: auto !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] .h-full {
+  height: auto !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] .overflow-hidden {
+  overflow: visible !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] > section.overflow-hidden {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+/* Oculta títulos, QR, botones, resúmenes y cualquier bloque sin un campo de texto.
+   Los inputs, textareas y sus etiquetas siguen visibles para poder cambiar de campo. */
+html.kiosk-kb-open [data-kiosk-main] :is(
+  div,
+  section,
+  article,
+  aside,
+  header,
+  footer,
+  form,
+  fieldset,
+  ul,
+  ol,
+  li,
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  img,
+  button,
+  a,
+  table,
+  figure
+):not(:has(
+  textarea,
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"])
+)) {
+  display: none !important;
+}
+
+html.kiosk-kb-open [data-kiosk-main] label:has(input[type="checkbox"], input[type="radio"]):not(
+  :has(
+    textarea,
+    input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="file"])
+  )
+) {
+  display: none !important;
+}
+
+html.kiosk-kb-open input.kiosk-kb-active {
+  min-height: 80px !important;
+  font-size: 1.7rem !important;
+  border-color: #1d6eb8 !important;
+  box-shadow: 0 0 0 4px rgba(29, 110, 184, 0.28) !important;
+}
+
+html.kiosk-kb-open textarea.kiosk-kb-active {
+  min-height: 140px !important;
+  font-size: 1.5rem !important;
+  border-color: #1d6eb8 !important;
+  box-shadow: 0 0 0 4px rgba(29, 110, 184, 0.28) !important;
 }

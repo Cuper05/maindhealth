@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 const LETTERS = [
   ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
@@ -89,39 +89,56 @@ function KeyButton({
   label,
   onPress,
   wide,
+  space,
   active,
+  tone = "default",
 }: {
   label: string;
   onPress: () => void;
   wide?: boolean;
+  space?: boolean;
   active?: boolean;
+  tone?: "default" | "done";
 }) {
-  // Fire on pointerdown (not click): preventDefault keeps focus in the field on touch
-  // devices; delaying to click can drop the event after preventDefault.
-  const handlePointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+  const lastFire = useRef(0);
+  const [down, setDown] = useState(false);
+  const downTimer = useRef<number | null>(null);
+
+  // pointerdown (no click): preventDefault mantiene el foco en el campo.
+  // En el kiosco a veces solo llega mousedown; el margen de 80 ms evita doble letra.
+  // Sin setPointerCapture: si el toque no termina en pointerup, la captura se queda
+  // pegada y el resto de la pantalla deja de responder.
+  const fire = (e: SyntheticEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
+    const now = performance.now();
+    if (now - lastFire.current < 80) return;
+    lastFire.current = now;
+    setDown(true);
+    if (downTimer.current) window.clearTimeout(downTimer.current);
+    downTimer.current = window.setTimeout(() => setDown(false), 120);
     onPress();
   };
+
+  const grow = space ? "flex-[2.2]" : wide ? "flex-[1.45]" : "flex-1";
+  const pressed = active || down;
+  const face =
+    tone === "done"
+      ? down
+        ? "bg-emerald-800 text-white"
+        : "bg-emerald-600 text-white"
+      : pressed
+        ? "bg-[#1d6eb8] text-white"
+        : "bg-white text-slate-900";
 
   return (
     <button
       type="button"
       tabIndex={-1}
-      onMouseDown={(e) => e.preventDefault()}
-      onPointerDown={handlePointerDown}
-      className={`min-h-[56px] touch-none select-none rounded-xl text-xl font-semibold shadow-sm ring-1 ${
-        wide ? "min-w-[96px] flex-[1.4] px-3" : "min-w-[44px] flex-1 px-1"
-      } ${
-        active
-          ? "bg-[#1d6eb8] text-white ring-[#1d6eb8]"
-          : "bg-white text-slate-800 ring-slate-200 hover:bg-slate-50"
-      }`}
+      onMouseDown={fire}
+      onPointerDown={fire}
+      onContextMenu={(e) => e.preventDefault()}
+      className={`flex h-full min-h-0 min-w-0 ${grow} items-center justify-center rounded-lg border-[3px] border-[#e8eef5] px-1 text-[clamp(1.35rem,2.7vh,2.35rem)] font-bold leading-none ${face}`}
     >
       {label}
     </button>
@@ -240,71 +257,70 @@ export function KioskOnScreenKeyboard({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[80] touch-none border-t border-slate-200 bg-[#e8eef5]/95 p-3 shadow-[0_-8px_30px_rgba(15,45,90,0.12)] backdrop-blur"
+      data-kiosk-keyboard
+      className="kiosk-keyboard fixed inset-x-0 bottom-0 z-[80] flex flex-col border-t border-slate-300 bg-[#e8eef5] px-0.5 pb-0.5 pt-1 shadow-[0_-12px_40px_rgba(15,45,90,0.18)]"
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
       role="group"
       aria-label="Teclado en pantalla"
     >
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            {emailMode ? "Teclado · correo (@ y . en letras)" : "Teclado en pantalla"}
-          </p>
-          <button
-            type="button"
-            tabIndex={-1}
-            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white"
-            onMouseDown={(e) => e.preventDefault()}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              dismiss();
-            }}
-          >
-            Cerrar teclado
-          </button>
-        </div>
-        <div className="space-y-2">
-          {rows.map((row, i) => (
-            <div key={`${layout}-${emailMode ? "email" : "text"}-${i}`} className="flex justify-center gap-1.5">
-              {i === 2 && layout === "letters" && (
-                <KeyButton label="⇧" onPress={() => setShift((s) => !s)} active={shift} wide />
-              )}
-              {row.map((key) => (
-                <KeyButton key={`${layout}-${key}`} label={key} onPress={() => insert(key)} />
-              ))}
-              {i === 2 && layout === "letters" && (
-                <KeyButton label="⌫" onPress={backspace} wide />
-              )}
-            </div>
-          ))}
-          <div className="flex justify-center gap-1.5">
-            <KeyButton
-              label="123"
-              active={layout === "numbers"}
-              onPress={() => setLayout((l) => (l === "numbers" ? "letters" : "numbers"))}
-              wide
-            />
-            <KeyButton
-              label="áéí"
-              active={layout === "accents"}
-              onPress={() => setLayout((l) => (l === "accents" ? "letters" : "accents"))}
-              wide
-            />
-            {emailMode && layout === "letters" && (
-              <>
-                <KeyButton label="@" onPress={() => insert("@")} />
-                <KeyButton label="." onPress={() => insert(".")} />
-              </>
+      <div className="mb-0.5 flex shrink-0 items-center justify-between gap-2 px-1.5">
+        <p className="min-w-0 truncate text-base font-semibold text-slate-600">
+          {emailMode
+            ? "Correo: @ y punto están en el teclado. Listo ✓ muestra el resto."
+            : "Escriba en el campo. Listo ✓ muestra el resto de la pantalla."}
+        </p>
+        <button
+          type="button"
+          tabIndex={-1}
+          className="min-h-[48px] shrink-0 rounded-xl bg-slate-800 px-4 text-lg font-bold text-white"
+          onMouseDown={(e) => e.preventDefault()}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dismiss();
+          }}
+        >
+          Cerrar
+        </button>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {rows.map((row, i) => (
+          <div key={`${layout}-${emailMode ? "email" : "text"}-${i}`} className="flex min-h-0 flex-1">
+            {i === 2 && layout === "letters" && (
+              <KeyButton label="⇧" onPress={() => setShift((s) => !s)} active={shift} wide />
             )}
-            <KeyButton label="Espacio" onPress={() => insert(" ")} wide />
-            <KeyButton label="⌫" onPress={backspace} wide />
-            <KeyButton
-              label="Listo ✓"
-              onPress={dismiss}
-              wide
-            />
+            {row.map((key) => (
+              <KeyButton key={`${layout}-${key}-${i}`} label={key} onPress={() => insert(key)} />
+            ))}
+            {i === 2 && layout === "letters" && (
+              <KeyButton label="⌫" onPress={backspace} wide />
+            )}
           </div>
+        ))}
+        <div className="flex min-h-0 flex-1">
+          <KeyButton
+            label="123"
+            active={layout === "numbers"}
+            onPress={() => setLayout((l) => (l === "numbers" ? "letters" : "numbers"))}
+            wide
+          />
+          <KeyButton
+            label="áéí"
+            active={layout === "accents"}
+            onPress={() => setLayout((l) => (l === "accents" ? "letters" : "accents"))}
+            wide
+          />
+          {emailMode && layout === "letters" && (
+            <>
+              <KeyButton label="@" onPress={() => insert("@")} />
+              <KeyButton label="." onPress={() => insert(".")} />
+            </>
+          )}
+          <KeyButton label="Espacio" onPress={() => insert(" ")} space />
+          <KeyButton label="⌫" onPress={backspace} wide />
+          <KeyButton label="Listo ✓" onPress={dismiss} tone="done" wide />
         </div>
       </div>
     </div>
@@ -328,6 +344,15 @@ const NON_TEXT_INPUT_TYPES = new Set([
   "time",
 ]);
 
+function clearActiveField() {
+  document.querySelectorAll(".kiosk-kb-active").forEach((node) => node.classList.remove("kiosk-kb-active"));
+}
+
+function markActiveField(el: HTMLElement) {
+  clearActiveField();
+  el.classList.add("kiosk-kb-active");
+}
+
 function isKeyboardTarget(el: EventTarget | null): el is HTMLInputElement | HTMLTextAreaElement {
   if (el instanceof HTMLTextAreaElement) return true;
   if (!(el instanceof HTMLInputElement)) return false;
@@ -350,7 +375,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) {
-      document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+      clearActiveField();
       document.documentElement.classList.remove("kiosk-kb-open");
       return;
     }
@@ -367,13 +392,15 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
       el.setAttribute("autocapitalize", "off");
       el.setAttribute("spellcheck", "false");
       applyVirtualKeyboardPolicy(el);
+      markActiveField(el);
       setTarget(el);
       setOpen(true);
-      document.documentElement.style.setProperty("--kiosk-keyboard-height", "300px");
       document.documentElement.classList.add("kiosk-kb-open");
-      // Deja el campo arriba del teclado, sin taparlo con el pie «Continuar».
+      // El alto del teclado ya cambió el layout: acerca el campo al borde superior del teclado.
       window.requestAnimationFrame(() => {
-        el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
+        window.requestAnimationFrame(() => {
+          el.scrollIntoView({ block: "end", behavior: "auto", inline: "nearest" });
+        });
       });
     };
 
@@ -381,7 +408,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
       blurTimer.current = window.setTimeout(() => {
         setOpen(false);
         setTarget(null);
-        document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+        clearActiveField();
         document.documentElement.classList.remove("kiosk-kb-open");
       }, 180);
     };
@@ -392,7 +419,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       if (blurTimer.current) window.clearTimeout(blurTimer.current);
-      document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+      clearActiveField();
       document.documentElement.classList.remove("kiosk-kb-open");
     };
   }, [enabled]);
@@ -400,7 +427,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
   const close = useCallback(() => {
     setOpen(false);
     setTarget(null);
-    document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+    clearActiveField();
     document.documentElement.classList.remove("kiosk-kb-open");
   }, []);
 
