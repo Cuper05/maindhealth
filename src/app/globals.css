@@ -88,10 +88,10 @@ html.kiosk-kb-open [data-kiosk-clinical-footer] {
   overflow: hidden !important;
 }
 
-/* Teclado del kiosco: ocupa la mayor parte de la pantalla para que cada tecla
-   sea fácil de acertar. Arriba solo quedan los campos que se escriben con él. */
+/* Teclado del kiosco: el alto real lo fija JS en --kiosk-keyboard-height (px).
+   Arriba solo quedan los campos que se escriben con él. */
 html.kiosk-kb-open {
-  --kiosk-keyboard-height: clamp(440px, 64vh, 760px);
+  --kiosk-keyboard-height: 78vh;
 }
 
 .kiosk-keyboard,
@@ -103,8 +103,9 @@ html.kiosk-kb-open {
 }
 
 .kiosk-keyboard {
-  height: clamp(440px, 64vh, 760px);
-  max-height: clamp(440px, 64vh, 760px);
+  height: var(--kiosk-keyboard-height, 78vh) !important;
+  max-height: var(--kiosk-keyboard-height, 78vh) !important;
+  min-height: 560px !important;
 }
 
 html.kiosk-kb-open [data-kiosk-chrome] {

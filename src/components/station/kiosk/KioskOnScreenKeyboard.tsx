@@ -70,6 +70,25 @@ function applyVirtualKeyboardPolicy(el: HTMLElement) {
   }
 }
 
+/** Alto fijo en px: Edge del kiosco a veces no aplica bien clamp()/vh del CSS. */
+function computeKioskKeyboardHeight() {
+  const vh = typeof window !== "undefined" ? window.innerHeight || 1080 : 1080;
+  // ~78% de la pantalla; deja ~160–200px arriba para el/los campos.
+  return Math.max(560, Math.min(Math.round(vh * 0.78), vh - 160));
+}
+
+function applyKeyboardOpenLayout() {
+  const height = computeKioskKeyboardHeight();
+  document.documentElement.style.setProperty("--kiosk-keyboard-height", `${height}px`);
+  document.documentElement.classList.add("kiosk-kb-open");
+  return height;
+}
+
+function clearKeyboardOpenLayout() {
+  document.documentElement.style.setProperty("--kiosk-keyboard-height", "0px");
+  document.documentElement.classList.remove("kiosk-kb-open");
+}
+
 function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: string, inputType = "insertText") {
   const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   const desc = Object.getOwnPropertyDescriptor(proto, "value");
@@ -138,7 +157,11 @@ function KeyButton({
       onMouseDown={fire}
       onPointerDown={fire}
       onContextMenu={(e) => e.preventDefault()}
-      className={`flex h-full min-h-0 min-w-0 ${grow} items-center justify-center rounded-lg border-[3px] border-[#e8eef5] px-1 text-[clamp(1.35rem,2.7vh,2.35rem)] font-bold leading-none ${face}`}
+      style={{
+        // Fuerza teclas altas aunque el flex del contenedor falle en Edge.
+        minHeight: "calc((var(--kiosk-keyboard-height, 560px) - 52px) / 4)",
+      }}
+      className={`flex h-full min-h-0 min-w-0 ${grow} items-center justify-center rounded-lg border-[3px] border-[#e8eef5] px-1 text-[clamp(1.6rem,3.2vh,2.6rem)] font-bold leading-none ${face}`}
     >
       {label}
     </button>
@@ -259,6 +282,11 @@ export function KioskOnScreenKeyboard({
     <div
       data-kiosk-keyboard
       className="kiosk-keyboard fixed inset-x-0 bottom-0 z-[80] flex flex-col border-t border-slate-300 bg-[#e8eef5] px-0.5 pb-0.5 pt-1 shadow-[0_-12px_40px_rgba(15,45,90,0.18)]"
+      style={{
+        height: "var(--kiosk-keyboard-height, 78vh)",
+        maxHeight: "var(--kiosk-keyboard-height, 78vh)",
+        minHeight: 560,
+      }}
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
@@ -371,14 +399,24 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
   if (!enabled && (open || target)) {
     setOpen(false);
     setTarget(null);
+    if (typeof document !== "undefined") {
+      clearActiveField();
+      clearKeyboardOpenLayout();
+    }
   }
 
   useEffect(() => {
     if (!enabled) {
       clearActiveField();
-      document.documentElement.classList.remove("kiosk-kb-open");
+      clearKeyboardOpenLayout();
       return;
     }
+
+    const syncHeight = () => {
+      if (document.documentElement.classList.contains("kiosk-kb-open")) {
+        applyKeyboardOpenLayout();
+      }
+    };
 
     const onFocusIn = (event: FocusEvent) => {
       if (!isKeyboardTarget(event.target)) return;
@@ -395,7 +433,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
       markActiveField(el);
       setTarget(el);
       setOpen(true);
-      document.documentElement.classList.add("kiosk-kb-open");
+      applyKeyboardOpenLayout();
       // El alto del teclado ya cambió el layout: acerca el campo al borde superior del teclado.
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
@@ -409,18 +447,20 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
         setOpen(false);
         setTarget(null);
         clearActiveField();
-        document.documentElement.classList.remove("kiosk-kb-open");
+        clearKeyboardOpenLayout();
       }, 180);
     };
 
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
+    window.addEventListener("resize", syncHeight);
     return () => {
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
+      window.removeEventListener("resize", syncHeight);
       if (blurTimer.current) window.clearTimeout(blurTimer.current);
       clearActiveField();
-      document.documentElement.classList.remove("kiosk-kb-open");
+      clearKeyboardOpenLayout();
     };
   }, [enabled]);
 
@@ -428,7 +468,7 @@ export function useKioskVirtualKeyboard(enabled: boolean) {
     setOpen(false);
     setTarget(null);
     clearActiveField();
-    document.documentElement.classList.remove("kiosk-kb-open");
+    clearKeyboardOpenLayout();
   }, []);
 
   return { open: enabled && open, target: enabled ? target : null, close, setOpen };
