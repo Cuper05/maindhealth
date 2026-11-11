@@ -27,7 +27,12 @@ BAUD = int(os.environ.get("K3PRO_BAUD", "115200"))
 READ_TIMEOUT_MS = int(os.environ.get("K3PRO_READ_TIMEOUT_MS", "90000"))
 SILENCE_AFTER_BODY_S = float(os.environ.get("K3PRO_SILENCE_S", "1.2"))
 
-BODY_RE = re.compile(r"T\s*body\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*C", re.IGNORECASE)
+# LCD final: "T body = 36.860, weak high" (sin "C").
+# Intermedia: "T body = 37.179 C, ambience compensate" — no usar si hay otra después.
+BODY_RE = re.compile(
+    r"T\s*body\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(?:C\b)?",
+    re.IGNORECASE,
+)
 
 _lock = threading.Lock()
 _progress: dict[str, Any] = {
@@ -71,6 +76,7 @@ def read_body_temperature() -> dict[str, Any]:
     deadline = time.monotonic() + (READ_TIMEOUT_MS / 1000.0)
     last_body: float | None = None
     last_body_at = 0.0
+    last_is_final = False  # lectura tipo LCD (no "ambience compensate")
     saw_away = False
     buf = ""
 
@@ -118,11 +124,13 @@ def read_body_temperature() -> dict[str, Any]:
                     if m:
                         last_body = float(m.group(1))
                         last_body_at = time.monotonic()
+                        last_is_final = "ambience compensate" not in line.lower()
                         saw_away = False
                         set_progress(
                             "measure",
                             f"Temperatura corporal {last_body:.1f} °C. Espere a que termine…",
                             temperature=last_body,
+                            raw_line=line,
                         )
 
                     if line.strip().lower() == "away" and last_body is not None:
@@ -132,7 +140,8 @@ def read_body_temperature() -> dict[str, Any]:
             if last_body is not None:
                 if saw_away:
                     break
-                if time.monotonic() - last_body_at >= SILENCE_AFTER_BODY_S:
+                # No cortar solo con el borrador "ambience compensate"; esperar LCD o Away.
+                if last_is_final and time.monotonic() - last_body_at >= SILENCE_AFTER_BODY_S:
                     break
 
             time.sleep(0.05)
