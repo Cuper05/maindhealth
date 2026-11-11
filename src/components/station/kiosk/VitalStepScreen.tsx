@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { VitalBand, VitalReadingView } from "@/lib/kiosk/vital-ranges";
 import { bandTone, VITAL_RANGE_COPY } from "@/lib/kiosk/vital-ranges";
 import { VitalIllustration, type VitalIllustrationType } from "./KioskIllustrations";
@@ -227,49 +227,54 @@ export function VitalStepScreen({
           </div>
         ) : null}
 
-        {/* Instrucciones | Continuar | Imagen — el botón ocupa el hueco central, sin tapar texto */}
+        {/* Instrucciones (ancho) | Continuar a la derecha | Imagen estrecha */}
         <div
-          className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
+          className={`grid min-h-0 flex-1 gap-2 overflow-hidden lg:gap-3 ${
             compact
-              ? "grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_auto_minmax(0,0.95fr)]"
-              : "grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_auto_minmax(0,0.85fr)]"
+              ? "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_minmax(9.5rem,0.42fr)]"
+              : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_minmax(9.5rem,0.42fr)]"
           }`}
         >
-          <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
             {steps && steps.length > 0 ? (
               <ol
                 className={`grid min-h-0 flex-1 content-stretch gap-2 ${
-                  compact ? "grid-cols-1 sm:grid-cols-2 auto-rows-fr" : "grid-cols-1"
+                  compact
+                    ? "grid-cols-1 grid-rows-4 sm:grid-cols-2 sm:grid-rows-2"
+                    : "grid-cols-1"
                 }`}
+                style={
+                  steps.length > 0
+                    ? ({
+                        gridTemplateRows: compact
+                          ? undefined
+                          : `repeat(${steps.length}, minmax(0, 1fr))`,
+                      } as CSSProperties)
+                    : undefined
+                }
               >
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className={`flex min-h-0 items-center gap-3.5 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] font-semibold text-slate-800 ${
-                      compact
-                        ? "px-3.5 py-3.5 text-xl leading-snug xl:px-4 xl:py-4 xl:text-2xl"
-                        : "px-4 py-4 text-2xl leading-snug xl:px-5 xl:py-5 xl:text-3xl"
-                    }`}
+                    className="flex min-h-0 items-center gap-[clamp(0.5rem,1.2vh,0.9rem)] overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-[clamp(0.65rem,1.4vh,1.1rem)] py-[clamp(0.45rem,1.1vh,0.85rem)] font-semibold text-slate-800"
                   >
                     <span
-                      className={`flex shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] font-bold text-white ${
-                        compact
-                          ? "h-11 w-11 text-xl xl:h-12 xl:w-12 xl:text-2xl"
-                          : "h-12 w-12 text-2xl xl:h-14 xl:w-14 xl:text-3xl"
-                      }`}
+                      className="flex aspect-square h-[clamp(2rem,4.2vh,3rem)] w-[clamp(2rem,4.2vh,3rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.95rem,2.2vh,1.35rem)] font-bold text-white"
                     >
                       {index + 1}
                     </span>
-                    <span className="leading-snug">{item}</span>
+                    <span className="min-h-0 min-w-0 flex-1 overflow-hidden text-[clamp(1rem,2.35vh,1.65rem)] leading-snug xl:text-[clamp(1.1rem,2.6vh,1.85rem)]">
+                      {item}
+                    </span>
                   </li>
                 ))}
               </ol>
             ) : null}
             {tips && tips.length > 0 && !compact ? (
-              <ul className="space-y-1.5">
+              <ul className="shrink-0 space-y-1.5">
                 {tips.map((tip) => (
                   <li key={tip}>
-                    <KioskImportant>{tip}</KioskImportant>
+                    <KioskImportant className="!py-2 !text-lg xl:!text-xl">{tip}</KioskImportant>
                   </li>
                 ))}
               </ul>
@@ -277,18 +282,20 @@ export function VitalStepScreen({
             {tips && tips.length > 0 && compact ? (
               <div className="shrink-0">
                 {tips.map((tip) => (
-                  <KioskImportant key={tip}>{tip}</KioskImportant>
+                  <KioskImportant key={tip} className="!py-2 !text-base xl:!text-lg">
+                    {tip}
+                  </KioskImportant>
                 ))}
               </div>
             ) : null}
             {!showCapture && statusMessage && !showReading ? (
-              <p className={`font-medium text-[#1d6eb8] ${kioskHelperClassName}`}>
+              <p className={`shrink-0 font-medium text-[#1d6eb8] ${kioskHelperClassName}`}>
                 {statusMessage}
               </p>
             ) : null}
           </div>
 
-          <div className="flex items-end justify-center max-lg:order-last max-lg:py-1">
+          <div className="flex items-end justify-end max-lg:order-last max-lg:justify-center max-lg:py-1 lg:pr-0.5">
             <KioskContinueRoundButton
               onClick={onContinue}
               disabled={continueBlocked}
@@ -298,15 +305,15 @@ export function VitalStepScreen({
             </KioskContinueRoundButton>
           </div>
 
-          <div className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 max-lg:min-h-[220px]">
-            <div className="flex min-h-0 w-full flex-1 flex-col p-2 lg:min-h-0">
+          <div className="relative flex min-h-0 w-full max-w-[14rem] flex-col justify-self-end overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 max-lg:mx-auto max-lg:min-h-[180px] max-lg:max-w-sm lg:max-w-none">
+            <div className="flex min-h-0 w-full flex-1 flex-col p-1.5 lg:min-h-0 lg:p-1">
               <VitalIllustration type={illustration} />
             </div>
             {capturing && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
-                <div className="mx-3 rounded-xl bg-white px-4 py-3 shadow-lg">
+                <div className="mx-2 rounded-xl bg-white px-3 py-2 shadow-lg">
                   <p
-                    className={`animate-pulse text-center font-medium text-[#1d6eb8] ${kioskHelperClassName}`}
+                    className={`animate-pulse text-center text-sm font-medium text-[#1d6eb8] xl:text-base`}
                   >
                     {statusMessage || "Esperando lectura estable…"}
                   </p>
