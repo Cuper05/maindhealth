@@ -6,8 +6,8 @@ import { bandTone, VITAL_RANGE_COPY } from "@/lib/kiosk/vital-ranges";
 import { VitalIllustration, type VitalIllustrationType } from "./KioskIllustrations";
 import {
   KioskCard,
+  KioskContinueRoundButton,
   KioskImportant,
-  KioskPrimaryButton,
   KioskSecondaryButton,
   StatusPill,
   kioskHelperClassName,
@@ -294,21 +294,31 @@ export function VitalStepScreen({
         </div>
       </div>
 
-      <div className="mt-3 flex shrink-0 flex-row flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
-        {onBack && <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>}
-        {onRetry && deviceStatus === "done" && (
-          <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
-        )}
-        <KioskPrimaryButton className="w-full flex-1" onClick={onContinue} disabled={continueBlocked}>
-          Continuar
-        </KioskPrimaryButton>
-        <button
-          type="button"
-          onClick={onSimulate}
-          className="text-sm text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+      <div className="relative mt-3 flex shrink-0 flex-col items-center gap-2 border-t border-slate-100 pt-3">
+        <div className="flex w-full items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            {onBack ? (
+              <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>
+            ) : null}
+            {onRetry && deviceStatus === "done" ? (
+              <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onSimulate}
+            className="shrink-0 text-sm text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+          >
+            Simular lectura (modo demo)
+          </button>
+        </div>
+        <KioskContinueRoundButton
+          onClick={onContinue}
+          disabled={continueBlocked}
+          pulse={deviceStatus === "done" && !continueBlocked}
         >
-          Simular lectura (modo demo)
-        </button>
+          Continuar
+        </KioskContinueRoundButton>
       </div>
     </KioskCard>
   );

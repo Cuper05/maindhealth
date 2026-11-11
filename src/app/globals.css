@@ -75,6 +75,27 @@ body {
   animation: station-standby-pulse 2.4s ease-in-out infinite;
 }
 
+/* Kiosco: Continuar redondo late cuando la medición ya está lista */
+@keyframes kiosk-continue-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.07);
+  }
+}
+
+.kiosk-continue-pulse {
+  animation: kiosk-continue-pulse 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-continue-pulse {
+    animation: none;
+  }
+}
+
 /* Kiosco: mientras el teclado virtual está abierto, ocultar el pie Continuar
    para que no tape el campo que se está editando (medicamentos, alergias, etc.). */
 html.kiosk-kb-open [data-kiosk-clinical-footer] {

@@ -14,6 +14,7 @@ import { readStationThermometer } from "@/lib/kiosk/station-thermometer";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
 import {
   KioskCard,
+  KioskContinueRoundButton,
   KioskError,
   KioskImportant,
   KioskInfo,
@@ -2903,11 +2904,13 @@ export function PatientKioskWizard() {
               ))}
             </ul>
           </div>
-          <div className="flex shrink-0 w-full flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row">
-            <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
-            <KioskPrimaryButton className="w-full flex-1" onClick={() => goToStep("weight_height")}>
+          <div className="relative mt-1 flex shrink-0 flex-col items-center gap-2 border-t border-slate-100 pt-4">
+            <div className="flex w-full justify-start">
+              <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
+            </div>
+            <KioskContinueRoundButton pulse onClick={() => goToStep("weight_height")}>
               Continuar
-            </KioskPrimaryButton>
+            </KioskContinueRoundButton>
           </div>
         </KioskCard>
       )}
