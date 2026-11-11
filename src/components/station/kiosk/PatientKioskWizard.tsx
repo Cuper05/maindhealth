@@ -14,13 +14,13 @@ import { readStationThermometer } from "@/lib/kiosk/station-thermometer";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
 import {
   KioskCard,
-  KioskContinueRoundButton,
   KioskError,
   KioskImportant,
   KioskInfo,
   KioskPrimaryButton,
   KioskSecondaryButton,
   KioskScrollArea,
+  KioskVitalsNavBar,
   kioskBodyClassName,
   kioskHelperClassName,
   kioskInputClassName,
@@ -2904,19 +2904,18 @@ export function PatientKioskWizard() {
               ))}
             </ul>
           </div>
-          <div className="relative mt-2 flex h-[11.5rem] shrink-0 items-stretch gap-3 border-t border-slate-100 pt-2 xl:h-[13.5rem]">
-            <div className="flex w-[9.5rem] shrink-0 flex-col justify-end xl:w-[11rem]">
-              <KioskSecondaryButton className="!min-h-[52px] !px-3 !text-lg xl:!min-h-[56px] xl:!text-xl" onClick={goBack}>
+          <KioskVitalsNavBar
+            continuePulse
+            onContinue={() => goToStep("weight_height")}
+            left={
+              <KioskSecondaryButton
+                className="!min-h-[52px] !px-3 !text-lg xl:!min-h-[56px] xl:!text-xl"
+                onClick={goBack}
+              >
                 ← Atrás
               </KioskSecondaryButton>
-            </div>
-            <div className="flex min-w-0 flex-1 items-center justify-center">
-              <KioskContinueRoundButton pulse onClick={() => goToStep("weight_height")}>
-                Continuar
-              </KioskContinueRoundButton>
-            </div>
-            <div className="w-[9.5rem] shrink-0 xl:w-[11rem]" aria-hidden />
-          </div>
+            }
+          />
         </KioskCard>
       )}
 

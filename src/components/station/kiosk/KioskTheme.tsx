@@ -128,7 +128,7 @@ export function KioskContinueRoundButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={typeof children === "string" ? children : "Continuar"}
-      className={`inline-flex aspect-square h-full max-h-[13.5rem] min-h-[10.5rem] w-auto min-w-[10.5rem] max-w-[13.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-full bg-[#1d6eb8] px-4 text-center text-2xl font-bold leading-none text-white shadow-lg shadow-blue-900/25 transition hover:bg-[#165a9e] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none xl:max-h-[15.5rem] xl:min-h-[12.5rem] xl:min-w-[12.5rem] xl:max-w-[15.5rem] xl:text-3xl ${
+      className={`inline-flex h-[10.5rem] w-[10.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-full bg-[#1d6eb8] px-4 text-center text-2xl font-bold leading-none text-white shadow-lg shadow-blue-900/25 transition hover:bg-[#165a9e] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none xl:h-[12.5rem] xl:w-[12.5rem] xl:text-3xl ${
         pulse && !disabled ? "kiosk-continue-pulse" : ""
       } ${className}`}
     >
@@ -137,6 +137,46 @@ export function KioskContinueRoundButton({
         →
       </span>
     </button>
+  );
+}
+
+/**
+ * Pie compartido de signos vitales: alto = tamaño del Continuar (sin caja vacía).
+ * Izquierda/derecha opcionales (Atrás, demo, etc.).
+ */
+export function KioskVitalsNavBar({
+  left,
+  right,
+  onContinue,
+  continueDisabled,
+  continuePulse = false,
+  continueLabel = "Continuar",
+}: {
+  left?: React.ReactNode;
+  right?: React.ReactNode;
+  onContinue: () => void;
+  continueDisabled?: boolean;
+  continuePulse?: boolean;
+  continueLabel?: string;
+}) {
+  return (
+    <div className="relative mt-2 flex shrink-0 items-center gap-3 border-t border-slate-100 pt-2">
+      <div className="flex w-[9.5rem] shrink-0 flex-col justify-center gap-2 xl:w-[11rem]">
+        {left}
+      </div>
+      <div className="flex min-w-0 flex-1 items-center justify-center py-1">
+        <KioskContinueRoundButton
+          onClick={onContinue}
+          disabled={continueDisabled}
+          pulse={continuePulse}
+        >
+          {continueLabel}
+        </KioskContinueRoundButton>
+      </div>
+      <div className="flex w-[9.5rem] shrink-0 flex-col items-end justify-center xl:w-[11rem]">
+        {right}
+      </div>
+    </div>
   );
 }
 
