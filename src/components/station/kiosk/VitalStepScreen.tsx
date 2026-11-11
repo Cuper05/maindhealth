@@ -168,7 +168,8 @@ export function VitalStepScreen({
         </div>
       ) : null}
 
-      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      {/* Contenido a full height; Continuar flota encima del borde inferior */}
+      <div className="relative z-0 mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
           <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3 py-2 xl:px-4 xl:py-2.5">
             <p className="mb-1.5 text-center text-lg font-bold text-teal-900 xl:text-xl">
