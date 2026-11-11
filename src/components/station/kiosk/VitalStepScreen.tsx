@@ -301,14 +301,13 @@ export function VitalStepScreen({
         {onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
-        {!showCenterContinue ? (
-          <KioskPrimaryButton className="w-full flex-1" onClick={onContinue} disabled={continueBlocked}>
-            Continuar
-          </KioskPrimaryButton>
-        ) : (
+        {/* Continuar del pie solo tras lectura del aparato o «Simular lectura». */}
+        {showCenterContinue ? (
           <p className="flex-1 text-center text-base font-semibold text-[#1d6eb8] xl:text-lg">
             Use el botón Continuar del centro para seguir
           </p>
+        ) : (
+          <div className="min-h-[72px] flex-1 xl:min-h-[80px]" aria-hidden />
         )}
         <button
           type="button"
