@@ -141,8 +141,7 @@ export function KioskContinueRoundButton({
 }
 
 /**
- * Pie compartido de signos vitales: alto = tamaño del Continuar (sin caja vacía).
- * Izquierda/derecha opcionales (Atrás, demo, etc.).
+ * Pie bajo (alto ≈ Atrás). Continuar grande flota encima del contenido.
  */
 export function KioskVitalsNavBar({
   left,
@@ -160,21 +159,26 @@ export function KioskVitalsNavBar({
   continueLabel?: string;
 }) {
   return (
-    <div className="relative mt-2 flex shrink-0 items-center gap-3 border-t border-slate-100 pt-2">
-      <div className="flex w-[9.5rem] shrink-0 flex-col justify-center gap-2 xl:w-[11rem]">
-        {left}
-      </div>
-      <div className="flex min-w-0 flex-1 items-center justify-center py-1">
-        <KioskContinueRoundButton
-          onClick={onContinue}
-          disabled={continueDisabled}
-          pulse={continuePulse}
-        >
-          {continueLabel}
-        </KioskContinueRoundButton>
-      </div>
-      <div className="flex w-[9.5rem] shrink-0 flex-col items-end justify-center xl:w-[11rem]">
-        {right}
+    <div className="relative z-20 mt-2 shrink-0 border-t border-slate-100 pt-2">
+      <div className="relative flex min-h-[52px] items-center gap-3 xl:min-h-[56px]">
+        <div className="flex w-[9.5rem] shrink-0 flex-row flex-wrap items-center gap-2 xl:w-[11rem]">
+          {left}
+        </div>
+        <div className="min-w-0 flex-1" aria-hidden />
+        <div className="flex w-[9.5rem] shrink-0 items-center justify-end xl:w-[11rem]">
+          {right}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center">
+          <div className="pointer-events-auto drop-shadow-md">
+            <KioskContinueRoundButton
+              onClick={onContinue}
+              disabled={continueDisabled}
+              pulse={continuePulse}
+            >
+              {continueLabel}
+            </KioskContinueRoundButton>
+          </div>
+        </div>
       </div>
     </div>
   );
