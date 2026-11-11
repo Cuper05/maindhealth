@@ -22,6 +22,7 @@ import {
   KioskScrollArea,
   KioskVitalsNavBar,
   kioskBodyClassName,
+  kioskContinueClearanceClassName,
   kioskHelperClassName,
   kioskInputClassName,
   kioskLabelClassName,
@@ -2875,7 +2876,9 @@ export function PatientKioskWizard() {
 
       {step === "preparation" && (
         <KioskCard className="justify-between gap-3">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+          <div
+            className={`min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 ${kioskContinueClearanceClassName}`}
+          >
             <h2 className={kioskTitleClassName}>Preparación para signos vitales</h2>
             <p className={kioskSubtitleClassName}>
               Tomaremos sus signos uno por uno. La voz le guiará en cada paso.
