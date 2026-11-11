@@ -170,23 +170,23 @@ export function VitalStepScreen({
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
-          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 p-3 xl:p-4">
-            <p className="mb-2 text-center text-xl font-bold text-teal-900 xl:text-2xl">
+          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3 py-2 xl:px-4 xl:py-2.5">
+            <p className="mb-1.5 text-center text-lg font-bold text-teal-900 xl:text-xl">
               Para iniciar, toque el botón verde
             </p>
             <button
               type="button"
               onClick={onCapture}
               disabled={capturing && !captureCanConfirm}
-              className="flex w-full min-h-[72px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-2xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[84px] xl:text-3xl"
+              className="flex w-full min-h-[64px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[72px] xl:text-2xl"
             >
               {capturing ? capturingLabel : captureLabel}
             </button>
             {captureHelp && !compact ? (
-              <p className={`mt-2 text-center ${kioskHelperClassName}`}>{captureHelp}</p>
+              <p className={`mt-1.5 text-center ${kioskHelperClassName}`}>{captureHelp}</p>
             ) : null}
             {statusMessage && !showReading ? (
-              <p className={`mt-2 text-center font-medium text-teal-800 ${kioskHelperClassName}`}>
+              <p className={`mt-1.5 text-center font-medium text-teal-800 ${kioskHelperClassName}`}>
                 {statusMessage}
               </p>
             ) : null}
@@ -242,12 +242,22 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className="flex min-h-0 items-start gap-3 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-3 py-3 text-lg text-slate-800 xl:px-4 xl:py-3.5 xl:text-xl"
+                    className={`flex min-h-0 items-start gap-2.5 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] text-slate-800 ${
+                      compact
+                        ? "px-2.5 py-2 text-base xl:px-3 xl:py-2.5 xl:text-lg"
+                        : "px-3 py-3 text-lg xl:px-4 xl:py-3.5 xl:text-xl"
+                    }`}
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-lg font-bold text-white xl:h-11 xl:w-11 xl:text-xl">
+                    <span
+                      className={`flex shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] font-bold text-white ${
+                        compact
+                          ? "h-8 w-8 text-base xl:h-9 xl:w-9 xl:text-lg"
+                          : "h-10 w-10 text-lg xl:h-11 xl:w-11 xl:text-xl"
+                      }`}
+                    >
                       {index + 1}
                     </span>
-                    <span className="leading-snug pt-1">{item}</span>
+                    <span className="leading-snug pt-0.5">{item}</span>
                   </li>
                 ))}
               </ol>
@@ -294,31 +304,42 @@ export function VitalStepScreen({
         </div>
       </div>
 
-      <div className="relative mt-3 flex shrink-0 flex-col items-center gap-2 border-t border-slate-100 pt-3">
-        <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            {onBack ? (
-              <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>
-            ) : null}
-            {onRetry && deviceStatus === "done" ? (
-              <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
-            ) : null}
-          </div>
+      <div className="relative mt-2 flex h-[11.5rem] shrink-0 items-stretch gap-3 border-t border-slate-100 pt-2 xl:h-[13.5rem]">
+        <div className="flex w-[9.5rem] shrink-0 flex-col justify-end gap-2 xl:w-[11rem]">
+          {onBack ? (
+            <KioskSecondaryButton className="!min-h-[52px] !px-3 !text-lg xl:!min-h-[56px] xl:!text-xl" onClick={onBack}>
+              ← Atrás
+            </KioskSecondaryButton>
+          ) : null}
+          {onRetry && deviceStatus === "done" ? (
+            <KioskSecondaryButton
+              className="!min-h-[52px] !px-3 !text-base xl:!min-h-[56px] xl:!text-lg"
+              onClick={onRetry}
+            >
+              Repetir
+            </KioskSecondaryButton>
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-1 items-center justify-center">
+          <KioskContinueRoundButton
+            onClick={onContinue}
+            disabled={continueBlocked}
+            pulse={deviceStatus === "done" && !continueBlocked}
+          >
+            Continuar
+          </KioskContinueRoundButton>
+        </div>
+        <div className="flex w-[9.5rem] shrink-0 flex-col items-end justify-end xl:w-[11rem]">
           <button
             type="button"
             onClick={onSimulate}
-            className="shrink-0 text-sm text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+            className="max-w-full text-right text-xs leading-snug text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline xl:text-sm"
           >
-            Simular lectura (modo demo)
+            Simular lectura
+            <br />
+            (modo demo)
           </button>
         </div>
-        <KioskContinueRoundButton
-          onClick={onContinue}
-          disabled={continueBlocked}
-          pulse={deviceStatus === "done" && !continueBlocked}
-        >
-          Continuar
-        </KioskContinueRoundButton>
       </div>
     </KioskCard>
   );
