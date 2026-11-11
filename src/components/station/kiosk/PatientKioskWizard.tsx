@@ -2904,13 +2904,18 @@ export function PatientKioskWizard() {
               ))}
             </ul>
           </div>
-          <div className="relative mt-1 flex shrink-0 flex-col items-center gap-2 border-t border-slate-100 pt-4">
-            <div className="flex w-full justify-start">
-              <KioskSecondaryButton onClick={goBack}>← Atrás</KioskSecondaryButton>
+          <div className="relative mt-2 flex h-[11.5rem] shrink-0 items-stretch gap-3 border-t border-slate-100 pt-2 xl:h-[13.5rem]">
+            <div className="flex w-[9.5rem] shrink-0 flex-col justify-end xl:w-[11rem]">
+              <KioskSecondaryButton className="!min-h-[52px] !px-3 !text-lg xl:!min-h-[56px] xl:!text-xl" onClick={goBack}>
+                ← Atrás
+              </KioskSecondaryButton>
             </div>
-            <KioskContinueRoundButton pulse onClick={() => goToStep("weight_height")}>
-              Continuar
-            </KioskContinueRoundButton>
+            <div className="flex min-w-0 flex-1 items-center justify-center">
+              <KioskContinueRoundButton pulse onClick={() => goToStep("weight_height")}>
+                Continuar
+              </KioskContinueRoundButton>
+            </div>
+            <div className="w-[9.5rem] shrink-0 xl:w-[11rem]" aria-hidden />
           </div>
         </KioskCard>
       )}
