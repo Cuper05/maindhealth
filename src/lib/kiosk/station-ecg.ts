@@ -1,6 +1,6 @@
 /**
- * Lectura de ECG PC-80B desde 127.0.0.1:3928.
- * El cable se queda puesto: la PC silencia el USB, el paciente mide, luego se lee.
+ * Lectura del MD100C_P (BLE) desde 127.0.0.1:3928.
+ * Flujo: conectar → dedo ~30 s → «Ya terminó» → FC + etiqueta clínica.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3928";
@@ -9,6 +9,7 @@ export type StationEcgSample = {
   heartRate: number;
   rhythm: string;
   quality?: string;
+  source?: string;
 };
 
 export async function confirmStationEcgDone() {
@@ -23,7 +24,7 @@ export async function readStationEcg(
   onProgress?: (msg: string) => void,
 ): Promise<StationEcgSample> {
   onProgress?.(
-    "Cable puesto. Encienda el aparato, ponga los dedos 30 s. Si pide guardar, acepte. Luego toque Ya terminó.",
+    "Encienda el MD100C_P, coloque el dedo en el sensor ~30 s y toque Ya terminó.",
   );
 
   const ctrl = new AbortController();
@@ -51,32 +52,40 @@ export async function readStationEcg(
       heartRate?: number;
       rhythm?: string;
       quality?: string;
+      source?: string;
       error?: string;
     };
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          "Sin lectura del ECG. Mida 30 s, acepte guardar y toque Ya terminó.",
+          "Sin lectura del MD100C_P. Mantenga el dedo ~30 s y toque Ya terminó.",
       );
     }
     const heartRate = Number(data.heartRate);
     const rhythm = typeof data.rhythm === "string" ? data.rhythm.trim() : "";
     if (!(heartRate >= 30 && heartRate <= 250) || !rhythm) {
-      throw new Error("Lectura inválida del ECG. Reintente manteniendo los dedos firmes.");
+      throw new Error(
+        "Lectura inválida del MD100C_P. Reintente con el dedo firme en el sensor.",
+      );
     }
     onProgress?.(`${rhythm} · FC ${heartRate} lpm`);
-    return { heartRate, rhythm, quality: data.quality };
+    return {
+      heartRate,
+      rhythm,
+      quality: data.quality,
+      source: data.source ?? "md100c_p",
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const name = err instanceof Error ? err.name : "";
     if (name === "AbortError" || /aborted/i.test(msg)) {
       throw new Error(
-        "El ECG tardó demasiado. Mida 30 s, acepte guardar y toque Ya terminó.",
+        "El MD100C_P tardó demasiado. Enciéndalo, coloque el dedo y toque Ya terminó.",
       );
     }
     if (/Failed to fetch|NetworkError/i.test(msg)) {
       throw new Error(
-        "No se pudo contactar 127.0.0.1:3928. Los bridges deben estar en fondo (station-bridges). Si Edge pide red local, elija Permitir.",
+        "No se pudo contactar 127.0.0.1:3928. Instale Python+bleak (ecg-bridge) y reinicie station-bridges. Si Edge pide red local, elija Permitir.",
       );
     }
     throw err instanceof Error ? err : new Error(msg);

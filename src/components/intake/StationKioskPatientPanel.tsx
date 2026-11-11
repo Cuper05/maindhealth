@@ -123,7 +123,11 @@ export function StationKioskPatientPanel({
                 <p>
                   ECG: {vitals.ecgRhythm ?? vitals.ecgStatus}
                   {vitals.ecgHeartRate ? ` · FC ${vitals.ecgHeartRate}` : ""}
-                  {vitals.ecgSource === "kardia" ? " · KardiaMobile" : ""}
+                  {vitals.ecgSource === "kardia"
+                    ? " · KardiaMobile"
+                    : vitals.ecgSource === "md100c_p"
+                      ? " · MD100C_P"
+                      : ""}
                 </p>
               )}
               {appointmentId && vitals.ecgKardiaReady === "1" ? (
