@@ -40,11 +40,10 @@ export const OXYGEN_NAIL_TIP =
 
 /** Mismas frases, palabra por palabra, que las tarjetas del paso en pantalla. */
 export const TEMPERATURE_VOICE_STEPS = [
-  "Tome el termómetro de su lugar.",
-  "Enciéndalo y espere unos segundos.",
-  "Póngalo en la frente, a 2 cm.",
-  "Pulse START en el termómetro.",
+  "Tome el termómetro K3 Pro de su lugar.",
+  "Enciéndalo en modo corporal.",
   "Toque el botón verde de esta pantalla.",
+  "Acerque la frente a 5 o 10 centímetros hasta el pitido.",
   "Deje el termómetro en su lugar.",
 ] as const;
 
@@ -137,7 +136,7 @@ export const BP_START_VOICE =
   "Coloque el brazalete del monitor y pulse NIBP o inicio en el monitor. El kiosko tomará el número solo.";
 
 export const TEMP_START_VOICE =
-  "Tome el termómetro de su lugar. Enciéndalo y espere unos segundos. Póngalo en la frente, a 2 cm. Pulse START en el termómetro.";
+  "Tome el termómetro K3 Pro. Enciéndalo en modo corporal. Toque el botón verde y acerque la frente a 5 o 10 centímetros hasta el pitido.";
 
 /** Tras presión arterial: retirar brazalete y devolver. */
 export const BP_SUCCESS_VOICE =

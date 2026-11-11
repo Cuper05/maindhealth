@@ -10,7 +10,7 @@ Desde entonces, al encender la PC arrancan solos:
 - báscula → `127.0.0.1:3930`
 - baumanómetro → `127.0.0.1:3931`
 - monitor Ethernet (TA/SpO₂) → `127.0.0.1:3932`
-- termómetro Beurer FT95 → `127.0.0.1:3933`
+- termómetro K3 Pro (COM8) → `127.0.0.1:3933`
 
 **Ya no hace falta** dejar abiertos los `.bat` viejos.
 
@@ -25,5 +25,6 @@ Desde entonces, al encender la PC arrancan solos:
 - Báscula: `COM7` (CH340) @ 4800. Si ese COM no abre, prueba el CH340 que sí esté vivo.
 - Baumanómetro: HID CP2110 `TU0-700X` (no es COM)
 - ECG MD100C_P: Bluetooth LE, MAC `FB:1E:E4:A4:03:00` (instalar `tools\ecg-bridge\1-instalar-python-bleak.bat`)
+- Termómetro K3 Pro: `COM8` @ 115200 (`pip install pyserial` en el mismo Python)
 
 Logs: `%LOCALAPPDATA%\MaindHealth\logs`

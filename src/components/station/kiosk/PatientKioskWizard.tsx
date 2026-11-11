@@ -1599,12 +1599,14 @@ export function PatientKioskWizard() {
     setError(null);
     setTempCapturing(true);
     setDeviceStatus("reading");
-    setTempStatus("Encienda el termómetro, colóquelo en la frente y pulse START…");
+    setTempStatus("Encienda el K3 Pro en modo corporal y acerque la frente…");
     speakKiosk(TEMP_START_VOICE, { force: true });
     try {
       const sample = await readStationThermometer((msg) => setTempStatus(msg));
       if (sample.temperature == null) {
-        throw new Error("El termómetro no envió la temperatura. Enciéndalo, colóquelo en la frente y pulse START.");
+        throw new Error(
+          "El K3 Pro no envió la temperatura. Enciéndalo en modo corporal y acerque la frente a 5–10 cm hasta el pitido.",
+        );
       }
       const patch: VitalsDraft = { temperature: sample.temperature.toFixed(1) };
       setVitalsDraft((prev) => ({ ...prev, ...patch }));
@@ -3096,7 +3098,7 @@ export function PatientKioskWizard() {
           instruction=""
           steps={[...TEMPERATURE_VOICE_STEPS]}
           tips={[
-            "Tome el termómetro de su lugar. Presione encendido, espere unos segundos, colóquelo en la frente a 2–3 cm y pulse START.",
+            "Tome el K3 Pro, enciéndalo en modo corporal, toque Leer temperatura y acerque la frente a 5–10 cm hasta el pitido.",
           ]}
           illustration="temperature"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.temperature))}
@@ -3114,8 +3116,8 @@ export function PatientKioskWizard() {
           }
           onCapture={() => void captureTemperature()}
           captureLabel="Leer temperatura ahora"
-          capturingLabel="Esperando el FT95…"
-          captureHelp="Después de pulsar START, toque este botón mientras parpadea el Bluetooth. Al registrarse, deje el termómetro en su lugar."
+          capturingLabel="Esperando el K3 Pro…"
+          captureHelp="Con el termómetro encendido en modo corporal, toque este botón y acerque la frente hasta el pitido. Luego déjelo en su lugar."
           capturing={tempCapturing}
           onSimulate={() => simulateReading({ temperature: "36.7" })}
           onContinue={async () => {
