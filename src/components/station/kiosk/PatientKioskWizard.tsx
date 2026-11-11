@@ -20,9 +20,9 @@ import {
   KioskPrimaryButton,
   KioskSecondaryButton,
   KioskScrollArea,
+  KioskContinueRoundButton,
   KioskVitalsNavBar,
   kioskBodyClassName,
-  kioskContinueClearanceClassName,
   kioskHelperClassName,
   kioskInputClassName,
   kioskLabelClassName,
@@ -2876,9 +2876,7 @@ export function PatientKioskWizard() {
 
       {step === "preparation" && (
         <KioskCard className="justify-between gap-3">
-          <div
-            className={`min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 ${kioskContinueClearanceClassName}`}
-          >
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
             <h2 className={kioskTitleClassName}>Preparación para signos vitales</h2>
             <p className={kioskSubtitleClassName}>
               Tomaremos sus signos uno por uno. La voz le guiará en cada paso.
@@ -2907,9 +2905,12 @@ export function PatientKioskWizard() {
               ))}
             </ul>
           </div>
+          <div className="flex shrink-0 justify-center py-1">
+            <KioskContinueRoundButton pulse onClick={() => goToStep("weight_height")}>
+              Continuar
+            </KioskContinueRoundButton>
+          </div>
           <KioskVitalsNavBar
-            continuePulse
-            onContinue={() => goToStep("weight_height")}
             left={
               <KioskSecondaryButton
                 className="!min-h-[52px] !px-3 !text-lg xl:!min-h-[56px] xl:!text-xl"

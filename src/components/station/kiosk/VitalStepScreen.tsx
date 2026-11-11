@@ -6,11 +6,11 @@ import { bandTone, VITAL_RANGE_COPY } from "@/lib/kiosk/vital-ranges";
 import { VitalIllustration, type VitalIllustrationType } from "./KioskIllustrations";
 import {
   KioskCard,
+  KioskContinueRoundButton,
   KioskImportant,
   KioskSecondaryButton,
   KioskVitalsNavBar,
   StatusPill,
-  kioskContinueClearanceClassName,
   kioskHelperClassName,
   kioskSubtitleClassName,
   kioskTitleClassName,
@@ -169,10 +169,7 @@ export function VitalStepScreen({
         </div>
       ) : null}
 
-      {/* Hueco inferior = zona del Continuar flotante (texto/imagen no se tapan) */}
-      <div
-        className={`relative z-0 mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden ${kioskContinueClearanceClassName}`}
-      >
+      <div className="relative z-0 mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
           <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3 py-2 xl:px-4 xl:py-2.5">
             <p className="mb-1.5 text-center text-lg font-bold text-teal-900 xl:text-xl">
@@ -229,11 +226,12 @@ export function VitalStepScreen({
           </div>
         ) : null}
 
+        {/* Instrucciones | Continuar | Imagen — el botón ocupa el hueco central, sin tapar texto */}
         <div
           className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
             compact
-              ? "grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]"
-              : "grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]"
+              ? "grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_auto_minmax(0,0.95fr)]"
+              : "grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_auto_minmax(0,0.85fr)]"
           }`}
         >
           <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
@@ -289,7 +287,17 @@ export function VitalStepScreen({
             ) : null}
           </div>
 
-          <div className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 max-lg:min-h-[240px]">
+          <div className="flex items-end justify-center max-lg:order-last max-lg:py-1">
+            <KioskContinueRoundButton
+              onClick={onContinue}
+              disabled={continueBlocked}
+              pulse={deviceStatus === "done" && !continueBlocked}
+            >
+              Continuar
+            </KioskContinueRoundButton>
+          </div>
+
+          <div className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 max-lg:min-h-[220px]">
             <div className="flex min-h-0 w-full flex-1 flex-col p-2 lg:min-h-0">
               <VitalIllustration type={illustration} />
             </div>
@@ -309,9 +317,6 @@ export function VitalStepScreen({
       </div>
 
       <KioskVitalsNavBar
-        onContinue={onContinue}
-        continueDisabled={continueBlocked}
-        continuePulse={deviceStatus === "done" && !continueBlocked}
         left={
           <>
             {onBack ? (
