@@ -51,8 +51,8 @@ export const TEMPERATURE_VOICE_STEPS = [
 export const ECG_VOICE_STEPS = [
   "Paso cinco: electrocardiograma.",
   "Encienda el aparato MD100C_P de la estación.",
-  "Toque Leer electrocardiograma, coloque el dedo en el sensor unos treinta segundos y manténgalo quieto.",
-  "Cuando termine, toque Ya terminó y luego Continuar.",
+  "Toque Leer electrocardiograma, ponga los dedos en las placas metálicas unos treinta segundos y manténgalos quietos.",
+  "Cuando vea la frecuencia en el aparato, toque Ya terminó y luego Continuar.",
 ] as const;
 
 /** Frases humanas por paso — guía hablada del kiosko táctil. */
@@ -149,11 +149,11 @@ export const TEMP_SUCCESS_VOICE =
 
 /** Al iniciar lectura del ECG (botón). */
 export const ECG_START_VOICE =
-  "Iniciamos el electrocardiograma. Encienda el MD100C_P, coloque el dedo en el sensor y manténgalo quieto unos treinta segundos. Luego toque Ya terminó.";
+  "Iniciamos el electrocardiograma. Encienda el MD100C_P, ponga los dedos en las placas y manténgalos quietos unos treinta segundos. Cuando vea la frecuencia en el aparato, toque Ya terminó.";
 
 /** Tras ECG. */
 export const ECG_SUCCESS_VOICE =
-  "Listo. Terminó el electrocardiograma. Puede retirar el dedo del sensor y toque Continuar.";
+  "Listo. Terminó el electrocardiograma. Puede soltar las placas y toque Continuar.";
 
 /** Frases de fin por paso de signos vitales (cuando la lectura queda registrada). */
 export const VITAL_DONE_VOICE: Partial<Record<KioskStep, string>> = {
