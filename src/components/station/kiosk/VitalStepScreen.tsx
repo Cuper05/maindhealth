@@ -7,7 +7,6 @@ import { VitalIllustration, type VitalIllustrationType } from "./KioskIllustrati
 import {
   KioskCard,
   KioskImportant,
-  KioskPrimaryButton,
   KioskSecondaryButton,
   StatusPill,
   kioskHelperClassName,
