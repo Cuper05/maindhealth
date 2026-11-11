@@ -133,7 +133,7 @@ export function KioskContinueRoundButton({
       } ${className}`}
     >
       <span className="px-1">{children}</span>
-      <span aria-hidden className="text-3xl leading-none xl:text-4xl">
+      <span aria-hidden className="text-[1.15em] leading-none">
         →
       </span>
     </button>
