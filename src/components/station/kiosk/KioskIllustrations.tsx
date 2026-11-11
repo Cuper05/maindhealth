@@ -49,7 +49,8 @@ export function OximeterIllustration() {
 
 export function ScaleIllustration() {
   return (
-    <svg viewBox="0 0 280 200" className="mx-auto h-48 w-full max-w-sm" fill="none" aria-hidden>
+    <figure className="mx-auto flex h-full min-h-0 w-full flex-col items-center justify-center gap-1">
+    <svg viewBox="0 0 280 200" className="min-h-0 w-full flex-1" fill="none" aria-hidden>
       {/* Columna de estadiómetro digital */}
       <rect x="48" y="28" width="18" height="140" rx="4" fill="#cbd5e1" stroke="#64748b" strokeWidth="2" />
       <rect x="52" y="36" width="10" height="110" rx="2" fill="#e2e8f0" />
@@ -71,6 +72,10 @@ export function ScaleIllustration() {
       <path d="M188 100h24" stroke="#64748b" strokeWidth="3" strokeLinecap="round" />
       <path d="M200 120l-10 22M200 120l10 22" stroke="#64748b" strokeWidth="3" strokeLinecap="round" />
     </svg>
+      <figcaption className="w-full shrink-0 px-1 text-center text-[clamp(0.95rem,1.9vh,1.35rem)] font-semibold leading-snug text-slate-700">
+        Súbase a la báscula y párese erguido
+      </figcaption>
+    </figure>
   );
 }
 
