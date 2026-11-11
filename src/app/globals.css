@@ -75,6 +75,49 @@ body {
   animation: station-standby-pulse 2.4s ease-in-out infinite;
 }
 
+/* Continuar centrado al terminar la medición — sutil, no agresivo */
+@keyframes kiosk-continue-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 10px 28px rgba(15, 45, 90, 0.22),
+      0 0 0 0 rgba(29, 110, 184, 0.35);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow:
+      0 14px 34px rgba(15, 45, 90, 0.28),
+      0 0 0 12px rgba(29, 110, 184, 0);
+  }
+}
+
+.kiosk-continue-pulse {
+  animation: kiosk-continue-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes kiosk-continue-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.kiosk-continue-enter {
+  animation: kiosk-continue-enter 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kiosk-continue-pulse,
+  .kiosk-continue-enter {
+    animation: none;
+  }
+}
+
 /* Kiosco: mientras el teclado virtual está abierto, ocultar el pie Continuar
    para que no tape el campo que se está editando (medicamentos, alergias, etc.). */
 html.kiosk-kb-open [data-kiosk-clinical-footer] {

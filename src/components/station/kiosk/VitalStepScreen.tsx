@@ -132,10 +132,12 @@ export function VitalStepScreen({
     deviceStatus === "done" &&
     !capturing &&
     (Boolean(readingViews?.length) || Boolean(readingHighlight));
+  /** Tras lectura real o «Simular lectura»: Continuar centrado y visible. */
+  const showCenterContinue = deviceStatus === "done" && !capturing && !continueBlocked;
 
   return (
     <KioskCard
-      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+      className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
         compact ? "!p-4 sm:!p-5" : ""
       }`}
     >
@@ -299,9 +301,15 @@ export function VitalStepScreen({
         {onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
-        <KioskPrimaryButton className="w-full flex-1" onClick={onContinue} disabled={continueBlocked}>
-          Continuar
-        </KioskPrimaryButton>
+        {!showCenterContinue ? (
+          <KioskPrimaryButton className="w-full flex-1" onClick={onContinue} disabled={continueBlocked}>
+            Continuar
+          </KioskPrimaryButton>
+        ) : (
+          <p className="flex-1 text-center text-base font-semibold text-[#1d6eb8] xl:text-lg">
+            Use el botón Continuar del centro para seguir
+          </p>
+        )}
         <button
           type="button"
           onClick={onSimulate}
@@ -310,6 +318,37 @@ export function VitalStepScreen({
           Simular lectura (modo demo)
         </button>
       </div>
+
+      {showCenterContinue ? (
+        <div
+          className="absolute inset-0 z-30 flex items-center justify-center kiosk-continue-enter"
+          role="dialog"
+          aria-label="Continuar al siguiente paso"
+        >
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="absolute inset-0 bg-[#0b2340]/25 backdrop-blur-[1.5px]"
+            onClick={onContinue}
+          />
+          <div className="relative z-10 flex flex-col items-center gap-3 px-4">
+            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-lg font-semibold text-[#0b4f8a] shadow-md xl:text-xl">
+              Lectura lista — toque Continuar
+            </p>
+            <button
+              type="button"
+              onClick={onContinue}
+              className="kiosk-continue-pulse flex h-[9.5rem] w-[9.5rem] flex-col items-center justify-center gap-1 rounded-full bg-[#1d6eb8] text-center text-2xl font-bold leading-none text-white ring-4 ring-white/90 xl:h-[11rem] xl:w-[11rem] xl:text-3xl"
+            >
+              <span>Continuar</span>
+              <span aria-hidden className="text-3xl leading-none xl:text-4xl">
+                →
+              </span>
+            </button>
+          </div>
+        </div>
+      ) : null}
     </KioskCard>
   );
 }
