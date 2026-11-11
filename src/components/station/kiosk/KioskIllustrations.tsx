@@ -101,12 +101,12 @@ export function ThermometerIllustration() {
     <figure className="mx-auto flex h-full min-h-0 w-full max-w-md flex-col items-center justify-center gap-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/kiosk/thermometer-k3pro.webp"
-        alt="Termómetro K3 Pro de estación: acerque la frente al sensor superior a 5–10 cm hasta el pitido."
+        src="/kiosk/thermometer-k3pro-placement.jpg"
+        alt="Cómo usar el K3 Pro: acerque la frente al sensor a 5–10 cm y espere el pitido."
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-base font-semibold leading-snug text-slate-700 xl:text-lg">
-        Acerque la frente al K3 Pro (5–10 cm) hasta el pitido
+        Frente al sensor, 5–10 cm, espere el pitido
       </figcaption>
     </figure>
   );
