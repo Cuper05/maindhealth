@@ -43,7 +43,7 @@ export const VITAL_RANGE_COPY = {
   heartRate: "Pulso normal adulto en reposo: 60 – 100 lpm",
   spo2: "Oxígeno (SpO₂) normal: 94 – 100 %",
   temperature: "Temperatura en la frente, normal: 36.0 – 37.5 °C",
-  ecg: "ECG: el ritmo lo interpreta el equipo / médico",
+  ecg: "ECG / FC: MD100C_P · el médico interpreta el caso",
   disclaimer:
     "Rangos orientativos para adultos en reposo. El médico interpreta su caso completo.",
 } as const;
@@ -176,15 +176,22 @@ export function interpretEcg(
   const rhythm = (ecgRhythm ?? "ECG registrado").trim();
   const lower = rhythm.toLowerCase();
   const looksNormal =
-    lower.includes("sinusal") || lower.includes("normal") || lower.includes("regular");
+    lower.includes("sinusal") ||
+    lower.includes("normal") ||
+    lower.includes("regular") ||
+    lower.includes("rango normal");
+  const looksAlert =
+    lower.includes("bradicardia") || lower.includes("taquicardia");
   return {
     label: "ECG",
     valueText: rhythm,
     normalRange: VITAL_RANGE_COPY.ecg,
-    band: looksNormal ? "normal" : "info",
+    band: looksNormal ? "normal" : looksAlert ? "high" : "info",
     verdict: looksNormal
-      ? "Ritmo descrito como normal / sinusal"
-      : "Registrado — el médico lo revisará",
+      ? "FC / ritmo en rango normal"
+      : looksAlert
+        ? "Fuera de rango — el médico lo revisará"
+        : "Registrado — el médico lo revisará",
   };
 }
 

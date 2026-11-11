@@ -28,7 +28,6 @@ import {
   kioskTitleClassName,
 } from "./KioskTheme";
 import { VitalStepScreen } from "./VitalStepScreen";
-import { KardiaStationConnector } from "./KardiaStationConnector";
 import { VitalsSummaryGrid } from "./VitalsPanel";
 import { KioskShell } from "./KioskShell";
 import { kioskTextFieldProps } from "./KioskOnScreenKeyboard";
@@ -310,7 +309,6 @@ export function PatientKioskWizard() {
   const [clinicalError, setClinicalError] = useState<string | null>(null);
   const [highlightSymptomGaps, setHighlightSymptomGaps] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
-  const [kioskToken, setKioskToken] = useState("");
   /**
    * La voz se activa al tocar “Iniciar atención” / crisis (gesto del usuario).
    * Ya no hay pantalla bloqueante de audífonos: al recargar se va al inicio.
@@ -577,7 +575,6 @@ export function PatientKioskWizard() {
 
       const data = await kioskApi.getSession();
       if (data.session) {
-        setKioskToken(data.session.token);
         let restoredStep = data.session.currentStep as KioskStep;
         const rawStep = restoredStep;
         // "analysis" es transitorio: si recargan a mitad, no dejar la UI en "Procesando…"
@@ -988,7 +985,7 @@ export function PatientKioskWizard() {
       setRegPage(1);
       setAntePage(1);
       endingCallRef.current = false;
-      await kioskApi.startSession().then((s) => setKioskToken(s.session.token));
+      await kioskApi.startSession();
       await goToStep("service");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -1015,7 +1012,7 @@ export function PatientKioskWizard() {
     setPaymentStatus("unpaid");
     setRegistrationDraft(emptyRegistrationDraft());
     try {
-      await kioskApi.startSession().then((s) => setKioskToken(s.session.token));
+      await kioskApi.startSession();
       await kioskApi.patchSession({
         clinicalDraft: {
           crisisIntent: true,
@@ -1634,7 +1631,7 @@ export function PatientKioskWizard() {
     setError(null);
     setEcgCapturing(true);
     setDeviceStatus("reading");
-    setEcgStatusMsg("Cable puesto. Ponga los dedos en las placas…");
+    setEcgStatusMsg("Conectando al MD100C_P. Coloque el dedo en el sensor…");
     speakKiosk(ECG_START_VOICE, { force: true });
     try {
       const sample = await readStationEcg((msg) => setEcgStatusMsg(msg));
@@ -1643,6 +1640,7 @@ export function PatientKioskWizard() {
         ecgRhythm: sample.rhythm,
         ecgHeartRate: String(sample.heartRate),
         heartRate: String(sample.heartRate),
+        ecgSource: sample.source ?? "md100c_p",
       };
       setVitalsDraft((prev) => ({ ...prev, ...patch }));
       await kioskApi.patchVitals(patch, "done");
@@ -1715,26 +1713,6 @@ export function PatientKioskWizard() {
     setEcgCapturing(false);
     setDeviceStatus("idle");
     setEcgStatusMsg("Toque Leer electrocardiograma cuando esté listo.");
-  }, [step, vitalsDraft.ecgStatus]);
-
-  useEffect(() => {
-    if (step !== "ecg") return;
-    if (vitalsDraft.ecgStatus === "done" || vitalsDraft.ecgStatus === "skipped") return;
-    const timer = setInterval(async () => {
-      try {
-        const data = await kioskApi.getSession();
-        const draft = data.session?.vitalsDraft;
-        if (!draft?.ecgStatus) return;
-        setVitalsDraft(draft);
-        if (draft.ecgStatus === "done") {
-          setDeviceStatus("done");
-          setEcgStatusMsg(draft.ecgRhythm ?? "ECG Kardia recibido");
-        }
-      } catch {
-        /* ignore */
-      }
-    }, 2000);
-    return () => clearInterval(timer);
   }, [step, vitalsDraft.ecgStatus]);
 
   // Revisar consistencia de dispositivos al llegar al resumen.
@@ -3167,8 +3145,8 @@ export function PatientKioskWizard() {
           instruction=""
           steps={[...ECG_VOICE_STEPS]}
           tips={[
-            "Con KardiaMobile: escanee el QR, tome el ECG en el celular y suba el PDF.",
-            "El PC-80B USB de estación no mide con el cable puesto; puede omitirlo.",
+            "Encienda el MD100C_P de la estación (Bluetooth).",
+            "Coloque el dedo en el sensor ~30 s, quieto, y toque Ya terminó.",
           ]}
           illustration="ecg"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.ecgStatus))}
@@ -3189,36 +3167,21 @@ export function PatientKioskWizard() {
               ? undefined
               : vitalsDraft.ecgStatus === "skipped"
                 ? "ECG omitido"
-                : "Use Kardia con el QR, o toque Leer si el PC-80B ya midió")
-          }
-          extra={
-            kioskToken ? (
-              <KardiaStationConnector
-                token={kioskToken}
-                received={vitalsDraft.ecgSource === "kardia" && vitalsDraft.ecgStatus === "done"}
-                onReceived={(msg) => {
-                  setEcgStatusMsg(msg);
-                  setDeviceStatus("done");
-                  void kioskApi.getSession().then((data) => {
-                    if (data.session?.vitalsDraft) setVitalsDraft(data.session.vitalsDraft);
-                  });
-                }}
-              />
-            ) : null
+                : "Toque Leer electrocardiograma e introduzca el dedo en el MD100C_P")
           }
           onCapture={() => void captureEcg()}
-          captureLabel="Leer electrocardiograma USB"
+          captureLabel="Leer electrocardiograma"
           capturingLabel="Ya terminó"
-          captureHelp="Opcional. El PC-80B entra en Connecting with PC con el USB puesto."
-          captureOptional
+          captureHelp="Encienda el MD100C_P, dedo en el sensor ~30 s, luego Ya terminó."
           capturing={ecgCapturing}
           captureCanConfirm
           onSimulate={() =>
             simulateReading({
               ecgStatus: "done",
-              ecgRhythm: "Ritmo sinusal normal",
+              ecgRhythm: "FC en rango normal (MD100C_P)",
               ecgHeartRate: "72",
               heartRate: vitalsDraft.heartRate ?? "72",
+              ecgSource: "md100c_p",
             })
           }
           onContinue={async () => {
@@ -3232,7 +3195,15 @@ export function PatientKioskWizard() {
           }}
           onBack={goBack}
           onRetry={async () => {
-            await clearVitalFields(["ecgStatus", "ecgRhythm", "ecgHeartRate"]);
+            await clearVitalFields([
+              "ecgStatus",
+              "ecgRhythm",
+              "ecgHeartRate",
+              "ecgSource",
+              "ecgKardiaReady",
+              "ecgKardiaFileName",
+              "ecgKardiaMime",
+            ]);
             setEcgStatusMsg("Pulsa Leer electrocardiograma");
             setDeviceStatus("idle");
           }}

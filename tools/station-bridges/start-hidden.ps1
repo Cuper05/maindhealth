@@ -104,7 +104,10 @@ Start-Bridge -Name "oximetro" `
 Start-Bridge -Name "ecg" `
   -WorkDir (Join-Path $Root "ecg-bridge") `
   -Script "server.mjs" `
-  -EnvVars @{ ECG_BRIDGE_PORT = "3928" } `
+  -EnvVars @{
+    ECG_BRIDGE_PORT = "3928"
+    ECG_MD100C_ADDRESS = "FB:1E:E4:A4:03:00"
+  } `
   -Port 3928 `
   -LogName "ecg"
 
