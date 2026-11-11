@@ -31,17 +31,17 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
           const t = bandTone(view.band);
           return (
             <div key={view.label} className={views.length === 1 ? "col-span-2" : undefined}>
-              <p className="text-lg font-semibold uppercase tracking-wide text-slate-600 xl:text-xl">
+              <p className="text-xl font-semibold uppercase tracking-wide text-slate-600 xl:text-2xl">
                 {view.label}
               </p>
-              <p className={`mt-1 text-5xl font-bold tabular-nums xl:text-6xl ${t.value}`}>
+              <p className={`mt-1 text-6xl font-bold tabular-nums xl:text-7xl ${t.value}`}>
                 {view.valueText}
               </p>
-              <p className="mt-1.5 text-base font-medium text-slate-600 xl:text-lg">
+              <p className="mt-1.5 text-lg font-medium text-slate-600 xl:text-xl">
                 Normal: {view.normalRange}
               </p>
               <span
-                className={`mt-2 inline-block rounded-lg px-3 py-1.5 text-base font-bold xl:text-lg ${t.badge}`}
+                className={`mt-2 inline-block rounded-lg px-3 py-1.5 text-lg font-bold xl:text-xl ${t.badge}`}
               >
                 {view.verdict}
               </span>
@@ -141,10 +141,10 @@ export function VitalStepScreen({
     >
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold uppercase tracking-wide text-[#1d6eb8] xl:text-xl">
+          <p className="text-xl font-semibold uppercase tracking-wide text-[#1d6eb8] xl:text-2xl">
             Paso {stepNumber} de {totalSteps}
           </p>
-          <h2 className={`mt-0.5 text-4xl font-bold leading-tight tracking-tight text-slate-900 xl:text-5xl`}>
+          <h2 className="mt-1 text-5xl font-bold leading-tight tracking-tight text-slate-900 xl:text-6xl">
             {title}
           </h2>
         </div>
@@ -156,13 +156,13 @@ export function VitalStepScreen({
       ) : null}
 
       {referenceRanges && referenceRanges.length > 0 && !showReading ? (
-        <div className="mt-2 shrink-0 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3.5 py-3 xl:px-4 xl:py-3.5">
-          <p className="text-base font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-lg">
+        <div className="mt-2 shrink-0 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-4 py-3.5 xl:px-5 xl:py-4">
+          <p className="text-lg font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-xl">
             Rango normal de referencia
           </p>
-          <ul className="mt-1.5 space-y-1">
+          <ul className="mt-2 space-y-1">
             {referenceRanges.map((line) => (
-              <li key={line} className="text-lg font-semibold text-slate-800 xl:text-xl">
+              <li key={line} className="text-xl font-semibold text-slate-800 xl:text-2xl">
                 {line}
               </li>
             ))}
@@ -172,15 +172,15 @@ export function VitalStepScreen({
 
       <div className="relative z-0 mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
-          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3.5 py-3 xl:px-5 xl:py-3.5">
-            <p className="mb-2 text-center text-xl font-bold text-teal-900 xl:text-2xl">
+          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-4 py-3.5 xl:px-6 xl:py-4">
+            <p className="mb-2.5 text-center text-2xl font-bold text-teal-900 xl:text-3xl">
               Para iniciar, toque el botón verde
             </p>
             <button
               type="button"
               onClick={onCapture}
               disabled={capturing && !captureCanConfirm}
-              className="flex w-full min-h-[76px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-2xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[88px] xl:text-3xl"
+              className="flex w-full min-h-[88px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-3xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[100px] xl:text-4xl"
             >
               {capturing ? capturingLabel : captureLabel}
             </button>
@@ -245,17 +245,17 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className={`flex min-h-0 items-center gap-3 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] font-medium text-slate-800 ${
+                    className={`flex min-h-0 items-center gap-3.5 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] font-semibold text-slate-800 ${
                       compact
-                        ? "px-3 py-3 text-lg xl:px-4 xl:py-3.5 xl:text-xl"
-                        : "px-4 py-3.5 text-xl xl:px-5 xl:py-4 xl:text-2xl"
+                        ? "px-3.5 py-3.5 text-xl leading-snug xl:px-4 xl:py-4 xl:text-2xl"
+                        : "px-4 py-4 text-2xl leading-snug xl:px-5 xl:py-5 xl:text-3xl"
                     }`}
                   >
                     <span
                       className={`flex shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] font-bold text-white ${
                         compact
-                          ? "h-10 w-10 text-lg xl:h-11 xl:w-11 xl:text-xl"
-                          : "h-11 w-11 text-xl xl:h-12 xl:w-12 xl:text-2xl"
+                          ? "h-11 w-11 text-xl xl:h-12 xl:w-12 xl:text-2xl"
+                          : "h-12 w-12 text-2xl xl:h-14 xl:w-14 xl:text-3xl"
                       }`}
                     >
                       {index + 1}
