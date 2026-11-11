@@ -1,5 +1,5 @@
 # MaindHealth - bridges en segundo plano (sin ventanas).
-# Oximetro :3927 | ECG :3928 | Impresora :3929 | Bascula :3930 | Presion :3931 | Monitor LAN :3932 | FT95 :3933
+# Oximetro :3927 | ECG :3928 | Impresora :3929 | Bascula :3930 | Presion :3931 | Monitor LAN :3932 | K3 Pro :3933
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
@@ -139,10 +139,29 @@ Start-Bridge -Name "monitor-lan" `
   -Port 3932 `
   -LogName "cms-lan"
 
-Start-ExeBridge -Name "termometro" `
-  -ExePath (Join-Path $Root "ft95-bridge\Ft95Bridge.exe") `
+# El FT95 viejo usa HttpListener (PID sistema); matar el exe por nombre.
+Get-Process -Name "Ft95Bridge" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 400
+
+$k3py = $null
+foreach ($ver in @("314", "313", "312", "311", "310")) {
+  $cand = Join-Path $env:LOCALAPPDATA "Programs\Python\Python$ver\python.exe"
+  if (Test-Path $cand) { $k3py = $cand; break }
+}
+
+$thermoEnv = @{
+  K3PRO_BRIDGE_PORT = "3933"
+  K3PRO_PORT = "COM8"
+  K3PRO_BAUD = "115200"
+}
+if ($k3py) { $thermoEnv["K3PRO_PYTHON"] = $k3py }
+
+Start-Bridge -Name "termometro" `
+  -WorkDir (Join-Path $Root "k3pro-bridge") `
+  -Script "server.mjs" `
+  -EnvVars $thermoEnv `
   -Port 3933 `
-  -LogName "ft95"
+  -LogName "k3pro"
 
 Start-Sleep -Seconds 2
 
@@ -163,7 +182,7 @@ Write-Host ("  impresora 3929 = " + (Test-Health "http://127.0.0.1:3929/health")
 Write-Host ("  bascula   3930 = " + (Test-Health "http://127.0.0.1:3930/health"))
 Write-Host ("  presion   3931 = " + (Test-Health "http://127.0.0.1:3931/health"))
 Write-Host ("  monitor   3932 = " + (Test-Health "http://127.0.0.1:3932/health"))
-Write-Host ("  ft95      3933 = " + (Test-Health "http://127.0.0.1:3933/health"))
+Write-Host ("  k3pro     3933 = " + (Test-Health "http://127.0.0.1:3933/health"))
 Write-Host ""
 Write-Host "Logs: $LogDir"
 Write-Host "Puedes cerrar esta ventana. Los servicios siguen corriendo."
