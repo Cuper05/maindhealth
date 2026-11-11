@@ -140,6 +140,9 @@ export function KioskContinueRoundButton({
   );
 }
 
+/** Espacio inferior del contenido para no tapar pasos/imagen con Continuar flotante. */
+export const kioskContinueClearanceClassName = "pb-[7.75rem] xl:pb-[9.75rem]";
+
 /**
  * Pie bajo (alto ≈ Atrás). Continuar grande flota encima del contenido.
  */
