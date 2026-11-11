@@ -108,6 +108,38 @@ export function KioskPrimaryButton({
   );
 }
 
+/** Continuar circular (pasos de signos vitales). `pulse` = medición lista. */
+export function KioskContinueRoundButton({
+  children = "Continuar",
+  onClick,
+  disabled,
+  pulse = false,
+  className = "",
+}: {
+  children?: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  pulse?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={typeof children === "string" ? children : "Continuar"}
+      className={`inline-flex h-[7.25rem] w-[7.25rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-full bg-[#1d6eb8] px-3 text-center text-xl font-bold leading-tight text-white shadow-lg shadow-blue-900/20 transition hover:bg-[#165a9e] active:scale-[0.97] disabled:opacity-45 disabled:shadow-none xl:h-[8.25rem] xl:w-[8.25rem] xl:text-2xl ${
+        pulse && !disabled ? "kiosk-continue-pulse" : ""
+      } ${className}`}
+    >
+      <span>{children}</span>
+      <span aria-hidden className="text-2xl leading-none xl:text-3xl">
+        →
+      </span>
+    </button>
+  );
+}
+
 export function KioskSecondaryButton({
   children,
   onClick,
