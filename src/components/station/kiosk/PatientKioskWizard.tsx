@@ -1631,7 +1631,7 @@ export function PatientKioskWizard() {
     setError(null);
     setEcgCapturing(true);
     setDeviceStatus("reading");
-    setEcgStatusMsg("Conectando al MD100C_P. Coloque el dedo en el sensor…");
+    setEcgStatusMsg("Conectando al MD100C_P. Dedos en las placas…");
     speakKiosk(ECG_START_VOICE, { force: true });
     try {
       const sample = await readStationEcg((msg) => setEcgStatusMsg(msg));
@@ -3146,7 +3146,7 @@ export function PatientKioskWizard() {
           steps={[...ECG_VOICE_STEPS]}
           tips={[
             "Encienda el MD100C_P de la estación (Bluetooth).",
-            "Coloque el dedo en el sensor ~30 s, quieto, y toque Ya terminó.",
+            "Dedos en las placas ~30 s. Cuando vea la FC en el aparato, toque Ya terminó.",
           ]}
           illustration="ecg"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.ecgStatus))}
@@ -3167,12 +3167,12 @@ export function PatientKioskWizard() {
               ? undefined
               : vitalsDraft.ecgStatus === "skipped"
                 ? "ECG omitido"
-                : "Toque Leer electrocardiograma e introduzca el dedo en el MD100C_P")
+                : "Toque Leer electrocardiograma y ponga los dedos en las placas del MD100C_P")
           }
           onCapture={() => void captureEcg()}
           captureLabel="Leer electrocardiograma"
           capturingLabel="Ya terminó"
-          captureHelp="Encienda el MD100C_P, dedo en el sensor ~30 s, luego Ya terminó."
+          captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la FC, Ya terminó."
           capturing={ecgCapturing}
           captureCanConfirm
           onSimulate={() =>

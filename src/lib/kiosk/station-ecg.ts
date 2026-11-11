@@ -24,7 +24,7 @@ export async function readStationEcg(
   onProgress?: (msg: string) => void,
 ): Promise<StationEcgSample> {
   onProgress?.(
-    "Encienda el MD100C_P, coloque el dedo en el sensor ~30 s y toque Ya terminó.",
+    "Encienda el MD100C_P, dedos en las placas ~30 s. Cuando vea la FC en el aparato, toque Ya terminó.",
   );
 
   const ctrl = new AbortController();

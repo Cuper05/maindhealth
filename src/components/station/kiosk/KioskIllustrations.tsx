@@ -118,15 +118,15 @@ export function EcgIllustration() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/kiosk/ecg-finger-plates-placement.png"
-        alt="Cómo usar el MD100C_P: coloque el dedo en el sensor del aparato"
+        alt="Cómo usar el MD100C_P: dedos de ambas manos en las placas metálicas"
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 space-y-1 px-1 pb-1 text-center">
         <p className="text-base font-semibold leading-snug text-slate-700 xl:text-lg">
-          MD100C_P: dedo en el sensor
+          MD100C_P: dedos en las placas
         </p>
         <p className="text-sm font-medium leading-snug text-slate-600 xl:text-base">
-          Mantenga el dedo quieto unos 30 segundos
+          Quietos ~30 s hasta ver la FC en el aparato
         </p>
       </figcaption>
     </figure>
