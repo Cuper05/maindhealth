@@ -19,7 +19,7 @@ export function BloodPressureIllustration() {
         alt="Cómo colocar el brazalete: dos dedos arriba del codo, manguera hacia abajo, brazo a la altura del corazón"
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
-      <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-lg font-semibold leading-snug text-slate-700 xl:text-xl">
+      <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-xl font-semibold leading-snug text-slate-700 xl:text-2xl">
         Coloque el brazalete así en el brazo izquierdo
       </figcaption>
     </figure>
@@ -36,10 +36,10 @@ export function OximeterIllustration() {
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 space-y-1 px-1 pb-1 text-center">
-        <p className="text-lg font-semibold leading-snug text-slate-700 xl:text-xl">
+        <p className="text-xl font-semibold leading-snug text-slate-700 xl:text-2xl">
           Coloque el oxímetro así en el dedo
         </p>
-        <p className="text-base font-medium leading-snug text-amber-900 xl:text-lg">
+        <p className="text-lg font-medium leading-snug text-amber-900 xl:text-xl">
           Uñas largas o artificiales: ponga el dedo de lado
         </p>
       </figcaption>
@@ -105,7 +105,7 @@ export function ThermometerIllustration() {
         alt="Cómo usar el K3 Pro: acerque la frente al sensor a 5–10 cm y espere el pitido."
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
-      <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-lg font-semibold leading-snug text-slate-700 xl:text-xl">
+      <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-xl font-semibold leading-snug text-slate-700 xl:text-2xl">
         Frente al sensor, 5–10 cm, espere el pitido
       </figcaption>
     </figure>
@@ -122,10 +122,10 @@ export function EcgIllustration() {
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 space-y-1 px-1 pb-1 text-center">
-        <p className="text-lg font-semibold leading-snug text-slate-700 xl:text-xl">
+        <p className="text-xl font-semibold leading-snug text-slate-700 xl:text-2xl">
           MD100C_P: dedos en las placas
         </p>
-        <p className="text-base font-medium leading-snug text-slate-600 xl:text-lg">
+        <p className="text-lg font-medium leading-snug text-slate-600 xl:text-xl">
           Quietos ~30 s hasta ver la FC en el aparato
         </p>
       </figcaption>
