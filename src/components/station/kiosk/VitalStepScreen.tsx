@@ -13,7 +13,6 @@ import {
   StatusPill,
   kioskHelperClassName,
   kioskSubtitleClassName,
-  kioskTitleClassName,
 } from "./KioskTheme";
 
 function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
@@ -26,23 +25,23 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
   const tone = bandTone(worst);
 
   return (
-    <div className={`shrink-0 space-y-2 rounded-2xl border-2 px-4 py-3 xl:py-4 ${tone.box}`}>
-      <div className="grid grid-cols-2 gap-3 text-center">
+    <div className={`shrink-0 space-y-2 rounded-2xl border-2 px-4 py-3.5 xl:px-5 xl:py-5 ${tone.box}`}>
+      <div className="grid grid-cols-2 gap-3 text-center xl:gap-4">
         {views.map((view) => {
           const t = bandTone(view.band);
           return (
             <div key={view.label} className={views.length === 1 ? "col-span-2" : undefined}>
-              <p className="text-base font-semibold uppercase tracking-wide text-slate-600 xl:text-lg">
+              <p className="text-lg font-semibold uppercase tracking-wide text-slate-600 xl:text-xl">
                 {view.label}
               </p>
-              <p className={`mt-1 text-4xl font-bold tabular-nums xl:text-5xl ${t.value}`}>
+              <p className={`mt-1 text-5xl font-bold tabular-nums xl:text-6xl ${t.value}`}>
                 {view.valueText}
               </p>
-              <p className="mt-1 text-sm font-medium text-slate-600 xl:text-base">
+              <p className="mt-1.5 text-base font-medium text-slate-600 xl:text-lg">
                 Normal: {view.normalRange}
               </p>
               <span
-                className={`mt-2 inline-block rounded-lg px-2.5 py-1 text-sm font-bold xl:text-base ${t.badge}`}
+                className={`mt-2 inline-block rounded-lg px-3 py-1.5 text-base font-bold xl:text-lg ${t.badge}`}
               >
                 {view.verdict}
               </span>
@@ -142,10 +141,12 @@ export function VitalStepScreen({
     >
       <div className="flex shrink-0 flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold uppercase tracking-wide text-[#1d6eb8] xl:text-lg">
+          <p className="text-lg font-semibold uppercase tracking-wide text-[#1d6eb8] xl:text-xl">
             Paso {stepNumber} de {totalSteps}
           </p>
-          <h2 className={`mt-0.5 ${kioskTitleClassName}`}>{title}</h2>
+          <h2 className={`mt-0.5 text-4xl font-bold leading-tight tracking-tight text-slate-900 xl:text-5xl`}>
+            {title}
+          </h2>
         </div>
         <StatusPill status={capturing ? "reading" : deviceStatus} />
       </div>
@@ -155,13 +156,13 @@ export function VitalStepScreen({
       ) : null}
 
       {referenceRanges && referenceRanges.length > 0 && !showReading ? (
-        <div className="mt-2 shrink-0 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2.5">
-          <p className="text-sm font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-base">
+        <div className="mt-2 shrink-0 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3.5 py-3 xl:px-4 xl:py-3.5">
+          <p className="text-base font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-lg">
             Rango normal de referencia
           </p>
-          <ul className="mt-1 space-y-0.5">
+          <ul className="mt-1.5 space-y-1">
             {referenceRanges.map((line) => (
-              <li key={line} className="text-base font-semibold text-slate-800 xl:text-lg">
+              <li key={line} className="text-lg font-semibold text-slate-800 xl:text-xl">
                 {line}
               </li>
             ))}
@@ -171,23 +172,23 @@ export function VitalStepScreen({
 
       <div className="relative z-0 mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
-          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3 py-2 xl:px-4 xl:py-2.5">
-            <p className="mb-1.5 text-center text-lg font-bold text-teal-900 xl:text-xl">
+          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3.5 py-3 xl:px-5 xl:py-3.5">
+            <p className="mb-2 text-center text-xl font-bold text-teal-900 xl:text-2xl">
               Para iniciar, toque el botón verde
             </p>
             <button
               type="button"
               onClick={onCapture}
               disabled={capturing && !captureCanConfirm}
-              className="flex w-full min-h-[64px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[72px] xl:text-2xl"
+              className="flex w-full min-h-[76px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-2xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[88px] xl:text-3xl"
             >
               {capturing ? capturingLabel : captureLabel}
             </button>
             {captureHelp && !compact ? (
-              <p className={`mt-1.5 text-center ${kioskHelperClassName}`}>{captureHelp}</p>
+              <p className={`mt-2 text-center ${kioskHelperClassName}`}>{captureHelp}</p>
             ) : null}
             {statusMessage && !showReading ? (
-              <p className={`mt-1.5 text-center font-medium text-teal-800 ${kioskHelperClassName}`}>
+              <p className={`mt-2 text-center font-medium text-teal-800 ${kioskHelperClassName}`}>
                 {statusMessage}
               </p>
             ) : null}
@@ -201,21 +202,21 @@ export function VitalStepScreen({
         ) : null}
 
         {showReading && (!readingViews || readingViews.length === 0) && readingHighlight ? (
-          <div className="shrink-0 grid grid-cols-2 gap-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-center xl:py-4">
+          <div className="shrink-0 grid grid-cols-2 gap-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3.5 text-center xl:gap-4 xl:py-5">
             <div>
-              <p className="text-base font-semibold uppercase tracking-wide text-emerald-800 xl:text-lg">
+              <p className="text-lg font-semibold uppercase tracking-wide text-emerald-800 xl:text-xl">
                 {readingHighlight.primaryLabel}
               </p>
-              <p className="mt-1 text-4xl font-bold tabular-nums text-emerald-950 xl:text-5xl">
+              <p className="mt-1 text-5xl font-bold tabular-nums text-emerald-950 xl:text-6xl">
                 {readingHighlight.primary}
               </p>
             </div>
             {readingHighlight.secondary != null ? (
               <div>
-                <p className="text-base font-semibold uppercase tracking-wide text-emerald-800 xl:text-lg">
+                <p className="text-lg font-semibold uppercase tracking-wide text-emerald-800 xl:text-xl">
                   {readingHighlight.secondaryLabel ?? "Pulso"}
                 </p>
-                <p className="mt-1 text-4xl font-bold tabular-nums text-emerald-950 xl:text-5xl">
+                <p className="mt-1 text-5xl font-bold tabular-nums text-emerald-950 xl:text-6xl">
                   {readingHighlight.secondary}
                 </p>
               </div>
@@ -244,22 +245,22 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className={`flex min-h-0 items-start gap-2.5 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] text-slate-800 ${
+                    className={`flex min-h-0 items-center gap-3 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] font-medium text-slate-800 ${
                       compact
-                        ? "px-2.5 py-2 text-base xl:px-3 xl:py-2.5 xl:text-lg"
-                        : "px-3 py-3 text-lg xl:px-4 xl:py-3.5 xl:text-xl"
+                        ? "px-3 py-3 text-lg xl:px-4 xl:py-3.5 xl:text-xl"
+                        : "px-4 py-3.5 text-xl xl:px-5 xl:py-4 xl:text-2xl"
                     }`}
                   >
                     <span
                       className={`flex shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] font-bold text-white ${
                         compact
-                          ? "h-8 w-8 text-base xl:h-9 xl:w-9 xl:text-lg"
-                          : "h-10 w-10 text-lg xl:h-11 xl:w-11 xl:text-xl"
+                          ? "h-10 w-10 text-lg xl:h-11 xl:w-11 xl:text-xl"
+                          : "h-11 w-11 text-xl xl:h-12 xl:w-12 xl:text-2xl"
                       }`}
                     >
                       {index + 1}
                     </span>
-                    <span className="leading-snug pt-0.5">{item}</span>
+                    <span className="leading-snug">{item}</span>
                   </li>
                 ))}
               </ol>
