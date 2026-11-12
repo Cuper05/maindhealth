@@ -234,7 +234,7 @@ export function VitalStepScreen({
         <div
           className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
             compact && illustration === "weight_height"
-              ? "grid-cols-1 lg:grid-cols-[0.78fr_1.22fr]"
+              ? "grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]"
               : compact
                 ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
                 : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
@@ -243,7 +243,7 @@ export function VitalStepScreen({
           <div className="relative z-10 flex min-h-0 flex-col gap-2 overflow-hidden">
             {steps && steps.length > 0 ? (
               <ol
-                className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
+                className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
                   compact
                     ? "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 auto-rows-fr"
                     : "grid-cols-1"
@@ -252,9 +252,9 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-3 py-2.5 text-[clamp(1.05rem,2.3vh,1.7rem)] font-semibold leading-tight text-slate-900 xl:gap-4 xl:px-4 xl:py-3 xl:text-[clamp(1.2rem,2.6vh,1.95rem)]"
+                    className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-4 text-[clamp(1.1rem,2.5vh,1.85rem)] font-semibold leading-snug text-slate-900 xl:gap-4 xl:px-5 xl:py-5 xl:text-[clamp(1.25rem,2.8vh,2.1rem)]"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-lg font-bold text-white xl:h-12 xl:w-12 xl:text-2xl">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-xl font-bold text-white xl:h-14 xl:w-14 xl:text-2xl">
                       {index + 1}
                     </span>
                     <span className="min-w-0 flex-1">{item}</span>
