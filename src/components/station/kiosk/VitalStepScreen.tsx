@@ -275,21 +275,9 @@ export function VitalStepScreen({
             </ol>
           ) : null}
 
-          {tips && tips.length > 0 ? (
-            <div className="shrink-0 space-y-1">
-              {tips.map((tip) => (
-                <KioskImportant
-                  key={tip}
-                  className="!py-2 !text-[clamp(1rem,2vh,1.35rem)]"
-                >
-                  {tip}
-                </KioskImportant>
-              ))}
-            </div>
-          ) : null}
         </div>
 
-        {/* Columna derecha: ilustración grande + Continuar */}
+        {/* Columna derecha: ilustración + avisos amarillos al lado de Continuar */}
         <div className="relative flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100">
             <div className="flex min-h-0 w-full flex-1 flex-col p-2">
@@ -306,7 +294,21 @@ export function VitalStepScreen({
             )}
           </div>
 
-          <div className="flex shrink-0 justify-center lg:justify-end lg:pr-2">
+          <div className="flex shrink-0 items-end gap-2 lg:pr-1">
+            {tips && tips.length > 0 ? (
+              <div className="min-w-0 flex-1 space-y-1.5">
+                {tips.map((tip) => (
+                  <KioskImportant
+                    key={tip}
+                    className="!px-3 !py-2 !text-[clamp(0.9rem,1.7vh,1.2rem)] !leading-snug"
+                  >
+                    {tip}
+                  </KioskImportant>
+                ))}
+              </div>
+            ) : (
+              <div className="min-w-0 flex-1" aria-hidden />
+            )}
             <KioskContinueRoundButton
               className="!h-[clamp(8.5rem,18vh,12.5rem)] !w-[clamp(8.5rem,18vh,12.5rem)] !text-[clamp(1.35rem,2.8vh,2rem)]"
               onClick={onContinue}
