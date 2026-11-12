@@ -161,7 +161,12 @@ export function VitalStepScreen({
           </p>
           <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-1">
             {referenceRanges.map((line) => (
-              <li key={line} className="text-lg font-bold text-slate-900 xl:text-xl">
+              <li
+                key={line}
+                className={`text-lg font-bold xl:text-xl ${
+                  /IMC/i.test(line) ? "text-orange-700" : "text-slate-900"
+                }`}
+              >
                 {line}
               </li>
             ))}
