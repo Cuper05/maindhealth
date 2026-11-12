@@ -53,7 +53,7 @@ export function ScaleIllustration() {
     <img
       src="/kiosk/scale-hw701-placement.jpg?v=facing-scale4"
       alt="Persona de frente a la báscula (mirando el equipo), cuerpo completo sobre la plataforma"
-      className="h-full w-full min-h-0 flex-1 rounded-xl object-contain object-center bg-white"
+      className="h-full min-h-0 w-full flex-1 origin-top scale-[1.35] rounded-xl object-contain object-top bg-white"
     />
   );
 }

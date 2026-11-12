@@ -233,9 +233,11 @@ export function VitalStepScreen({
 
         <div
           className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
-            compact
-              ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
-              : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
+            compact && illustration === "weight_height"
+              ? "grid-cols-1 lg:grid-cols-[0.65fr_1.35fr]"
+              : compact
+                ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
+                : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
           <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
@@ -283,7 +285,13 @@ export function VitalStepScreen({
             ) : null}
           </div>
 
-          <div className="relative flex min-h-0 flex-col overflow-hidden">
+          <div
+            className={`relative flex min-h-0 flex-col ${
+              illustration === "weight_height"
+                ? "overflow-visible"
+                : "overflow-hidden"
+            }`}
+          >
             <VitalIllustration type={illustration} />
             {capturing && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
@@ -320,13 +328,7 @@ export function VitalStepScreen({
         {!showCenterContinue && onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
-        {showCenterContinue ? (
-          <p className="flex-1 text-center text-xl font-bold text-orange-800 xl:text-2xl">
-            Toque Continuar o Atrás
-          </p>
-        ) : (
-          <div className="min-h-[72px] flex-1 xl:min-h-[80px]" aria-hidden />
-        )}
+        <div className="min-h-[72px] flex-1 xl:min-h-[80px]" aria-hidden />
         {!showCenterContinue ? (
           <button
             type="button"
