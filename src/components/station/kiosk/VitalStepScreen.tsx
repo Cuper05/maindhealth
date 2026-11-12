@@ -152,10 +152,12 @@ export function VitalStepScreen({
     deviceStatus === "done" &&
     !capturing &&
     (Boolean(readingViews?.length) || Boolean(readingHighlight));
+  /** Tras lectura o simulación: Continuar centrado (cursor/kiosk-continue-center-saved). */
+  const showCenterContinue = deviceStatus === "done" && !capturing && !continueBlocked;
 
   return (
     <KioskCard
-      className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+      className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
         compact ? "!p-3 sm:!p-4" : ""
       }`}
     >
@@ -315,14 +317,15 @@ export function VitalStepScreen({
             ) : (
               <div className="min-w-0 flex-1" aria-hidden />
             )}
-            <KioskContinueRoundButton
-              className="!h-[clamp(8.5rem,18vh,12.5rem)] !w-[clamp(8.5rem,18vh,12.5rem)] !text-[clamp(1.35rem,2.8vh,2rem)]"
-              onClick={onContinue}
-              disabled={continueBlocked}
-              pulse={deviceStatus === "done" && !continueBlocked}
-            >
-              Continuar
-            </KioskContinueRoundButton>
+            {!showCenterContinue ? (
+              <KioskContinueRoundButton
+                className="!h-[clamp(8.5rem,18vh,12.5rem)] !w-[clamp(8.5rem,18vh,12.5rem)] !text-[clamp(1.35rem,2.8vh,2rem)]"
+                onClick={onContinue}
+                disabled={continueBlocked}
+              >
+                Continuar
+              </KioskContinueRoundButton>
+            ) : null}
           </div>
         </div>
       </div>
@@ -346,6 +349,11 @@ export function VitalStepScreen({
                 Repetir
               </KioskSecondaryButton>
             ) : null}
+            {showCenterContinue ? (
+              <p className="text-[clamp(0.85rem,1.5vh,1.1rem)] font-semibold text-[#1d6eb8]">
+                Use el botón Continuar del centro para seguir
+              </p>
+            ) : null}
           </>
         }
         right={
@@ -360,6 +368,34 @@ export function VitalStepScreen({
           </button>
         }
       />
+
+      {showCenterContinue ? (
+        <div
+          className="kiosk-continue-enter absolute inset-0 z-30 flex items-center justify-center"
+          role="dialog"
+          aria-label="Continuar al siguiente paso"
+        >
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="absolute inset-0 bg-[#0b2340]/25 backdrop-blur-[1.5px]"
+            onClick={onContinue}
+          />
+          <div className="relative z-10 flex flex-col items-center gap-3 px-4">
+            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-[clamp(1rem,2vh,1.35rem)] font-semibold text-[#0b4f8a] shadow-md">
+              Lectura lista — toque Continuar
+            </p>
+            <KioskContinueRoundButton
+              className="kiosk-continue-pulse !h-[clamp(9.5rem,20vh,12.5rem)] !w-[clamp(9.5rem,20vh,12.5rem)] !text-[clamp(1.5rem,3vh,2.1rem)] !ring-4 !ring-white/90"
+              onClick={onContinue}
+              pulse
+            >
+              Continuar
+            </KioskContinueRoundButton>
+          </div>
+        </div>
+      ) : null}
     </KioskCard>
   );
 }
