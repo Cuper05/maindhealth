@@ -31,25 +31,42 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
       ? "normal"
       : "info";
   const tone = bandTone(worst);
+  const wideLast = views.length >= 3;
 
   return (
-    <div className={`flex min-h-0 flex-1 flex-col justify-center space-y-2 rounded-2xl border-2 px-4 py-3 ${tone.box}`}>
-      <div className="grid grid-cols-2 gap-3 text-center">
-        {views.map((view) => {
+    <div className={`shrink-0 rounded-2xl border-2 px-3 py-2.5 xl:px-4 xl:py-3 ${tone.box}`}>
+      <div
+        className={`grid gap-2 text-center ${
+          views.length === 1 ? "grid-cols-1" : "grid-cols-2"
+        }`}
+      >
+        {views.map((view, index) => {
           const t = bandTone(view.band);
+          const spanFull = wideLast && index === views.length - 1;
           return (
-            <div key={view.label} className={views.length === 1 ? "col-span-2" : undefined}>
-              <p className="text-[clamp(1rem,2vh,1.35rem)] font-semibold uppercase tracking-wide text-slate-600">
+            <div
+              key={view.label}
+              className={`min-w-0 rounded-xl bg-white/55 px-2.5 py-2 ${
+                spanFull ? "col-span-2" : ""
+              }`}
+            >
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-600 xl:text-base">
                 {view.label}
               </p>
-              <p className={`mt-1 text-[clamp(2.5rem,6vh,4.5rem)] font-bold tabular-nums ${t.value}`}>
+              <p
+                className={`mt-1 font-bold tabular-nums leading-none ${t.value} ${
+                  spanFull
+                    ? "text-4xl xl:text-5xl"
+                    : "text-3xl xl:text-4xl"
+                }`}
+              >
                 {view.valueText}
               </p>
-              <p className="mt-1 text-[clamp(0.95rem,1.8vh,1.25rem)] font-medium text-slate-600">
+              <p className="mt-1.5 text-xs font-medium leading-snug text-slate-600 xl:text-sm">
                 Normal: {view.normalRange}
               </p>
               <span
-                className={`mt-2 inline-block rounded-lg px-3 py-1 text-[clamp(0.95rem,1.8vh,1.25rem)] font-bold ${t.badge}`}
+                className={`mt-1.5 inline-block max-w-full truncate rounded-lg px-2.5 py-1 text-xs font-bold xl:text-sm ${t.badge}`}
               >
                 {view.verdict}
               </span>
@@ -57,7 +74,7 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
           );
         })}
       </div>
-      <p className="text-center text-[clamp(0.9rem,1.6vh,1.15rem)] font-medium text-slate-700">
+      <p className="mt-2 text-center text-xs font-medium leading-snug text-slate-600 xl:text-sm">
         {VITAL_RANGE_COPY.disclaimer}
       </p>
     </div>
@@ -210,30 +227,28 @@ export function VitalStepScreen({
           ) : null}
 
           {showReading && (!readingViews || readingViews.length === 0) && readingHighlight ? (
-            <div className="flex min-h-0 flex-1 flex-col justify-center rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-center">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[clamp(1rem,2vh,1.35rem)] font-semibold uppercase tracking-wide text-emerald-800">
+            <div className="shrink-0 rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 text-center xl:px-4 xl:py-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="min-w-0 rounded-xl bg-white/55 px-2.5 py-2">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800 xl:text-base">
                     {readingHighlight.primaryLabel}
                   </p>
-                  <p className="mt-1 text-[clamp(2.5rem,6vh,4.5rem)] font-bold tabular-nums text-emerald-950">
+                  <p className="mt-1 text-3xl font-bold tabular-nums leading-none text-emerald-950 xl:text-4xl">
                     {readingHighlight.primary}
                   </p>
                 </div>
                 {readingHighlight.secondary != null ? (
-                  <div>
-                    <p className="text-[clamp(1rem,2vh,1.35rem)] font-semibold uppercase tracking-wide text-emerald-800">
+                  <div className="min-w-0 rounded-xl bg-white/55 px-2.5 py-2">
+                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800 xl:text-base">
                       {readingHighlight.secondaryLabel ?? "Pulso"}
                     </p>
-                    <p className="mt-1 text-[clamp(2.5rem,6vh,4.5rem)] font-bold tabular-nums text-emerald-950">
+                    <p className="mt-1 text-3xl font-bold tabular-nums leading-none text-emerald-950 xl:text-4xl">
                       {readingHighlight.secondary}
                     </p>
                   </div>
                 ) : null}
               </div>
-              <p className="mt-2 text-[clamp(0.9rem,1.6vh,1.15rem)] font-medium text-emerald-800">
-                {readingNote}
-              </p>
+              <p className="mt-2 text-xs font-medium text-emerald-800 xl:text-sm">{readingNote}</p>
             </div>
           ) : null}
 
