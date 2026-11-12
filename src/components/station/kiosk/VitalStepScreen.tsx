@@ -19,9 +19,9 @@ const vitalStepLabel =
 const vitalTitle =
   "text-[clamp(2rem,4.2vh,3.25rem)] font-bold leading-tight tracking-tight text-slate-900";
 const vitalBody =
-  "text-[clamp(0.95rem,1.85vh,1.4rem)] font-semibold leading-snug text-slate-800";
+  "text-[clamp(0.88rem,1.65vh,1.25rem)] font-semibold leading-snug text-slate-800";
 const vitalBadgeNum =
-  "mt-0.5 flex aspect-square h-[clamp(2rem,3.8vh,2.75rem)] w-[clamp(2rem,3.8vh,2.75rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.95rem,2vh,1.25rem)] font-bold text-white";
+  "mt-0.5 flex aspect-square h-[clamp(1.75rem,3.2vh,2.4rem)] w-[clamp(1.75rem,3.2vh,2.4rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.85rem,1.7vh,1.1rem)] font-bold text-white";
 
 function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
   if (views.length === 0) return null;
@@ -192,8 +192,8 @@ export function VitalStepScreen({
 
       {/* Cuerpo: izquierda acciones+pasos | derecha imagen grande + Continuar */}
       <div className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        {/* Columna izquierda */}
-        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
+        {/* Columna izquierda: scroll si el veredicto + pasos no caben */}
+        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-y-auto overscroll-contain">
           {showCapture ? (
             <div className="shrink-0 rounded-2xl border-2 border-teal-600/80 bg-teal-50 px-3 py-2">
               <p className="mb-1.5 text-center text-[clamp(1rem,2vh,1.35rem)] font-bold text-teal-900">
@@ -254,20 +254,14 @@ export function VitalStepScreen({
 
           {steps && steps.length > 0 ? (
             <ol
-              className={`grid min-h-0 flex-1 content-start gap-2 overflow-y-auto overscroll-contain ${
+              className={`grid min-h-0 flex-1 auto-rows-max content-start gap-2 overflow-y-auto overscroll-contain ${
                 compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
               }`}
-              style={{
-                gridAutoRows: "minmax(min-content, 1fr)",
-                gridTemplateRows: compact
-                  ? undefined
-                  : `repeat(${steps.length}, minmax(min-content, 1fr))`,
-              }}
             >
               {steps.map((item, index) => (
                 <li
                   key={item}
-                  className="flex h-full min-h-0 items-start gap-2.5 rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2.5"
+                  className="flex h-auto items-start gap-2.5 overflow-visible rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2.5"
                 >
                   <span className={vitalBadgeNum}>{index + 1}</span>
                   <span className={`min-w-0 flex-1 break-words ${vitalBody}`}>{item}</span>
