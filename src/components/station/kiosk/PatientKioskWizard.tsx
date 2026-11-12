@@ -2946,10 +2946,7 @@ export function PatientKioskWizard() {
               ? undefined
               : "Listo para leer — pulse el botón verde de abajo")
           }
-          referenceRanges={[
-            VITAL_RANGE_COPY.bmi,
-            "Tras medir, verá si su IMC está en rango normal",
-          ]}
+          referenceRanges={[VITAL_RANGE_COPY.bmi]}
           readingViews={(() => {
             if (!vitalsDraft.weight || !vitalsDraft.height) return undefined;
             const views = [

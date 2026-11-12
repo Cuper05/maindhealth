@@ -15,9 +15,9 @@ function joinVoiceSteps(steps: readonly string[]) {
 /** Instrucciones en pantalla = mismas frases que habla la bocina (una por botón). */
 export const WEIGHT_HEIGHT_VOICE_STEPS = [
   "Paso uno: peso y altura.",
-  "Toque Leer báscula ahora para iniciar.",
-  "Luego súbase, párese erguido mirando al frente, y espere.",
-  "Cuando termine, la voz le dirá que baje y toque Continuar.",
+  "Toque Leer báscula ahora.",
+  "Súbase, párese erguido al frente y espere.",
+  "Al terminar, baje y toque Continuar.",
 ] as const;
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
