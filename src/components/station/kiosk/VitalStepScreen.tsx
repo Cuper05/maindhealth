@@ -235,9 +235,11 @@ export function VitalStepScreen({
           className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
             compact && illustration === "weight_height"
               ? "grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]"
-              : compact
-                ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
-                : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
+              : compact && illustration === "blood_pressure"
+                ? "grid-cols-1 lg:grid-cols-[1.3fr_0.7fr]"
+                : compact
+                  ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
+                  : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
           <div className="relative z-10 flex min-h-0 flex-col gap-2 overflow-hidden">
@@ -252,12 +254,16 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-4 text-[clamp(1.1rem,2.5vh,1.85rem)] font-semibold leading-snug text-slate-900 xl:gap-4 xl:px-5 xl:py-5 xl:text-[clamp(1.25rem,2.8vh,2.1rem)]"
+                    className={`flex min-h-0 items-center gap-3 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-4 font-semibold leading-snug text-slate-900 xl:gap-4 xl:px-5 xl:py-5 ${
+                      illustration === "blood_pressure"
+                        ? "text-[clamp(1.15rem,2.6vh,1.95rem)] xl:text-[clamp(1.3rem,3vh,2.2rem)]"
+                        : "overflow-hidden text-[clamp(1.1rem,2.5vh,1.85rem)] xl:text-[clamp(1.25rem,2.8vh,2.1rem)]"
+                    }`}
                   >
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-xl font-bold text-white xl:h-14 xl:w-14 xl:text-2xl">
                       {index + 1}
                     </span>
-                    <span className="min-w-0 flex-1">{item}</span>
+                    <span className="min-w-0 flex-1 break-words">{item}</span>
                   </li>
                 ))}
               </ol>
