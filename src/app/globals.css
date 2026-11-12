@@ -75,7 +75,7 @@ body {
   animation: station-standby-pulse 2.4s ease-in-out infinite;
 }
 
-/* Kiosco: Continuar redondo late cuando la medición ya está lista */
+/* Continuar centrado al terminar la medición — sutil, no agresivo */
 @keyframes kiosk-continue-pulse {
   0%,
   100% {

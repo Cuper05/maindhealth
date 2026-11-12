@@ -6,23 +6,13 @@ import { bandTone, VITAL_RANGE_COPY } from "@/lib/kiosk/vital-ranges";
 import { VitalIllustration, type VitalIllustrationType } from "./KioskIllustrations";
 import {
   KioskCard,
-  KioskContinueRoundButton,
   KioskImportant,
   KioskSecondaryButton,
-  KioskVitalsNavBar,
   StatusPill,
+  kioskHelperClassName,
+  kioskSubtitleClassName,
+  kioskTitleClassName,
 } from "./KioskTheme";
-
-/** Tipografía uniforme de signos vitales (misma en todos los pasos). */
-const vitalStepLabel =
-  "text-[clamp(1rem,1.8vh,1.25rem)] font-semibold uppercase tracking-wide text-[#1d6eb8]";
-const vitalTitle =
-  "text-[clamp(2rem,4.2vh,3.25rem)] font-bold leading-tight tracking-tight text-slate-900";
-/** Tamaño grande; solo baja un poco si el recuadro es muy bajo (cqh). */
-const vitalBody =
-  "text-[clamp(1.15rem,min(2.8vh,_9cqh),1.95rem)] font-semibold leading-snug text-slate-800";
-const vitalBadgeNum =
-  "flex aspect-square h-[clamp(2.2rem,min(4.8vh,_14cqh),3.4rem)] w-[clamp(2.2rem,min(4.8vh,_14cqh),3.4rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(1.05rem,min(2.4vh,_6cqh),1.5rem)] font-bold text-white";
 
 function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
   if (views.length === 0) return null;
@@ -32,45 +22,25 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
       ? "normal"
       : "info";
   const tone = bandTone(worst);
-  const wideLast = views.length >= 3;
 
   return (
-    <div className={`shrink-0 rounded-2xl border-2 px-3 py-2.5 xl:px-4 xl:py-3 ${tone.box}`}>
-      <div
-        className={`grid gap-2 text-center ${
-          views.length === 1 ? "grid-cols-1" : "grid-cols-2"
-        }`}
-      >
-        {views.map((view, index) => {
+    <div className={`shrink-0 space-y-2 rounded-2xl border-2 px-4 py-3 xl:py-4 ${tone.box}`}>
+      <div className="grid grid-cols-2 gap-3 text-center">
+        {views.map((view) => {
           const t = bandTone(view.band);
-          const spanFull = wideLast && index === views.length - 1;
-          const longValue = view.valueText.length > 12;
           return (
-            <div
-              key={view.label}
-              className={`min-w-0 rounded-xl bg-white/55 px-2.5 py-2 ${
-                spanFull ? "col-span-2" : ""
-              }`}
-            >
+            <div key={view.label} className={views.length === 1 ? "col-span-2" : undefined}>
               <p className="text-base font-semibold uppercase tracking-wide text-slate-600 xl:text-lg">
                 {view.label}
               </p>
-              <p
-                className={`mt-1 font-bold ${t.value} ${
-                  longValue
-                    ? "text-[clamp(1.25rem,2.6vh,1.85rem)] leading-snug"
-                    : spanFull
-                      ? "text-4xl xl:text-5xl tabular-nums leading-none"
-                      : "text-3xl xl:text-4xl tabular-nums leading-none"
-                }`}
-              >
+              <p className={`mt-1 text-4xl font-bold tabular-nums xl:text-5xl ${t.value}`}>
                 {view.valueText}
               </p>
-              <p className="mt-1.5 text-sm font-medium leading-snug text-slate-600 xl:text-base">
+              <p className="mt-1 text-sm font-medium text-slate-600 xl:text-base">
                 Normal: {view.normalRange}
               </p>
               <span
-                className={`mt-1.5 inline-block max-w-full truncate rounded-lg px-2.5 py-1 text-sm font-bold xl:text-base ${t.badge}`}
+                className={`mt-2 inline-block rounded-lg px-2.5 py-1 text-sm font-bold xl:text-base ${t.badge}`}
               >
                 {view.verdict}
               </span>
@@ -78,7 +48,7 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
           );
         })}
       </div>
-      <p className="mt-2 text-center text-xs font-medium leading-snug text-slate-600 xl:text-sm">
+      <p className={`text-center font-medium text-slate-700 ${kioskHelperClassName}`}>
         {VITAL_RANGE_COPY.disclaimer}
       </p>
     </div>
@@ -95,9 +65,13 @@ export function VitalStepScreen({
   illustration,
   deviceStatus,
   statusMessage,
+  /** Lectura real grande (p. ej. SpO₂ / FC). Nunca valores de ejemplo. */
   readingHighlight,
+  /** Interpretación + rango normal (preferido sobre readingHighlight solo). */
   readingViews,
+  /** Rangos de referencia visibles mientras espera la lectura. */
   referenceRanges,
+  /** Texto bajo los valores grandes (legacy si no hay readingViews). */
   readingNote = "Lectura recibida del dispositivo — estos son sus valores reales",
   onContinue,
   onSimulate,
@@ -110,7 +84,11 @@ export function VitalStepScreen({
   captureOptional = false,
   capturing = false,
   captureCanConfirm = false,
-  compact = false,
+  /**
+   * Layout de una sola pantalla: instrucciones en 2 columnas + botones grandes
+   * aprovechando todo el alto disponible (sin achicar el tacto).
+   */
+   compact = false,
   extra,
 }: {
   stepNumber: number;
@@ -141,6 +119,7 @@ export function VitalStepScreen({
   captureHelp?: string;
   captureOptional?: boolean;
   capturing?: boolean;
+  /** Permite un segundo toque mientras espera (p. ej. «Ya vi el resultado»). */
   captureCanConfirm?: boolean;
   compact?: boolean;
   extra?: ReactNode;
@@ -152,226 +131,195 @@ export function VitalStepScreen({
     deviceStatus === "done" &&
     !capturing &&
     (Boolean(readingViews?.length) || Boolean(readingHighlight));
-  /** Tras lectura o simulación: Continuar centrado (cursor/kiosk-continue-center-saved). */
+  /** Tras lectura real o «Simular lectura»: Continuar centrado y visible. */
   const showCenterContinue = deviceStatus === "done" && !capturing && !continueBlocked;
 
   return (
     <KioskCard
       className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
-        compact ? "!p-3 sm:!p-4" : ""
+        compact ? "!p-4 sm:!p-5" : ""
       }`}
     >
-      {/* Cabecera: título + parámetros a la derecha (chip pastel) + estado */}
-      <div className="flex shrink-0 items-start gap-3">
-        <div className="min-w-0 flex-[1.1]">
-          <p className={vitalStepLabel}>
+      <div className="flex shrink-0 flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold uppercase tracking-wide text-[#1d6eb8] xl:text-lg">
             Paso {stepNumber} de {totalSteps}
           </p>
-          <h2 className={`mt-0.5 ${vitalTitle}`}>{title}</h2>
-          {instruction ? (
-            <p className="mt-1 text-[clamp(1rem,2vh,1.35rem)] leading-snug text-slate-600">
-              {instruction}
-            </p>
-          ) : null}
+          <h2 className={`mt-0.5 ${kioskTitleClassName}`}>{title}</h2>
         </div>
-
-        {referenceRanges && referenceRanges.length > 0 && !showReading ? (
-          <div className="min-w-0 flex-[0.9] rounded-2xl border-2 border-[#7eb8a0]/50 bg-[#e8f6ef] px-3 py-2.5 shadow-sm xl:px-4 xl:py-3">
-            <p className="text-[clamp(0.85rem,1.5vh,1.05rem)] font-bold uppercase tracking-wide text-[#1f6b4a]">
-              Rango normal
-            </p>
-            <ul className="mt-1 space-y-0.5">
-              {referenceRanges.map((line) => (
-                <li
-                  key={line}
-                  className="text-[clamp(1rem,2.1vh,1.45rem)] font-semibold leading-snug text-[#14533a]"
-                >
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
         <StatusPill status={capturing ? "reading" : deviceStatus} />
       </div>
 
-      {/* Cuerpo: izquierda acciones+pasos | derecha imagen grande + Continuar */}
-      <div className="mt-2 grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        {/* Columna izquierda */}
-        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
-          {showCapture ? (
-            <div className="shrink-0 rounded-2xl border-2 border-teal-600/80 bg-teal-50 px-3 py-2">
-              <p className="mb-1.5 text-center text-[clamp(1rem,2vh,1.35rem)] font-bold text-teal-900">
-                Para iniciar, toque el botón verde
-              </p>
-              <button
-                type="button"
-                onClick={onCapture}
-                disabled={capturing && !captureCanConfirm}
-                className="mx-auto flex w-full max-w-xl min-h-[clamp(3.4rem,7vh,4.6rem)] items-center justify-center rounded-2xl bg-teal-700 px-5 text-[clamp(1.25rem,2.8vh,1.85rem)] font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60"
-              >
-                {capturing ? capturingLabel : captureLabel}
-              </button>
-              {statusMessage && !showReading ? (
-                <p className="mt-1.5 text-center text-[clamp(0.95rem,1.7vh,1.2rem)] font-medium text-teal-800">
-                  {statusMessage}
-                </p>
-              ) : null}
-              {captureHelp && !compact ? (
-                <p className="mt-1 text-center text-[clamp(0.85rem,1.5vh,1.05rem)] text-teal-800/80">
-                  {captureHelp}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+      {instruction ? (
+        <p className={`w-full shrink-0 ${kioskSubtitleClassName}`}>{instruction}</p>
+      ) : null}
 
-          {extra}
-
-          {showReading && readingViews && readingViews.length > 0 ? (
-            <ReadingVerdict views={readingViews} />
-          ) : null}
-
-          {showReading && (!readingViews || readingViews.length === 0) && readingHighlight ? (
-            <div className="shrink-0 rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2.5 text-center xl:px-4 xl:py-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="min-w-0 rounded-xl bg-white/55 px-2.5 py-2">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800 xl:text-base">
-                    {readingHighlight.primaryLabel}
-                  </p>
-                  <p className="mt-1 text-3xl font-bold tabular-nums leading-none text-emerald-950 xl:text-4xl">
-                    {readingHighlight.primary}
-                  </p>
-                </div>
-                {readingHighlight.secondary != null ? (
-                  <div className="min-w-0 rounded-xl bg-white/55 px-2.5 py-2">
-                    <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800 xl:text-base">
-                      {readingHighlight.secondaryLabel ?? "Pulso"}
-                    </p>
-                    <p className="mt-1 text-3xl font-bold tabular-nums leading-none text-emerald-950 xl:text-4xl">
-                      {readingHighlight.secondary}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-              <p className="mt-2 text-xs font-medium text-emerald-800 xl:text-sm">{readingNote}</p>
-            </div>
-          ) : null}
-
-          {steps && steps.length > 0 ? (
-            <ol
-              className={`grid min-h-0 flex-1 content-stretch gap-2 ${
-                compact ? "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2" : "grid-cols-1"
-              }`}
-              style={
-                !compact
-                  ? { gridTemplateRows: `repeat(${steps.length}, minmax(0, 1fr))` }
-                  : undefined
-              }
-            >
-              {steps.map((item, index) => (
-                <li
-                  key={item}
-                  className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2 [container-type:size]"
-                >
-                  <span className={vitalBadgeNum}>{index + 1}</span>
-                  <span className={`min-h-0 min-w-0 flex-1 overflow-hidden ${vitalBody}`}>
-                    {item}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : null}
-
+      {referenceRanges && referenceRanges.length > 0 && !showReading ? (
+        <div className="mt-2 shrink-0 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2.5">
+          <p className="text-sm font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-base">
+            Rango normal de referencia
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {referenceRanges.map((line) => (
+              <li key={line} className="text-base font-semibold text-slate-800 xl:text-lg">
+                {line}
+              </li>
+            ))}
+          </ul>
         </div>
+      ) : null}
 
-        {/* Columna derecha: ilustración + avisos amarillos al lado de Continuar */}
-        <div className="relative flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
-          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100">
-            <div className="flex min-h-0 w-full flex-1 flex-col p-2">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        {showCapture ? (
+          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 p-3 xl:p-4">
+            <p className="mb-2 text-center text-xl font-bold text-teal-900 xl:text-2xl">
+              Para iniciar, toque el botón verde
+            </p>
+            <button
+              type="button"
+              onClick={onCapture}
+              disabled={capturing && !captureCanConfirm}
+              className="flex w-full min-h-[72px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-2xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[84px] xl:text-3xl"
+            >
+              {capturing ? capturingLabel : captureLabel}
+            </button>
+            {captureHelp && !compact ? (
+              <p className={`mt-2 text-center ${kioskHelperClassName}`}>{captureHelp}</p>
+            ) : null}
+            {statusMessage && !showReading ? (
+              <p className={`mt-2 text-center font-medium text-teal-800 ${kioskHelperClassName}`}>
+                {statusMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {extra}
+
+        {showReading && readingViews && readingViews.length > 0 ? (
+          <ReadingVerdict views={readingViews} />
+        ) : null}
+
+        {showReading && (!readingViews || readingViews.length === 0) && readingHighlight ? (
+          <div className="shrink-0 grid grid-cols-2 gap-3 rounded-2xl border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-center xl:py-4">
+            <div>
+              <p className="text-base font-semibold uppercase tracking-wide text-emerald-800 xl:text-lg">
+                {readingHighlight.primaryLabel}
+              </p>
+              <p className="mt-1 text-4xl font-bold tabular-nums text-emerald-950 xl:text-5xl">
+                {readingHighlight.primary}
+              </p>
+            </div>
+            {readingHighlight.secondary != null ? (
+              <div>
+                <p className="text-base font-semibold uppercase tracking-wide text-emerald-800 xl:text-lg">
+                  {readingHighlight.secondaryLabel ?? "Pulso"}
+                </p>
+                <p className="mt-1 text-4xl font-bold tabular-nums text-emerald-950 xl:text-5xl">
+                  {readingHighlight.secondary}
+                </p>
+              </div>
+            ) : null}
+            <p className={`col-span-2 font-medium text-emerald-800 ${kioskHelperClassName}`}>
+              {readingNote}
+            </p>
+          </div>
+        ) : null}
+
+        <div
+          className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
+            compact
+              ? "grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]"
+              : "grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]"
+          }`}
+        >
+          <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
+            {steps && steps.length > 0 ? (
+              <ol
+                className={`grid min-h-0 flex-1 content-stretch gap-2 ${
+                  compact ? "grid-cols-1 sm:grid-cols-2 auto-rows-fr" : "grid-cols-1"
+                }`}
+              >
+                {steps.map((item, index) => (
+                  <li
+                    key={item}
+                    className="flex min-h-0 items-start gap-3 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-3 py-3 text-lg text-slate-800 xl:px-4 xl:py-3.5 xl:text-xl"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-lg font-bold text-white xl:h-11 xl:w-11 xl:text-xl">
+                      {index + 1}
+                    </span>
+                    <span className="leading-snug pt-1">{item}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {tips && tips.length > 0 && !compact ? (
+              <ul className="space-y-1.5">
+                {tips.map((tip) => (
+                  <li key={tip}>
+                    <KioskImportant>{tip}</KioskImportant>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {tips && tips.length > 0 && compact ? (
+              <div className="shrink-0">
+                {tips.map((tip) => (
+                  <KioskImportant key={tip}>{tip}</KioskImportant>
+                ))}
+              </div>
+            ) : null}
+            {!showCapture && statusMessage && !showReading ? (
+              <p className={`font-medium text-[#1d6eb8] ${kioskHelperClassName}`}>
+                {statusMessage}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 max-lg:min-h-[240px]">
+            <div className="flex min-h-0 w-full flex-1 flex-col p-2 lg:min-h-0">
               <VitalIllustration type={illustration} />
             </div>
             {capturing && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/55 backdrop-blur-[1px]">
+              <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
                 <div className="mx-3 rounded-xl bg-white px-4 py-3 shadow-lg">
-                  <p className="animate-pulse text-center text-[clamp(1rem,2vh,1.35rem)] font-medium text-[#1d6eb8]">
+                  <p
+                    className={`animate-pulse text-center font-medium text-[#1d6eb8] ${kioskHelperClassName}`}
+                  >
                     {statusMessage || "Esperando lectura estable…"}
                   </p>
                 </div>
               </div>
             )}
           </div>
-
-          <div className="flex shrink-0 items-end gap-2 lg:pr-1">
-            {tips && tips.length > 0 ? (
-              <div className="min-w-0 flex-1 space-y-1.5">
-                {tips.map((tip) => (
-                  <KioskImportant
-                    key={tip}
-                    className="!px-3 !py-2 !text-[clamp(0.9rem,1.7vh,1.2rem)] !leading-snug"
-                  >
-                    {tip}
-                  </KioskImportant>
-                ))}
-              </div>
-            ) : (
-              <div className="min-w-0 flex-1" aria-hidden />
-            )}
-            {!showCenterContinue ? (
-              <KioskContinueRoundButton
-                className="!h-[clamp(8.5rem,18vh,12.5rem)] !w-[clamp(8.5rem,18vh,12.5rem)] !text-[clamp(1.35rem,2.8vh,2rem)]"
-                onClick={onContinue}
-                disabled={continueBlocked}
-              >
-                Continuar
-              </KioskContinueRoundButton>
-            ) : null}
-          </div>
         </div>
       </div>
 
-      <KioskVitalsNavBar
-        left={
-          <>
-            {onBack ? (
-              <KioskSecondaryButton
-                className="!min-h-[52px] !px-3 !text-lg xl:!min-h-[56px] xl:!text-xl"
-                onClick={onBack}
-              >
-                ← Atrás
-              </KioskSecondaryButton>
-            ) : null}
-            {onRetry && deviceStatus === "done" ? (
-              <KioskSecondaryButton
-                className="!min-h-[52px] !px-3 !text-base xl:!min-h-[56px] xl:!text-lg"
-                onClick={onRetry}
-              >
-                Repetir
-              </KioskSecondaryButton>
-            ) : null}
-            {showCenterContinue ? (
-              <p className="text-[clamp(0.85rem,1.5vh,1.1rem)] font-semibold text-[#1d6eb8]">
-                Use el botón Continuar del centro para seguir
-              </p>
-            ) : null}
-          </>
-        }
-        right={
-          <button
-            type="button"
-            onClick={onSimulate}
-            className="max-w-full text-right text-xs leading-snug text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline xl:text-sm"
-          >
-            Simular lectura
-            <br />
-            (modo demo)
-          </button>
-        }
-      />
+      <div className="mt-3 flex shrink-0 flex-row flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+        {onBack && <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>}
+        {onRetry && deviceStatus === "done" && (
+          <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
+        )}
+        {/* Continuar del pie solo tras lectura del aparato o «Simular lectura». */}
+        {showCenterContinue ? (
+          <p className="flex-1 text-center text-base font-semibold text-[#1d6eb8] xl:text-lg">
+            Use el botón Continuar del centro para seguir
+          </p>
+        ) : (
+          <div className="min-h-[72px] flex-1 xl:min-h-[80px]" aria-hidden />
+        )}
+        <button
+          type="button"
+          onClick={onSimulate}
+          className="text-sm text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+        >
+          Simular lectura (modo demo)
+        </button>
+      </div>
 
       {showCenterContinue ? (
         <div
-          className="kiosk-continue-enter absolute inset-0 z-30 flex items-center justify-center"
+          className="absolute inset-0 z-30 flex items-center justify-center kiosk-continue-enter"
           role="dialog"
           aria-label="Continuar al siguiente paso"
         >
@@ -383,16 +331,19 @@ export function VitalStepScreen({
             onClick={onContinue}
           />
           <div className="relative z-10 flex flex-col items-center gap-3 px-4">
-            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-[clamp(1rem,2vh,1.35rem)] font-semibold text-[#0b4f8a] shadow-md">
+            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-lg font-semibold text-[#0b4f8a] shadow-md xl:text-xl">
               Lectura lista — toque Continuar
             </p>
-            <KioskContinueRoundButton
-              className="kiosk-continue-pulse !h-[clamp(9.5rem,20vh,12.5rem)] !w-[clamp(9.5rem,20vh,12.5rem)] !text-[clamp(1.5rem,3vh,2.1rem)] !ring-4 !ring-white/90"
+            <button
+              type="button"
               onClick={onContinue}
-              pulse
+              className="kiosk-continue-pulse flex h-[9.5rem] w-[9.5rem] flex-col items-center justify-center gap-1 rounded-full bg-[#1d6eb8] text-center text-2xl font-bold leading-none text-white ring-4 ring-white/90 xl:h-[11rem] xl:w-[11rem] xl:text-3xl"
             >
-              Continuar
-            </KioskContinueRoundButton>
+              <span>Continuar</span>
+              <span aria-hidden className="text-3xl leading-none xl:text-4xl">
+                →
+              </span>
+            </button>
           </div>
         </div>
       ) : null}
