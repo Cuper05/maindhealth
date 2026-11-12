@@ -305,12 +305,23 @@ export function VitalStepScreen({
           showCenterContinue ? "relative z-40" : ""
         }`}
       >
-        {onBack && <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>}
+        {onBack ? (
+          <KioskSecondaryButton
+            onClick={onBack}
+            className={
+              showCenterContinue
+                ? "!min-h-[88px] !border-[3px] !border-slate-700 !bg-white !px-8 !text-3xl !font-black !text-slate-900 shadow-lg xl:!min-h-[104px] xl:!px-10 xl:!text-4xl"
+                : undefined
+            }
+          >
+            ← Atrás
+          </KioskSecondaryButton>
+        ) : null}
         {!showCenterContinue && onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
         {showCenterContinue ? (
-          <p className="flex-1 text-center text-base font-semibold text-orange-800 xl:text-lg">
+          <p className="flex-1 text-center text-xl font-bold text-orange-800 xl:text-2xl">
             Toque Continuar o Atrás
           </p>
         ) : (
@@ -347,17 +358,17 @@ export function VitalStepScreen({
               e.stopPropagation();
             }}
           />
-          <div className="relative z-10 flex flex-col items-center gap-3 px-4 pointer-events-auto">
-            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-lg font-semibold text-orange-900 shadow-md xl:text-xl">
+          <div className="relative z-10 flex flex-col items-center gap-4 px-4 pointer-events-auto">
+            <p className="rounded-full border border-white/70 bg-white/95 px-6 py-2.5 text-2xl font-bold text-orange-900 shadow-md xl:text-3xl">
               Lectura lista — toque Continuar
             </p>
             <button
               type="button"
               onClick={onContinue}
-              className="kiosk-continue-pulse flex h-[9.5rem] w-[9.5rem] flex-col items-center justify-center gap-1 rounded-full bg-[#ea580c] text-center text-2xl font-bold leading-none text-white ring-4 ring-white/90 xl:h-[11rem] xl:w-[11rem] xl:text-3xl"
+              className="kiosk-continue-pulse flex h-[14rem] w-[14rem] flex-col items-center justify-center gap-2 rounded-full bg-[#ea580c] text-center text-4xl font-black leading-none text-white ring-8 ring-white/95 shadow-2xl xl:h-[16.5rem] xl:w-[16.5rem] xl:text-5xl"
             >
               <span>Continuar</span>
-              <span aria-hidden className="text-3xl leading-none xl:text-4xl">
+              <span aria-hidden className="text-5xl leading-none xl:text-6xl">
                 →
               </span>
             </button>
