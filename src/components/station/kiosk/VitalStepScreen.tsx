@@ -229,8 +229,8 @@ export function VitalStepScreen({
         <div
           className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
             compact
-              ? "grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]"
-              : "grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]"
+              ? "grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]"
+              : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
           <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
@@ -276,8 +276,8 @@ export function VitalStepScreen({
             ) : null}
           </div>
 
-          <div className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 max-lg:min-h-[240px]">
-            <div className="flex min-h-0 w-full flex-1 flex-col p-2 lg:min-h-0">
+          <div className="relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 lg:min-h-0">
+            <div className="flex min-h-0 w-full flex-1 flex-col p-1 sm:p-2 lg:min-h-0">
               <VitalIllustration type={illustration} />
             </div>
             {capturing && (
