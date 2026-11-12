@@ -51,9 +51,9 @@ export function ScaleIllustration() {
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
-      src="/kiosk/scale-hw701-placement.jpg?v=facing-scale4"
-      alt="Persona de frente a la báscula (mirando el equipo), cuerpo completo sobre la plataforma"
-      className="h-full min-h-0 w-full flex-1 origin-top scale-[1.35] rounded-xl object-contain object-top bg-white"
+      src="/kiosk/scale-hw701-placement.jpg?v=clean-facing5"
+      alt="Persona de frente a la báscula Lejia HW-701, mirando el equipo, cuerpo completo"
+      className="h-full w-full min-h-0 object-contain object-center"
     />
   );
 }
