@@ -23,8 +23,8 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
   "Toque Leer presión ahora.",
-  "Coloque el brazalete del monitor en el brazo izquierdo, a la altura del corazón, y pulse inicio o NIBP en el monitor.",
-  "Cuando el kiosko reciba el número, retire el brazalete y colóquelo en su lugar.",
+  "Brazalete en brazo izquierdo, a la altura del corazón; pulse NIBP.",
+  "Al ver el número, retire el brazalete y déjelo en su lugar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
