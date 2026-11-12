@@ -29,9 +29,9 @@ export const BLOOD_PRESSURE_VOICE_STEPS = [
 
 export const OXYGEN_VOICE_STEPS = [
   "Paso tres: oxígeno y pulso.",
-  "Coloque el dedo en el sensor de oxígeno del monitor y toque Leer oxímetro ahora.",
+  "Dedo en el sensor y toque Leer oxímetro ahora.",
   "Espere la lectura estable.",
-  "Al terminar, retire el sensor y déjelo en su lugar asignado.",
+  "Al terminar, retire el sensor y déjelo en su lugar.",
 ] as const;
 
 /** Nota visible/hablada: uñas largas o artificiales. */
@@ -40,18 +40,18 @@ export const OXYGEN_NAIL_TIP =
 
 /** Mismas frases, palabra por palabra, que las tarjetas del paso en pantalla. */
 export const TEMPERATURE_VOICE_STEPS = [
-  "Tome el termómetro K3 Pro de su lugar.",
+  "Tome el termómetro K3 Pro.",
   "Enciéndalo en modo corporal.",
   "Toque el botón verde de esta pantalla.",
-  "Acerque la frente a 5 o 10 centímetros hasta el pitido.",
+  "Frente a 5–10 cm hasta el pitido.",
   "Deje el termómetro en su lugar.",
 ] as const;
 
 export const ECG_VOICE_STEPS = [
   "Paso cinco: electrocardiograma.",
-  "Encienda el aparato MD100C_P de la estación.",
-  "Toque Leer electrocardiograma, ponga los dedos en las placas metálicas unos treinta segundos y manténgalos quietos.",
-  "Cuando vea la frecuencia en el aparato, toque Ya terminó y luego Continuar.",
+  "Encienda el aparato MD100C_P.",
+  "Toque Leer ECG; dedos en las placas ~30 s, quietos.",
+  "Al ver la frecuencia, toque Ya terminó y Continuar.",
 ] as const;
 
 /** Frases humanas por paso — guía hablada del kiosko táctil. */
