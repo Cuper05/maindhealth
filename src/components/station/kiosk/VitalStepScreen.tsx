@@ -234,13 +234,13 @@ export function VitalStepScreen({
         <div
           className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
             compact && illustration === "weight_height"
-              ? "grid-cols-1 lg:grid-cols-[0.65fr_1.35fr]"
+              ? "grid-cols-1 lg:grid-cols-[0.78fr_1.22fr]"
               : compact
                 ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
                 : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
-          <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
+          <div className="relative z-10 flex min-h-0 flex-col gap-2 overflow-hidden">
             {steps && steps.length > 0 ? (
               <ol
                 className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
@@ -285,13 +285,7 @@ export function VitalStepScreen({
             ) : null}
           </div>
 
-          <div
-            className={`relative flex min-h-0 flex-col ${
-              illustration === "weight_height"
-                ? "overflow-visible"
-                : "overflow-hidden"
-            }`}
-          >
+          <div className="relative z-0 flex min-h-0 flex-col overflow-hidden">
             <VitalIllustration type={illustration} />
             {capturing && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
