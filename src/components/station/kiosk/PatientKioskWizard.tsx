@@ -2875,13 +2875,13 @@ export function PatientKioskWizard() {
       )}
 
       {step === "preparation" && (
-        <KioskCard className="justify-between gap-3">
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+        <KioskCard className="justify-between gap-4">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pr-1">
             <h2 className={kioskTitleClassName}>Preparación para signos vitales</h2>
             <p className={kioskSubtitleClassName}>
               Tomaremos sus signos uno por uno. La voz le guiará en cada paso.
             </p>
-            <ul className="mt-5 grid grid-cols-5 gap-3">
+            <ul className="mt-4 grid min-h-0 flex-1 grid-cols-5 gap-4">
               {[
                 { icon: "scale" as const, label: "Peso y altura" },
                 { icon: "🫀", label: "Presión" },
@@ -2891,22 +2891,26 @@ export function PatientKioskWizard() {
               ].map((item) => (
                 <li
                   key={item.label}
-                  className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border-2 border-slate-200 bg-slate-50 px-2 py-4 text-center xl:min-h-[160px]"
+                  className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-slate-200 bg-slate-50 px-2 py-5 text-center xl:min-h-[280px]"
                 >
                   {item.icon === "scale" ? (
-                    <DigitalScaleHeightIcon className="h-14 w-14 xl:h-16 xl:w-16" />
+                    <DigitalScaleHeightIcon className="h-24 w-24 xl:h-28 xl:w-28" />
                   ) : (
-                    <span className="text-5xl leading-none xl:text-6xl">{item.icon}</span>
+                    <span className="text-7xl leading-none xl:text-8xl">{item.icon}</span>
                   )}
-                  <span className="mt-3 text-lg font-bold leading-tight text-slate-900 xl:text-xl">
+                  <span className="mt-4 text-xl font-bold leading-tight text-slate-900 xl:text-2xl">
                     {item.label}
                   </span>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="flex shrink-0 justify-center py-1">
-            <KioskContinueRoundButton pulse onClick={() => goToStep("weight_height")}>
+          <div className="flex shrink-0 justify-center py-2">
+            <KioskContinueRoundButton
+              pulse
+              className="!h-[15rem] !w-[15rem] !text-3xl xl:!h-[17.5rem] xl:!w-[17.5rem] xl:!text-4xl"
+              onClick={() => goToStep("weight_height")}
+            >
               Continuar
             </KioskContinueRoundButton>
           </div>
