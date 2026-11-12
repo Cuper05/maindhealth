@@ -128,12 +128,12 @@ export function KioskContinueRoundButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={typeof children === "string" ? children : "Continuar"}
-      className={`inline-flex h-[10.5rem] w-[10.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-full bg-[#ea580c] px-4 text-center text-2xl font-bold leading-none text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#c2410c] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none xl:h-[12.5rem] xl:w-[12.5rem] xl:text-3xl ${
+      className={`inline-flex h-[16rem] w-[16rem] shrink-0 flex-col items-center justify-center gap-2 rounded-full bg-[#ea580c] px-6 text-center text-3xl font-black leading-none text-white shadow-lg shadow-orange-900/30 transition hover:bg-[#c2410c] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none xl:h-[18rem] xl:w-[18rem] xl:text-4xl ${
         pulse && !disabled ? "kiosk-continue-pulse" : ""
       } ${className}`}
     >
-      <span className="px-1">{children}</span>
-      <span aria-hidden className="text-[1.15em] leading-none">
+      <span className="max-w-[90%] break-words px-1">{children}</span>
+      <span aria-hidden className="text-[1.1em] leading-none">
         →
       </span>
     </button>
