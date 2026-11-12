@@ -3342,19 +3342,24 @@ export function PatientKioskWizard() {
           </KioskScrollArea>
           <div className="mt-3 flex w-full shrink-0 justify-center border-t border-slate-100 pt-3">
             {assessment.prescriptionId ? (
-              <KioskPrimaryButton
-                className="w-full"
+              <KioskContinueRoundButton
+                pulse
+                className="!h-[18rem] !w-[18rem] !text-3xl xl:!h-[20rem] xl:!w-[20rem] xl:!text-4xl"
                 onClick={() => {
                   setShowPrescription(true);
                   speakKiosk(RESULT_PRESCRIPTION_VOICE, { force: true });
                 }}
               >
                 Continuar
-              </KioskPrimaryButton>
+              </KioskContinueRoundButton>
             ) : (
-              <KioskPrimaryButton className="w-full" onClick={resetKiosk}>
+              <KioskContinueRoundButton
+                pulse
+                className="!h-[18rem] !w-[18rem] !text-3xl xl:!h-[20rem] xl:!w-[20rem] xl:!text-4xl"
+                onClick={resetKiosk}
+              >
                 Finalizar
-              </KioskPrimaryButton>
+              </KioskContinueRoundButton>
             )}
           </div>
         </KioskCard>
