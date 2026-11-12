@@ -128,7 +128,7 @@ export function KioskContinueRoundButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={typeof children === "string" ? children : "Continuar"}
-      className={`inline-flex h-[10.5rem] w-[10.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-full bg-[#1d6eb8] px-4 text-center text-2xl font-bold leading-none text-white shadow-lg shadow-blue-900/25 transition hover:bg-[#165a9e] active:scale-[0.97] disabled:opacity-40 disabled:shadow-none xl:h-[12.5rem] xl:w-[12.5rem] xl:text-3xl ${
+      className={`inline-flex h-[10.5rem] w-[10.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-full bg-emerald-600 px-4 text-center text-2xl font-bold leading-none text-white shadow-lg shadow-emerald-900/25 transition hover:bg-emerald-700 active:scale-[0.97] disabled:opacity-40 disabled:shadow-none xl:h-[12.5rem] xl:w-[12.5rem] xl:text-3xl ${
         pulse && !disabled ? "kiosk-continue-pulse" : ""
       } ${className}`}
     >
