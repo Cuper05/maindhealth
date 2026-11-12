@@ -51,9 +51,9 @@ export function ScaleIllustration() {
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
-      src="/kiosk/scale-hw701-placement.jpg"
-      alt="Báscula digital con columna de altura: persona de frente, cuerpo completo sobre la plataforma"
-      className="h-full w-full min-h-0 flex-1 rounded-xl object-contain object-center"
+      src="/kiosk/scale-hw701-placement.jpg?v=frontal3"
+      alt="Persona de frente sobre la báscula, cuerpo completo bajo el sensor de altura"
+      className="h-full w-full min-h-0 flex-1 rounded-xl object-contain object-center bg-white"
     />
   );
 }
