@@ -3302,33 +3302,43 @@ export function PatientKioskWizard() {
       {step === "result" && assessment && !showPrescription && (
         <KioskCard>
           <KioskScrollArea>
-          <p className="text-base font-semibold uppercase tracking-wide text-emerald-600 sm:text-lg">
-            Evaluación completada
-          </p>
-          <h2 className={`mt-2 ${kioskTitleClassName}`}>{assessment.diagnosis}</h2>
-          <p className={`mt-4 ${kioskBodyClassName}`}>{assessment.summary}</p>
-          {assessment.protocolName && (
-            <p className={`mt-3 ${kioskHelperClassName}`}>
-              Protocolo: <strong>{assessment.protocolCode}</strong> — {assessment.protocolName}
+            <p className="text-base font-bold uppercase tracking-wide text-emerald-700 sm:text-lg">
+              Evaluación completada
             </p>
-          )}
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-              <h3 className="text-lg font-semibold text-slate-800 sm:text-xl">Plan de tratamiento</h3>
-              <p className={`mt-2 ${kioskBodyClassName}`}>
+            <h2 className={`mt-2 ${kioskTitleClassName}`}>{assessment.diagnosis}</h2>
+            <p className={`mt-3 ${kioskBodyClassName}`}>{assessment.summary}</p>
+            {assessment.protocolName && (
+              <p className={`mt-2 ${kioskHelperClassName}`}>
+                Protocolo: <strong>{assessment.protocolCode}</strong> — {assessment.protocolName}
+              </p>
+            )}
+
+            <section className="mt-5 border-l-[6px] border-teal-600 bg-teal-50 px-4 py-4 sm:px-5 sm:py-5">
+              <p className="text-sm font-black uppercase tracking-[0.08em] text-teal-800 sm:text-base">
+                Plan de tratamiento
+              </p>
+              <p className="mt-1 text-base font-medium text-teal-900/80 sm:text-lg">
+                Qué se indica para su caso
+              </p>
+              <p className="mt-3 text-2xl font-semibold leading-snug text-slate-900 xl:text-3xl">
                 {displayTreatmentPlan(assessment.treatmentPlan, assessment.medications)}
               </p>
-            </div>
-            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-              <h3 className="text-lg font-semibold text-slate-800 sm:text-xl">Indicaciones</h3>
-              <p className={`mt-2 ${kioskBodyClassName}`}>
+            </section>
+
+            <section className="mt-4 border-l-[6px] border-[#ea580c] bg-orange-50 px-4 py-4 sm:px-5 sm:py-5">
+              <p className="text-sm font-black uppercase tracking-[0.08em] text-orange-900 sm:text-base">
+                Indicaciones importantes
+              </p>
+              <p className="mt-1 text-base font-medium text-orange-950/80 sm:text-lg">
+                Léalo con atención — signos de alarma y cuidados
+              </p>
+              <p className="mt-3 text-2xl font-semibold leading-snug text-slate-900 xl:text-3xl">
                 {normalizeAssessmentText(
                   assessment.instructions,
                   "Sigue las indicaciones del protocolo y regresa si aparecen signos de alarma.",
                 )}
               </p>
-            </div>
-          </div>
+            </section>
           </KioskScrollArea>
           <div className="mt-3 flex w-full shrink-0 justify-center border-t border-slate-100 pt-3">
             {assessment.prescriptionId ? (
