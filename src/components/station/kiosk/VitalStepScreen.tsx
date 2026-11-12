@@ -172,14 +172,14 @@ export function VitalStepScreen({
       <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
           <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 p-3 xl:p-4">
-            <p className="mb-2 text-center text-xl font-bold text-teal-900 xl:text-2xl">
+            <p className="mb-2 text-center text-2xl font-bold text-teal-900 xl:text-3xl">
               Para iniciar, toque el botón verde
             </p>
             <button
               type="button"
               onClick={onCapture}
               disabled={capturing && !captureCanConfirm}
-              className="flex w-full min-h-[72px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-2xl font-bold text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[84px] xl:text-3xl"
+              className="flex w-full min-h-[96px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-4xl font-black leading-tight text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[112px] xl:text-5xl"
             >
               {capturing ? capturingLabel : captureLabel}
             </button>
