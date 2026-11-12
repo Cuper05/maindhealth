@@ -49,31 +49,15 @@ export function OximeterIllustration() {
 
 export function ScaleIllustration() {
   return (
-    <figure className="mx-auto flex h-full min-h-0 w-full flex-col items-center justify-center gap-1">
-    <svg viewBox="0 0 280 200" className="min-h-0 w-full flex-1" fill="none" aria-hidden>
-      {/* Columna de estadiómetro digital */}
-      <rect x="48" y="28" width="18" height="140" rx="4" fill="#cbd5e1" stroke="#64748b" strokeWidth="2" />
-      <rect x="52" y="36" width="10" height="110" rx="2" fill="#e2e8f0" />
-      <rect x="44" y="48" width="26" height="10" rx="2" fill="#1d6eb8" />
-      <path d="M66 53h22" stroke="#1d6eb8" strokeWidth="3" strokeLinecap="round" />
-      {/* Plataforma digital */}
-      <rect x="88" y="148" width="150" height="22" rx="6" fill="#94a3b8" />
-      <rect x="98" y="118" width="130" height="36" rx="10" fill="#e8f2fb" stroke="#1d6eb8" strokeWidth="2.5" />
-      <rect x="112" y="126" width="70" height="20" rx="4" fill="#0f172a" />
-      <text x="147" y="140" textAnchor="middle" fill="#38bdf8" fontSize="12" fontWeight="bold" fontFamily="ui-monospace, monospace">
-        81.4 kg
-      </text>
-      <text x="198" y="140" textAnchor="middle" fill="#1d6eb8" fontSize="11" fontWeight="bold">
-        1.72 m
-      </text>
-      {/* Silueta persona */}
-      <circle cx="200" cy="72" r="14" fill="#f8d4d4" stroke="#e8a0a0" strokeWidth="2" />
-      <path d="M200 86v34" stroke="#64748b" strokeWidth="3" strokeLinecap="round" />
-      <path d="M188 100h24" stroke="#64748b" strokeWidth="3" strokeLinecap="round" />
-      <path d="M200 120l-10 22M200 120l10 22" stroke="#64748b" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-      <figcaption className="w-full shrink-0 px-1 text-center text-[clamp(0.95rem,1.9vh,1.35rem)] font-semibold leading-snug text-slate-700">
-        Súbase a la báscula y párese erguido
+    <figure className="mx-auto flex h-full min-h-0 w-full max-w-none flex-col items-center justify-center gap-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/kiosk/scale-hw701-placement.jpg"
+        alt="Báscula digital con columna de altura: súbase a la plataforma, párese erguido bajo el sensor y espere la lectura"
+        className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
+      />
+      <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-[clamp(1.05rem,2.2vh,1.5rem)] font-bold leading-snug text-slate-800">
+        Súbase a la báscula y párese erguido bajo el sensor
       </figcaption>
     </figure>
   );
