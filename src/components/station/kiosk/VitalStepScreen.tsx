@@ -18,11 +18,11 @@ const vitalStepLabel =
   "text-[clamp(1rem,1.8vh,1.25rem)] font-semibold uppercase tracking-wide text-[#1d6eb8]";
 const vitalTitle =
   "text-[clamp(2rem,4.2vh,3.25rem)] font-bold leading-tight tracking-tight text-slate-900";
-/** Tamaño normal; solo baja si el recuadro es bajo (cqh). */
+/** Tamaño grande; solo baja un poco si el recuadro es muy bajo (cqh). */
 const vitalBody =
-  "text-[clamp(0.95rem,min(2.5vh,_6.5cqh),1.75rem)] font-semibold leading-snug text-slate-800";
+  "text-[clamp(1.15rem,min(2.8vh,_9cqh),1.95rem)] font-semibold leading-snug text-slate-800";
 const vitalBadgeNum =
-  "flex aspect-square h-[clamp(2rem,min(4.8vh,_12cqh),3.4rem)] w-[clamp(2rem,min(4.8vh,_12cqh),3.4rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(1rem,min(2.4vh,_5.5cqh),1.5rem)] font-bold text-white";
+  "flex aspect-square h-[clamp(2.2rem,min(4.8vh,_14cqh),3.4rem)] w-[clamp(2.2rem,min(4.8vh,_14cqh),3.4rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(1.05rem,min(2.4vh,_6cqh),1.5rem)] font-bold text-white";
 
 function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
   if (views.length === 0) return null;
@@ -52,13 +52,13 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
                 spanFull ? "col-span-2" : ""
               }`}
             >
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-600 xl:text-base">
+              <p className="text-base font-semibold uppercase tracking-wide text-slate-600 xl:text-lg">
                 {view.label}
               </p>
               <p
                 className={`mt-1 font-bold ${t.value} ${
                   longValue
-                    ? "text-[clamp(0.95rem,1.8vh,1.35rem)] leading-snug"
+                    ? "text-[clamp(1.25rem,2.6vh,1.85rem)] leading-snug"
                     : spanFull
                       ? "text-4xl xl:text-5xl tabular-nums leading-none"
                       : "text-3xl xl:text-4xl tabular-nums leading-none"
@@ -66,11 +66,11 @@ function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
               >
                 {view.valueText}
               </p>
-              <p className="mt-1.5 text-xs font-medium leading-snug text-slate-600 xl:text-sm">
+              <p className="mt-1.5 text-sm font-medium leading-snug text-slate-600 xl:text-base">
                 Normal: {view.normalRange}
               </p>
               <span
-                className={`mt-1.5 inline-block max-w-full truncate rounded-lg px-2.5 py-1 text-xs font-bold xl:text-sm ${t.badge}`}
+                className={`mt-1.5 inline-block max-w-full truncate rounded-lg px-2.5 py-1 text-sm font-bold xl:text-base ${t.badge}`}
               >
                 {view.verdict}
               </span>
