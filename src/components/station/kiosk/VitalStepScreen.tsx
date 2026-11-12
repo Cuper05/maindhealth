@@ -365,10 +365,10 @@ export function VitalStepScreen({
             <button
               type="button"
               onClick={onContinue}
-              className="kiosk-continue-pulse flex h-[14rem] w-[14rem] flex-col items-center justify-center gap-2 rounded-full bg-[#ea580c] text-center text-4xl font-black leading-none text-white ring-8 ring-white/95 shadow-2xl xl:h-[16.5rem] xl:w-[16.5rem] xl:text-5xl"
+              className="kiosk-continue-pulse flex h-[18rem] w-[18rem] flex-col items-center justify-center gap-2 rounded-full bg-[#ea580c] px-6 text-center text-3xl font-black leading-none text-white ring-8 ring-white/95 shadow-2xl xl:h-[20rem] xl:w-[20rem] xl:text-4xl"
             >
-              <span>Continuar</span>
-              <span aria-hidden className="text-5xl leading-none xl:text-6xl">
+              <span className="max-w-[90%] break-words">Continuar</span>
+              <span aria-hidden className="text-4xl leading-none xl:text-5xl">
                 →
               </span>
             </button>

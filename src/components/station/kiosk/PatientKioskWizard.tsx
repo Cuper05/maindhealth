@@ -2908,7 +2908,7 @@ export function PatientKioskWizard() {
           <div className="flex shrink-0 justify-center py-2">
             <KioskContinueRoundButton
               pulse
-              className="!h-[15rem] !w-[15rem] !text-3xl xl:!h-[17.5rem] xl:!w-[17.5rem] xl:!text-4xl"
+              className="!h-[18rem] !w-[18rem] !text-3xl xl:!h-[20rem] xl:!w-[20rem] xl:!text-4xl"
               onClick={() => goToStep("weight_height")}
             >
               Continuar

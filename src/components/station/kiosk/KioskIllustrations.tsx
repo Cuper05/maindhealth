@@ -51,8 +51,8 @@ export function ScaleIllustration() {
   return (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
-      src="/kiosk/scale-hw701-placement.jpg?v=frontal3"
-      alt="Persona de frente sobre la báscula, cuerpo completo bajo el sensor de altura"
+      src="/kiosk/scale-hw701-placement.jpg?v=facing-scale4"
+      alt="Persona de frente a la báscula (mirando el equipo), cuerpo completo sobre la plataforma"
       className="h-full w-full min-h-0 flex-1 rounded-xl object-contain object-center bg-white"
     />
   );
