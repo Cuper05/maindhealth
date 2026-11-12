@@ -155,13 +155,13 @@ export function VitalStepScreen({
       ) : null}
 
       {referenceRanges && referenceRanges.length > 0 && !showReading ? (
-        <div className="mt-2 shrink-0 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2.5">
-          <p className="text-sm font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-base">
+        <div className="mt-2 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-4 py-2.5">
+          <p className="shrink-0 text-sm font-bold uppercase tracking-wide text-[#0b4f8a] xl:text-base">
             Rango normal de referencia
           </p>
-          <ul className="mt-1 space-y-0.5">
+          <ul className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-1">
             {referenceRanges.map((line) => (
-              <li key={line} className="text-base font-semibold text-slate-800 xl:text-lg">
+              <li key={line} className="text-lg font-bold text-slate-900 xl:text-xl">
                 {line}
               </li>
             ))}
@@ -243,12 +243,12 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className="flex min-h-0 items-start gap-3 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-3 py-3 text-lg text-slate-800 xl:px-4 xl:py-3.5 xl:text-xl"
+                    className="flex min-h-0 items-start gap-4 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-4 text-2xl font-semibold leading-snug text-slate-900 xl:px-5 xl:py-5 xl:text-3xl xl:leading-snug"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-lg font-bold text-white xl:h-11 xl:w-11 xl:text-xl">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-2xl font-bold text-white xl:h-14 xl:w-14 xl:text-3xl">
                       {index + 1}
                     </span>
-                    <span className="leading-snug pt-1">{item}</span>
+                    <span className="pt-0.5">{item}</span>
                   </li>
                 ))}
               </ol>
