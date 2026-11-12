@@ -331,13 +331,13 @@ export function VitalStepScreen({
             onClick={onContinue}
           />
           <div className="relative z-10 flex flex-col items-center gap-3 px-4">
-            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-lg font-semibold text-emerald-800 shadow-md xl:text-xl">
+            <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-lg font-semibold text-orange-900 shadow-md xl:text-xl">
               Lectura lista — toque Continuar
             </p>
             <button
               type="button"
               onClick={onContinue}
-              className="kiosk-continue-pulse flex h-[9.5rem] w-[9.5rem] flex-col items-center justify-center gap-1 rounded-full bg-emerald-600 text-center text-2xl font-bold leading-none text-white ring-4 ring-white/90 xl:h-[11rem] xl:w-[11rem] xl:text-3xl"
+              className="kiosk-continue-pulse flex h-[9.5rem] w-[9.5rem] flex-col items-center justify-center gap-1 rounded-full bg-[#ea580c] text-center text-2xl font-bold leading-none text-white ring-4 ring-white/90 xl:h-[11rem] xl:w-[11rem] xl:text-3xl"
             >
               <span>Continuar</span>
               <span aria-hidden className="text-3xl leading-none xl:text-4xl">
