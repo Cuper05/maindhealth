@@ -176,15 +176,15 @@ export function VitalStepScreen({
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {showCapture ? (
-          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 p-3 xl:p-4">
-            <p className="mb-2 text-center text-2xl font-bold text-teal-900 xl:text-3xl">
+          <div className="shrink-0 rounded-2xl border-2 border-teal-600 bg-teal-50 px-3 py-2.5 xl:px-4 xl:py-3">
+            <p className="mb-1.5 text-center text-xl font-bold text-teal-900 xl:text-2xl">
               Para iniciar, toque el botón verde
             </p>
             <button
               type="button"
               onClick={onCapture}
               disabled={capturing && !captureCanConfirm}
-              className="flex w-full min-h-[96px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-4xl font-black leading-tight text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[112px] xl:text-5xl"
+              className="flex w-full min-h-[72px] items-center justify-center rounded-2xl bg-teal-700 px-6 text-3xl font-black leading-tight text-white shadow-md transition hover:bg-teal-800 active:scale-[0.99] disabled:opacity-60 xl:min-h-[84px] xl:text-4xl"
             >
               {capturing ? capturingLabel : captureLabel}
             </button>
@@ -232,28 +232,30 @@ export function VitalStepScreen({
         ) : null}
 
         <div
-          className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
+          className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
             compact
-              ? "grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]"
+              ? "grid-cols-1 lg:grid-cols-[1fr_1fr]"
               : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
-          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain">
+          <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
             {steps && steps.length > 0 ? (
               <ol
-                className={`grid flex-1 content-start gap-3 ${
-                  compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+                className={`grid min-h-0 flex-1 gap-2 overflow-hidden ${
+                  compact
+                    ? "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 auto-rows-fr"
+                    : "grid-cols-1"
                 }`}
               >
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className="flex min-h-[8.5rem] items-center gap-4 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-5 text-2xl font-semibold leading-snug text-slate-900 xl:min-h-[10rem] xl:px-5 xl:py-6 xl:text-3xl xl:leading-snug"
+                    className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-3 py-2.5 text-[clamp(1.05rem,2.3vh,1.7rem)] font-semibold leading-tight text-slate-900 xl:gap-4 xl:px-4 xl:py-3 xl:text-[clamp(1.2rem,2.6vh,1.95rem)]"
                   >
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-2xl font-bold text-white xl:h-14 xl:w-14 xl:text-3xl">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-lg font-bold text-white xl:h-12 xl:w-12 xl:text-2xl">
                       {index + 1}
                     </span>
-                    <span className="min-w-0 flex-1 break-words">{item}</span>
+                    <span className="min-w-0 flex-1">{item}</span>
                   </li>
                 ))}
               </ol>
@@ -281,7 +283,7 @@ export function VitalStepScreen({
             ) : null}
           </div>
 
-          <div className="relative flex min-h-[340px] flex-col overflow-hidden lg:min-h-0">
+          <div className="relative flex min-h-0 flex-col overflow-hidden">
             <VitalIllustration type={illustration} />
             {capturing && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
