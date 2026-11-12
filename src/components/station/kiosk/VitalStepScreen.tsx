@@ -19,9 +19,9 @@ const vitalStepLabel =
 const vitalTitle =
   "text-[clamp(2rem,4.2vh,3.25rem)] font-bold leading-tight tracking-tight text-slate-900";
 const vitalBody =
-  "text-[clamp(1.15rem,2.5vh,1.75rem)] font-semibold leading-snug text-slate-800";
+  "text-[clamp(0.95rem,1.85vh,1.4rem)] font-semibold leading-snug text-slate-800";
 const vitalBadgeNum =
-  "flex aspect-square h-[clamp(2.4rem,4.8vh,3.4rem)] w-[clamp(2.4rem,4.8vh,3.4rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(1.1rem,2.4vh,1.5rem)] font-bold text-white";
+  "mt-0.5 flex aspect-square h-[clamp(2rem,3.8vh,2.75rem)] w-[clamp(2rem,3.8vh,2.75rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.95rem,2vh,1.25rem)] font-bold text-white";
 
 function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
   if (views.length === 0) return null;
@@ -254,22 +254,23 @@ export function VitalStepScreen({
 
           {steps && steps.length > 0 ? (
             <ol
-              className={`grid min-h-0 flex-1 content-stretch gap-2 ${
-                compact ? "grid-cols-1 sm:grid-cols-2 sm:grid-rows-2" : "grid-cols-1"
+              className={`grid min-h-0 flex-1 content-start gap-2 overflow-y-auto overscroll-contain ${
+                compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
               }`}
-              style={
-                !compact
-                  ? { gridTemplateRows: `repeat(${steps.length}, minmax(0, 1fr))` }
-                  : undefined
-              }
+              style={{
+                gridAutoRows: "minmax(min-content, 1fr)",
+                gridTemplateRows: compact
+                  ? undefined
+                  : `repeat(${steps.length}, minmax(min-content, 1fr))`,
+              }}
             >
               {steps.map((item, index) => (
                 <li
                   key={item}
-                  className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2"
+                  className="flex h-full min-h-0 items-start gap-2.5 rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2.5"
                 >
                   <span className={vitalBadgeNum}>{index + 1}</span>
-                  <span className={`min-h-0 min-w-0 flex-1 ${vitalBody}`}>{item}</span>
+                  <span className={`min-w-0 flex-1 break-words ${vitalBody}`}>{item}</span>
                 </li>
               ))}
             </ol>
