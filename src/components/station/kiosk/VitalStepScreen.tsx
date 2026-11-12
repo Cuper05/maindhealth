@@ -234,26 +234,26 @@ export function VitalStepScreen({
         <div
           className={`grid min-h-0 flex-1 gap-3 overflow-hidden ${
             compact
-              ? "grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]"
+              ? "grid-cols-1 lg:grid-cols-[0.95fr_1.05fr]"
               : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
-          <div className="flex min-h-0 flex-col gap-2 overflow-hidden">
+          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain">
             {steps && steps.length > 0 ? (
               <ol
-                className={`grid min-h-0 flex-1 content-stretch gap-2 ${
-                  compact ? "grid-cols-1 sm:grid-cols-2 auto-rows-fr" : "grid-cols-1"
+                className={`grid flex-1 content-start gap-3 ${
+                  compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
                 }`}
               >
                 {steps.map((item, index) => (
                   <li
                     key={item}
-                    className="flex min-h-0 items-start gap-4 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-4 text-2xl font-semibold leading-snug text-slate-900 xl:px-5 xl:py-5 xl:text-3xl xl:leading-snug"
+                    className="flex min-h-[8.5rem] items-center gap-4 rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-4 py-5 text-2xl font-semibold leading-snug text-slate-900 xl:min-h-[10rem] xl:px-5 xl:py-6 xl:text-3xl xl:leading-snug"
                   >
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-2xl font-bold text-white xl:h-14 xl:w-14 xl:text-3xl">
                       {index + 1}
                     </span>
-                    <span className="pt-0.5">{item}</span>
+                    <span className="min-w-0 flex-1 break-words">{item}</span>
                   </li>
                 ))}
               </ol>
@@ -281,10 +281,8 @@ export function VitalStepScreen({
             ) : null}
           </div>
 
-          <div className="relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[#f0f7ff] to-white ring-1 ring-slate-100 lg:min-h-0">
-            <div className="flex min-h-0 w-full flex-1 flex-col p-1 sm:p-2 lg:min-h-0">
-              <VitalIllustration type={illustration} />
-            </div>
+          <div className="relative flex min-h-[340px] flex-col overflow-hidden lg:min-h-0">
+            <VitalIllustration type={illustration} />
             {capturing && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
                 <div className="mx-3 rounded-xl bg-white px-4 py-3 shadow-lg">
@@ -300,42 +298,54 @@ export function VitalStepScreen({
         </div>
       </div>
 
-      <div className="mt-3 flex shrink-0 flex-row flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+      <div
+        className={`mt-3 flex shrink-0 flex-row flex-wrap items-center gap-3 border-t border-slate-100 pt-3 ${
+          showCenterContinue ? "relative z-40" : ""
+        }`}
+      >
         {onBack && <KioskSecondaryButton onClick={onBack}>← Atrás</KioskSecondaryButton>}
-        {onRetry && deviceStatus === "done" && (
+        {!showCenterContinue && onRetry && deviceStatus === "done" && (
           <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
         )}
-        {/* Continuar del pie solo tras lectura del aparato o «Simular lectura». */}
         {showCenterContinue ? (
-          <p className="flex-1 text-center text-base font-semibold text-[#1d6eb8] xl:text-lg">
-            Use el botón Continuar del centro para seguir
+          <p className="flex-1 text-center text-base font-semibold text-orange-800 xl:text-lg">
+            Toque Continuar o Atrás
           </p>
         ) : (
           <div className="min-h-[72px] flex-1 xl:min-h-[80px]" aria-hidden />
         )}
-        <button
-          type="button"
-          onClick={onSimulate}
-          className="text-sm text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
-        >
-          Simular lectura (modo demo)
-        </button>
+        {!showCenterContinue ? (
+          <button
+            type="button"
+            onClick={onSimulate}
+            className="text-sm text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+          >
+            Simular lectura (modo demo)
+          </button>
+        ) : null}
       </div>
 
       {showCenterContinue ? (
         <div
           className="absolute inset-0 z-30 flex items-center justify-center kiosk-continue-enter"
           role="dialog"
+          aria-modal="true"
           aria-label="Continuar al siguiente paso"
         >
-          <button
-            type="button"
+          {/* Bloquea el resto de la pantalla: toques fuera no hacen nada */}
+          <div
+            className="absolute inset-0 bg-[#0b2340]/35 backdrop-blur-[1.5px]"
             aria-hidden
-            tabIndex={-1}
-            className="absolute inset-0 bg-[#0b2340]/25 backdrop-blur-[1.5px]"
-            onClick={onContinue}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
           />
-          <div className="relative z-10 flex flex-col items-center gap-3 px-4">
+          <div className="relative z-10 flex flex-col items-center gap-3 px-4 pointer-events-auto">
             <p className="rounded-full border border-white/70 bg-white/95 px-5 py-2 text-lg font-semibold text-orange-900 shadow-md xl:text-xl">
               Lectura lista — toque Continuar
             </p>

@@ -49,17 +49,12 @@ export function OximeterIllustration() {
 
 export function ScaleIllustration() {
   return (
-    <figure className="mx-auto flex h-full min-h-0 w-full max-w-none flex-col items-center justify-center gap-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/kiosk/scale-hw701-placement.jpg"
-        alt="Báscula digital con columna de altura: súbase a la plataforma, párese erguido bajo el sensor y espere la lectura"
-        className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
-      />
-      <figcaption className="w-full shrink-0 px-1 pb-1 text-center text-[clamp(1.05rem,2.2vh,1.5rem)] font-bold leading-snug text-slate-800">
-        Súbase a la báscula y párese erguido bajo el sensor
-      </figcaption>
-    </figure>
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src="/kiosk/scale-hw701-placement.jpg"
+      alt="Báscula digital con columna de altura: persona de frente, erguida sobre la plataforma bajo el sensor"
+      className="h-full w-full min-h-0 flex-1 rounded-xl object-cover object-top"
+    />
   );
 }
 
