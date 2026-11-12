@@ -18,10 +18,11 @@ const vitalStepLabel =
   "text-[clamp(1rem,1.8vh,1.25rem)] font-semibold uppercase tracking-wide text-[#1d6eb8]";
 const vitalTitle =
   "text-[clamp(2rem,4.2vh,3.25rem)] font-bold leading-tight tracking-tight text-slate-900";
+/** Tamaño normal; solo baja si el recuadro es bajo (cqh). */
 const vitalBody =
-  "text-[clamp(0.78rem,1.35vh,1.05rem)] font-semibold leading-tight text-slate-800";
+  "text-[clamp(0.95rem,min(2.5vh,_6.5cqh),1.75rem)] font-semibold leading-snug text-slate-800";
 const vitalBadgeNum =
-  "flex aspect-square h-[clamp(2.2rem,4.2vh,3rem)] w-[clamp(2.2rem,4.2vh,3rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(1rem,2vh,1.35rem)] font-bold text-white";
+  "flex aspect-square h-[clamp(2rem,min(4.8vh,_12cqh),3.4rem)] w-[clamp(2rem,min(4.8vh,_12cqh),3.4rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(1rem,min(2.4vh,_5.5cqh),1.5rem)] font-bold text-white";
 
 function ReadingVerdict({ views }: { views: VitalReadingView[] }) {
   if (views.length === 0) return null;
@@ -269,7 +270,7 @@ export function VitalStepScreen({
               {steps.map((item, index) => (
                 <li
                   key={item}
-                  className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2"
+                  className="flex min-h-0 items-center gap-3 overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/25 bg-[#f0f7ff] px-3 py-2 [container-type:size]"
                 >
                   <span className={vitalBadgeNum}>{index + 1}</span>
                   <span className={`min-h-0 min-w-0 flex-1 overflow-hidden ${vitalBody}`}>
