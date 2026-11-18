@@ -21,11 +21,10 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 ] as const;
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
-  "Paso dos: presión arterial.",
   "Pulse el botón de encendido del baumanómetro.",
-  "Toque el botón verde Leer presión ahora en esta pantalla.",
-  "Introduzca el brazo en el túnel, a la altura del corazón, y pulse otra vez el botón de encendido del aparato.",
-  "Espere a que termine la medición. Luego retire el brazo y pulse el botón de encendido una vez más para apagar.",
+  "Toque el botón verde «Leer presión ahora».",
+  "Brazo en el túnel, a la altura del corazón; pulse encendido otra vez para medir.",
+  "Espere. Retire el brazo y pulse encendido otra vez para apagar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [

@@ -3012,11 +3012,6 @@ export function PatientKioskWizard() {
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
           capturingLabel="Ya vi el resultado"
-          captureHelp="1) Encienda el baumanómetro. 2) Toque este botón verde. 3) Brazo en el túnel a la altura del corazón. 4) Pulse otra vez el botón de encendido y espere."
-          tips={[
-            "Orden: encender el aparato → botón verde del kiosko → brazo en el túnel → encendido otra vez para medir.",
-            "Al terminar: retire el brazo y pulse el botón de encendido una vez más para apagar.",
-          ]}
           capturing={bpCapturing}
           captureCanConfirm
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}
