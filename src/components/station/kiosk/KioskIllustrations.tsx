@@ -15,12 +15,12 @@ export function BloodPressureIllustration() {
     <figure className="mx-auto flex h-full min-h-0 w-full max-w-md flex-col items-center justify-center gap-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/kiosk/bp-u90b-arm-tunnel.jpg"
-        alt="Cómo usar el U90B Pro: introduzca el brazo izquierdo en el túnel del aparato, antebrazo apoyado, a la altura del corazón"
+        src="/kiosk/bp-u90b-arm-tunnel.jpg?v=tunnel2"
+        alt="Cómo usar el baumanómetro de túnel: brazo dentro del orificio, a la altura del corazón; botón de encendido en el panel superior"
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 px-0.5 pb-0.5 text-center text-[clamp(0.8rem,1.6vh,1.15rem)] font-semibold leading-snug text-slate-700">
-        Brazo izquierdo dentro del túnel, apoyado en la mesa
+        Brazo en el túnel · botón de encendido en la tapa
       </figcaption>
     </figure>
   );

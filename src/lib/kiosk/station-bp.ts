@@ -23,7 +23,7 @@ export async function readStationBp(
   onProgress?: (msg: string) => void,
 ): Promise<StationBpSample> {
   onProgress?.(
-    "Encienda el U90B Pro, introduzca el brazo en el túnel y pulse START. Al ver el número, toque Ya vi el resultado.",
+    "Brazo en el túnel a la altura del corazón; pulse otra vez el botón de encendido del baumanómetro. Al ver el número, toque Ya vi el resultado.",
   );
 
   const ctrl = new AbortController();
@@ -56,7 +56,7 @@ export async function readStationBp(
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          "Sin lectura de presión. Pulse START en el U90B Pro, espere el número y toque Ya vi el resultado.",
+          "Sin lectura de presión. Pulse el botón de encendido del baumanómetro para medir, espere el número y toque Ya vi el resultado.",
       );
     }
     const systolic = Number(data.systolicPressure);
@@ -89,7 +89,7 @@ export async function readStationBp(
     const name = err instanceof Error ? err.name : "";
     if (name === "AbortError" || /aborted/i.test(msg)) {
       throw new Error(
-        "La presión tardó demasiado. Pulse START en el U90B Pro y toque Ya vi el resultado cuando aparezca el número.",
+        "La presión tardó demasiado. Pulse el botón de encendido del baumanómetro para medir y toque Ya vi el resultado cuando aparezca el número.",
       );
     }
     if (/Failed to fetch|NetworkError/i.test(msg)) {
