@@ -1553,25 +1553,15 @@ export function PatientKioskWizard() {
     setError(null);
     setBpCapturing(true);
     setDeviceStatus("reading");
-    setBpStatus("Coloque el brazalete y pulse NIBP en el monitor…");
+    setBpStatus("Encienda el U90B Pro, coloque el brazalete y pulse START…");
     speakKiosk(BP_START_VOICE, { force: true });
     try {
-      let systolic;
-      let diastolic;
-      let heartRate;
-      if (await probeStationMonitor()) {
-        const sample = await readStationMonitor("nibp", (msg) => setBpStatus(msg));
-        systolic = sample.systolic;
-        diastolic = sample.diastolic;
-        heartRate = sample.heartRate;
-      } else {
-        const sample = await readStationBp((msg) => setBpStatus(msg));
-        systolic = sample.systolic;
-        diastolic = sample.diastolic;
-        heartRate = sample.heartRate;
-      }
+      const sample = await readStationBp((msg) => setBpStatus(msg));
+      const { systolic, diastolic, heartRate } = sample;
       if (systolic == null || diastolic == null) {
-        throw new Error("El monitor no envió la presión. Pulse NIBP y espere el número.");
+        throw new Error(
+          "El U90B Pro no envió la presión. Pulse START y espere el número.",
+        );
       }
       const patch: VitalsDraft = {
         systolicPressure: String(systolic),
@@ -3020,8 +3010,8 @@ export function PatientKioskWizard() {
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
           capturingLabel="Ya vi el resultado"
-          captureHelp="Coloque el brazalete del monitor, pulse NIBP e inicie la lectura. El kiosko toma el número solo."
-          tips={["Use el brazalete y el botón NIBP del monitor de signos vitales, no el baumanómetro USB."]}
+          captureHelp="Encienda el U90B Pro, coloque el brazalete a la altura del corazón y pulse START. El kiosko toma SYS/DIA solo."
+          tips={["Use el tensiómetro U90B Pro de la estación (Bluetooth). Brazalete en brazo izquierdo, quieto durante la medición."]}
           capturing={bpCapturing}
           captureCanConfirm
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}

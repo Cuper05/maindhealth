@@ -23,7 +23,7 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
   "Toque Leer presión ahora.",
-  "Brazalete en brazo izquierdo, a la altura del corazón; pulse NIBP.",
+  "Encienda el U90B Pro. Brazalete en brazo izquierdo, a la altura del corazón; pulse START.",
   "Al ver el número, retire el brazalete y déjelo en su lugar.",
 ] as const;
 
@@ -133,7 +133,7 @@ export const OXYGEN_SUCCESS_VOICE =
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
-  "Coloque el brazalete del monitor y pulse NIBP o inicio en el monitor. El kiosko tomará el número solo.";
+  "Encienda el U90B Pro, coloque el brazalete y pulse START. El kiosko tomará el número solo.";
 
 export const TEMP_START_VOICE =
   "Tome el termómetro K3 Pro. Enciéndalo en modo corporal. Toque el botón verde y acerque la frente a 5 o 10 centímetros hasta el pitido.";

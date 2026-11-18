@@ -1,9 +1,6 @@
 @echo off
-cd /d "%~dp0"
-if not exist node_modules (
-  echo Instalando node-hid...
-  call npm install
-)
-echo Iniciando bridge baumanometro en 127.0.0.1:3931 ...
+echo El baumanometro USB BP-700 fue sustituido por el U90B Pro (BLE).
+echo Arrancando tools\u90b-bridge ...
+cd /d "%~dp0..\u90b-bridge"
 node server.mjs
 pause

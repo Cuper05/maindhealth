@@ -126,9 +126,12 @@ Start-Bridge -Name "bascula" `
   -LogName "bascula"
 
 Start-Bridge -Name "presion" `
-  -WorkDir (Join-Path $Root "bp700-bridge") `
+  -WorkDir (Join-Path $Root "u90b-bridge") `
   -Script "server.mjs" `
-  -EnvVars @{ BP_BRIDGE_PORT = "3931"; BP_SERIAL = "TU0-700X" } `
+  -EnvVars @{
+    BP_BRIDGE_PORT = "3931"
+    U90B_ADDRESS = "23:51:D6:CE:70:BB"
+  } `
   -Port 3931 `
   -LogName "presion"
 

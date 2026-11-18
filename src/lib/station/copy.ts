@@ -6,7 +6,7 @@ Confirmo que la información proporcionada es verídica según mi leal saber y e
 
 export const STATION_VITALS_INSTRUCTIONS = [
   "Siéntese y descanse 5 minutos antes de la toma.",
-  "Coloque el brazalete del baumanómetro a la altura del corazón.",
+  "Coloque el brazalete del U90B Pro a la altura del corazón y pulse START.",
   "Mantenga el dedo quieto en el oxímetro hasta que marque lectura estable.",
   "Registre temperatura con termómetro sin contacto o digital.",
   "Si usa glucómetro, indique ayuno o posprandial al personal.",

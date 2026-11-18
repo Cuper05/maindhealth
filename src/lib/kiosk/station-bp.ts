@@ -1,6 +1,6 @@
 /**
- * Lectura del baumanómetro USB (CP2110) en 127.0.0.1:3931.
- * El cable se queda puesto: la PC silencia el USB, el paciente mide, luego se lee.
+ * Lectura del tensiómetro U90B Pro (BLE) en 127.0.0.1:3931.
+ * Sustituye al baumanómetro USB CP2110 (BP-700).
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3931";
@@ -23,7 +23,7 @@ export async function readStationBp(
   onProgress?: (msg: string) => void,
 ): Promise<StationBpSample> {
   onProgress?.(
-    "Cable puesto. Coloque el brazalete, pulse inicio y, al ver el número, toque Ya vi el resultado.",
+    "Encienda el U90B Pro, coloque el brazalete y pulse START. Al ver el número, toque Ya vi el resultado.",
   );
 
   const ctrl = new AbortController();
@@ -56,13 +56,22 @@ export async function readStationBp(
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          "Sin lectura de presión. Pulse inicio en el aparato, espere el número y toque Ya vi el resultado.",
+          "Sin lectura de presión. Pulse START en el U90B Pro, espere el número y toque Ya vi el resultado.",
       );
     }
     const systolic = Number(data.systolicPressure);
     const diastolic = Number(data.diastolicPressure);
     const heartRate = Number(data.heartRate);
-    if (!(systolic >= 80 && systolic <= 230 && diastolic >= 40 && diastolic <= 140 && systolic > diastolic)) {
+    // Rangos de aceptación (sin cambio respecto al BP-700 / monitor).
+    if (
+      !(
+        systolic >= 80 &&
+        systolic <= 230 &&
+        diastolic >= 40 &&
+        diastolic <= 140 &&
+        systolic > diastolic
+      )
+    ) {
       throw new Error("La lectura de presión no es confiable. Ajuste el brazalete y repita.");
     }
     onProgress?.(
@@ -78,12 +87,12 @@ export async function readStationBp(
     const name = err instanceof Error ? err.name : "";
     if (name === "AbortError" || /aborted/i.test(msg)) {
       throw new Error(
-        "La presión tardó demasiado. Pulse inicio en el aparato y toque Ya vi el resultado cuando aparezca el número.",
+        "La presión tardó demasiado. Pulse START en el U90B Pro y toque Ya vi el resultado cuando aparezca el número.",
       );
     }
     if (/Failed to fetch|NetworkError/i.test(msg)) {
       throw new Error(
-        "No se pudo contactar 127.0.0.1:3931. Los bridges deben estar en fondo (station-bridges). Si Edge pide red local, elija Permitir.",
+        "No se pudo contactar 127.0.0.1:3931. Los bridges deben estar en fondo (station-bridges) con Python+bleak. Si Edge pide red local, elija Permitir.",
       );
     }
     throw err instanceof Error ? err : new Error(msg);
