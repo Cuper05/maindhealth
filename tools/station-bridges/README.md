@@ -23,7 +23,7 @@ Desde entonces, al encender la PC arrancan solos:
 ## Puertos COM / USB (editar en `start-hidden.ps1` si cambian)
 - Oxímetro: `COM4` (Silicon Labs CP210x). Si ese COM no existe, no usa el CH340 de la báscula.
 - Báscula: `COM7` (CH340) @ 4800. Si ese COM no abre, prueba el CH340 que sí esté vivo.
-- Baumanómetro: HID CP2110 `TU0-700X` (no es COM)
+- Baumanómetro U90B Pro: Bluetooth LE, MAC `23:51:D6:CE:70:BB` (mismo Python+bleak que el ECG)
 - ECG MD100C_P: Bluetooth LE, MAC `FB:1E:E4:A4:03:00` (instalar `tools\ecg-bridge\1-instalar-python-bleak.bat`)
 - Termómetro K3 Pro: `COM8` @ 115200 (`pip install pyserial` en el mismo Python)
 
