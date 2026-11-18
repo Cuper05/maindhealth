@@ -23,7 +23,7 @@ export async function readStationBp(
   onProgress?: (msg: string) => void,
 ): Promise<StationBpSample> {
   onProgress?.(
-    "Encienda el U90B Pro, coloque el brazalete y pulse START. Al ver el número, toque Ya vi el resultado.",
+    "Encienda el U90B Pro, introduzca el brazo en el túnel y pulse START. Al ver el número, toque Ya vi el resultado.",
   );
 
   const ctrl = new AbortController();
@@ -72,7 +72,9 @@ export async function readStationBp(
         systolic > diastolic
       )
     ) {
-      throw new Error("La lectura de presión no es confiable. Ajuste el brazalete y repita.");
+      throw new Error(
+        "La lectura de presión no es confiable. Ajuste el brazo en el túnel y repita.",
+      );
     }
     onProgress?.(
       `Listo: ${systolic}/${diastolic} mmHg${Number.isFinite(heartRate) ? ` · FC ${heartRate}` : ""}`,

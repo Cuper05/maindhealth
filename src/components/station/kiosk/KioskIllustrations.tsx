@@ -15,12 +15,12 @@ export function BloodPressureIllustration() {
     <figure className="mx-auto flex h-full min-h-0 w-full max-w-md flex-col items-center justify-center gap-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/kiosk/bp-cuff-placement.png"
-        alt="Cómo colocar el brazalete: dos dedos arriba del codo, manguera hacia abajo, brazo a la altura del corazón"
+        src="/kiosk/bp-u90b-arm-tunnel.jpg"
+        alt="Cómo usar el U90B Pro: introduzca el brazo izquierdo en el túnel del aparato, antebrazo apoyado, a la altura del corazón"
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 px-0.5 pb-0.5 text-center text-[clamp(0.8rem,1.6vh,1.15rem)] font-semibold leading-snug text-slate-700">
-        Coloque el brazalete así en el brazo izquierdo
+        Brazo izquierdo dentro del túnel, apoyado en la mesa
       </figcaption>
     </figure>
   );

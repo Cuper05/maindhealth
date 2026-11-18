@@ -163,7 +163,7 @@ def pick_final_reading() -> dict[str, int]:
         packets = list(_packets)
     if not packets:
         raise RuntimeError(
-            "No llegaron datos del U90B Pro. Enciéndalo, coloque el brazalete y pulse START."
+            "No llegaron datos del U90B Pro. Enciéndalo, introduzca el brazo en el túnel y pulse START."
         )
 
     # Preferir el último paquete parseable (medición final).
@@ -214,7 +214,7 @@ async def measure_once() -> dict[str, Any]:
 
             set_progress(
                 "measure",
-                "Conectado. Coloque el brazalete, pulse START en el U90B Pro y espere el número.",
+                "Conectado. Introduzca el brazo en el túnel, pulse START en el U90B Pro y espere el número.",
                 address=address,
             )
 
@@ -247,7 +247,7 @@ async def measure_once() -> dict[str, Any]:
                     set_progress(
                         "measure",
                         f"Esperando U90B Pro… {elapsed} s · {n} paquetes. "
-                        "Brazalete puesto; pulse START; luego Ya vi el resultado si ya ve el número.",
+                        "Brazo en el túnel; pulse START; luego Ya vi el resultado si ya ve el número.",
                         packets=n,
                     )
                 await asyncio.sleep(0.2)

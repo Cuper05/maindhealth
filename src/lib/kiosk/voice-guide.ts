@@ -23,8 +23,8 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
   "Toque Leer presión ahora.",
-  "Encienda el U90B Pro. Brazalete en brazo izquierdo, a la altura del corazón; pulse START.",
-  "Al ver el número, retire el brazalete y déjelo en su lugar.",
+  "Encienda el U90B Pro. Introduzca el brazo izquierdo en el túnel del aparato, antebrazo apoyado a la altura del corazón, y pulse START.",
+  "Al ver el número en la pantalla, saque el brazo y deje el aparato en su lugar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
@@ -133,14 +133,14 @@ export const OXYGEN_SUCCESS_VOICE =
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
-  "Encienda el U90B Pro, coloque el brazalete y pulse START. El kiosko tomará el número solo.";
+  "Encienda el U90B Pro, introduzca el brazo izquierdo en el túnel del aparato y pulse START. El kiosko tomará el número solo.";
 
 export const TEMP_START_VOICE =
   "Tome el termómetro K3 Pro. Enciéndalo en modo corporal. Toque el botón verde y acerque la frente a 5 o 10 centímetros hasta el pitido.";
 
-/** Tras presión arterial: retirar brazalete y devolver. */
+/** Tras presión arterial: sacar el brazo del túnel. */
 export const BP_SUCCESS_VOICE =
-  "Listo. Terminó la medición de la presión. Retire el brazalete del brazo y colóquelo de nuevo en su lugar asignado. Luego toque Continuar.";
+  "Listo. Terminó la medición de la presión. Saque el brazo del aparato y déjelo en su lugar asignado. Luego toque Continuar.";
 
 /** Tras temperatura: retirar termómetro y devolver. */
 export const TEMP_SUCCESS_VOICE =
