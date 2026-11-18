@@ -1,6 +1,6 @@
 /**
- * Lectura del tensiómetro U90B Pro (BLE) en 127.0.0.1:3931.
- * Sustituye al baumanómetro USB CP2110 (BP-700).
+ * Lectura del tensiómetro U90B Pro (Bluetooth LE) en 127.0.0.1:3931.
+ * Única fuente de presión arterial del kiosco — no usa el monitor Ethernet.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3931";

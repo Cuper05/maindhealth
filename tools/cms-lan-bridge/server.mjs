@@ -594,25 +594,39 @@ const httpServer = http.createServer(async (req, res) => {
 
   if (req.method === "POST" && url.pathname === "/read") {
     const kind = (url.searchParams.get("kind") || "any").toLowerCase();
-    const mapped = kind === "oxygen" ? "spo2" : kind === "bp" || kind === "pressure" ? "nibp" : kind;
-    const timeouts = { spo2: 70000, nibp: 150000, temp: 90000, any: 150000 };
+    const mapped = kind === "oxygen" ? "spo2" : kind;
+    // Presión arterial: solo U90B Pro BLE (:3931). Ethernet ya no mide TA.
+    if (mapped === "nibp" || mapped === "bp" || mapped === "pressure") {
+      const message =
+        "La presión arterial no se lee por Ethernet. Use el U90B Pro (Bluetooth) en http://127.0.0.1:3931.";
+      progress.message = message;
+      sendJson(res, 400, { ok: false, error: message, ...publicSnapshot() });
+      return;
+    }
+    const timeouts = { spo2: 70000, temp: 90000, any: 90000 };
     const timeoutMs = timeouts[mapped] || 90000;
     progress.message =
-      mapped === "nibp"
-        ? "Enlace Ethernet. Brazalete puesto: pulse NIBP en el monitor."
-        : mapped === "spo2"
-          ? "Enlace Ethernet. Dedo en el sensor de SpO₂ del monitor."
-          : mapped === "temp"
-            ? "Enlace Ethernet. Sonda de temperatura en la axila."
-            : "Esperando signos del monitor…";
+      mapped === "spo2"
+        ? "Enlace Ethernet. Dedo en el sensor de SpO₂ del monitor."
+        : mapped === "temp"
+          ? "Enlace Ethernet. Sonda de temperatura en la axila."
+          : "Esperando SpO₂ / temp del monitor…";
     try {
       if (mapped === "any") {
         const sample = await waitFor(
-          snapshot.systolic ? "nibp" : snapshot.spo2 ? "spo2" : "temp",
+          snapshot.spo2 ? "spo2" : "temp",
           timeoutMs,
           () => {},
         );
         sendJson(res, 200, { ok: true, ...sample });
+        return;
+      }
+      if (mapped !== "spo2" && mapped !== "temp") {
+        sendJson(res, 400, {
+          ok: false,
+          error: "kind inválido. Use spo2 o temp. Presión = U90B BLE :3931.",
+          ...publicSnapshot(),
+        });
         return;
       }
       const sample = await waitFor(mapped, timeoutMs, () => {});

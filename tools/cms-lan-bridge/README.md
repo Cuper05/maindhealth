@@ -14,4 +14,7 @@ Servicio local: `http://127.0.0.1:3932`
 
 ## Lectura
 
-El kiosko espera SpO₂, NIBP y temperatura del flujo HL7/CMS. NIBP solo aparece después de pulsar Start en el monitor.
+El kiosko usa este bridge **solo para SpO₂** (y temp de respaldo).
+
+**Presión arterial = U90B Pro por Bluetooth** (`tools/u90b-bridge`, `:3931`).  
+`/read?kind=nibp` responde error a propósito.

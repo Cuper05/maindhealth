@@ -439,15 +439,11 @@ async function readFromEthernetMonitor() {
 }
 
 async function readSession() {
-  if (!findDevice()) {
-    return readFromEthernetMonitor();
-  }
-  patientDone = false;
-  setProgress(
-    "measure",
-    "Coloque el brazalete. El aparato va a inflar con el cable puesto…",
+  // Presión arterial ya no usa Ethernet/NIBP. El equipo activo es U90B Pro BLE
+  // (tools/u90b-bridge). Este bridge USB está retirado.
+  throw new Error(
+    "El baumanómetro USB BP-700 está retirado. Use el U90B Pro (Bluetooth) en tools/u90b-bridge (:3931).",
   );
-  return dumpAfterConnect(READ_TIMEOUT_MS);
 }
 
 const server = http.createServer(async (req, res) => {
