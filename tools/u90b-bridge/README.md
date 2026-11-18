@@ -32,10 +32,12 @@ node server.mjs
 
 ## Uso en kiosko
 
-1. Tocar **Leer presión ahora**
-2. Introducir el brazo izquierdo en el **túnel** del aparato y pulsar **START**
-3. Al ver el número (o tras ~2 s sin datos nuevos), el kiosko toma SYS/DIA/FC
-4. Si ya ve el resultado, puede tocar **Ya vi el resultado**
+1. Pulsar el **botón de encendido** del baumanómetro
+2. Tocar el botón verde **Leer presión ahora** en el kiosko
+3. Introducir el brazo en el **túnel**, a la altura del corazón
+4. Pulsar otra vez el **botón de encendido** para iniciar la medición
+5. Esperar el resultado; retirar el brazo
+6. Pulsar el **botón de encendido** otra vez para apagar
 
 ## Rangos aceptados (sin cambio)
 

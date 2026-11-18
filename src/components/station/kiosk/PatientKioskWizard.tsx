@@ -1553,14 +1553,16 @@ export function PatientKioskWizard() {
     setError(null);
     setBpCapturing(true);
     setDeviceStatus("reading");
-    setBpStatus("Encienda el U90B Pro, introduzca el brazo en el túnel y pulse START…");
+    setBpStatus(
+      "Brazo en el túnel a la altura del corazón; pulse otra vez el botón de encendido del aparato…",
+    );
     speakKiosk(BP_START_VOICE, { force: true });
     try {
       const sample = await readStationBp((msg) => setBpStatus(msg));
       const { systolic, diastolic, heartRate } = sample;
       if (systolic == null || diastolic == null) {
         throw new Error(
-          "El U90B Pro no envió la presión. Pulse START y espere el número.",
+          "El baumanómetro no envió la presión. Pulse el botón de encendido para medir y espere el número.",
         );
       }
       const patch: VitalsDraft = {
@@ -3010,10 +3012,10 @@ export function PatientKioskWizard() {
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
           capturingLabel="Ya vi el resultado"
-          captureHelp="Encienda el U90B Pro, introduzca el brazo izquierdo en el túnel (antebrazo apoyado) y pulse START. El kiosko toma SYS/DIA solo."
+          captureHelp="1) Encienda el baumanómetro. 2) Toque este botón verde. 3) Brazo en el túnel a la altura del corazón. 4) Pulse otra vez el botón de encendido y espere."
           tips={[
-            "Es el tensiómetro de túnel U90B Pro (Bluetooth): el brazo entra por el orificio, no es un brazalete con manguera.",
-            "Siéntese quieto, brazo a la altura del corazón, y espere el número en la pantalla del aparato.",
+            "Orden: encender el aparato → botón verde del kiosko → brazo en el túnel → encendido otra vez para medir.",
+            "Al terminar: retire el brazo y pulse el botón de encendido una vez más para apagar.",
           ]}
           capturing={bpCapturing}
           captureCanConfirm

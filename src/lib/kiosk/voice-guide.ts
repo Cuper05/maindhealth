@@ -22,9 +22,10 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
   "Paso dos: presión arterial.",
-  "Toque Leer presión ahora.",
-  "Encienda el U90B Pro. Introduzca el brazo izquierdo en el túnel del aparato, antebrazo apoyado a la altura del corazón, y pulse START.",
-  "Al ver el número en la pantalla, saque el brazo y deje el aparato en su lugar.",
+  "Pulse el botón de encendido del baumanómetro.",
+  "Toque el botón verde Leer presión ahora en esta pantalla.",
+  "Introduzca el brazo en el túnel, a la altura del corazón, y pulse otra vez el botón de encendido del aparato.",
+  "Espere a que termine la medición. Luego retire el brazo y pulse el botón de encendido una vez más para apagar.",
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
@@ -133,14 +134,14 @@ export const OXYGEN_SUCCESS_VOICE =
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
-  "Encienda el U90B Pro, introduzca el brazo izquierdo en el túnel del aparato y pulse START. El kiosko tomará el número solo.";
+  "Introduzca el brazo en el túnel a la altura del corazón y pulse otra vez el botón de encendido del baumanómetro. Quédese quieto hasta que termine la medición.";
 
 export const TEMP_START_VOICE =
   "Tome el termómetro K3 Pro. Enciéndalo en modo corporal. Toque el botón verde y acerque la frente a 5 o 10 centímetros hasta el pitido.";
 
-/** Tras presión arterial: sacar el brazo del túnel. */
+/** Tras presión arterial: sacar el brazo y apagar. */
 export const BP_SUCCESS_VOICE =
-  "Listo. Terminó la medición de la presión. Saque el brazo del aparato y déjelo en su lugar asignado. Luego toque Continuar.";
+  "Listo. Terminó la medición de la presión. Retire el brazo del aparato, pulse el botón de encendido para apagarlo y déjelo en su lugar. Luego toque Continuar.";
 
 /** Tras temperatura: retirar termómetro y devolver. */
 export const TEMP_SUCCESS_VOICE =
