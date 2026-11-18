@@ -71,7 +71,7 @@ export function checkVitalsConsistency(draft: {
     return reportDeviceIssue({
       device: "blood_pressure",
       code: "bp_inconsistent",
-      message: "Presión arterial inconsistente. Revisar brazalete y repetir medición.",
+      message: "Presión arterial inconsistente. Revisar posición del brazo en el túnel y repetir.",
     });
   }
   if (draft.temperature && (temp < 34 || temp > 42)) {

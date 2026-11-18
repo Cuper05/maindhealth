@@ -1553,7 +1553,7 @@ export function PatientKioskWizard() {
     setError(null);
     setBpCapturing(true);
     setDeviceStatus("reading");
-    setBpStatus("Encienda el U90B Pro, coloque el brazalete y pulse START…");
+    setBpStatus("Encienda el U90B Pro, introduzca el brazo en el túnel y pulse START…");
     speakKiosk(BP_START_VOICE, { force: true });
     try {
       const sample = await readStationBp((msg) => setBpStatus(msg));
@@ -3010,8 +3010,11 @@ export function PatientKioskWizard() {
           onCapture={() => void captureBp()}
           captureLabel="Leer presión ahora"
           capturingLabel="Ya vi el resultado"
-          captureHelp="Encienda el U90B Pro, coloque el brazalete a la altura del corazón y pulse START. El kiosko toma SYS/DIA solo."
-          tips={["Use el tensiómetro U90B Pro de la estación (Bluetooth). Brazalete en brazo izquierdo, quieto durante la medición."]}
+          captureHelp="Encienda el U90B Pro, introduzca el brazo izquierdo en el túnel (antebrazo apoyado) y pulse START. El kiosko toma SYS/DIA solo."
+          tips={[
+            "Es el tensiómetro de túnel U90B Pro (Bluetooth): el brazo entra por el orificio, no es un brazalete con manguera.",
+            "Siéntese quieto, brazo a la altura del corazón, y espere el número en la pantalla del aparato.",
+          ]}
           capturing={bpCapturing}
           captureCanConfirm
           onSimulate={() => simulateReading({ systolicPressure: "118", diastolicPressure: "76", heartRate: "72" })}

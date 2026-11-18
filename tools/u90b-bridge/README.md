@@ -33,7 +33,7 @@ node server.mjs
 ## Uso en kiosko
 
 1. Tocar **Leer presión ahora**
-2. Colocar brazalete y pulsar **START** en el U90B Pro
+2. Introducir el brazo izquierdo en el **túnel** del aparato y pulsar **START**
 3. Al ver el número (o tras ~2 s sin datos nuevos), el kiosko toma SYS/DIA/FC
 4. Si ya ve el resultado, puede tocar **Ya vi el resultado**
 
