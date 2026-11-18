@@ -1,17 +1,16 @@
 /**
  * Monitor multiparámetro por Ethernet (127.0.0.1:3932).
- * TA, SpO₂ y temperatura salen del mismo aparato.
+ * Solo SpO₂ (y temp de respaldo). La presión arterial NO va por Ethernet:
+ * usa el U90B Pro BLE en 127.0.0.1:3931 (`station-bp.ts`).
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3932";
 
-export type StationMonitorKind = "nibp" | "spo2" | "temp";
+export type StationMonitorKind = "spo2" | "temp";
 
 export type StationMonitorSample = {
   spo2?: number;
   heartRate?: number;
-  systolic?: number;
-  diastolic?: number;
   temperature?: number;
   connected: boolean;
 };
@@ -30,10 +29,15 @@ export async function readStationMonitor(
   kind: StationMonitorKind,
   onProgress?: (msg: string) => void,
 ): Promise<StationMonitorSample> {
+  if (kind !== "spo2" && kind !== "temp") {
+    throw new Error(
+      "La presión arterial no usa el monitor Ethernet. Use el U90B Pro (Bluetooth) en :3931.",
+    );
+  }
+
   onProgress?.("Contactando el monitor por Ethernet…");
 
   const timeouts: Record<StationMonitorKind, number> = {
-    nibp: 155000,
     spo2: 75000,
     temp: 95000,
   };
@@ -63,8 +67,6 @@ export async function readStationMonitor(
       connected?: boolean;
       spo2?: number | null;
       heartRate?: number | null;
-      systolicPressure?: number | null;
-      diastolicPressure?: number | null;
       temperature?: number | null;
     };
     if (!res.ok || !data.ok) {
@@ -74,8 +76,6 @@ export async function readStationMonitor(
       connected: Boolean(data.connected),
       spo2: data.spo2 ?? undefined,
       heartRate: data.heartRate ?? undefined,
-      systolic: data.systolicPressure ?? undefined,
-      diastolic: data.diastolicPressure ?? undefined,
       temperature: data.temperature ?? undefined,
     };
   } catch (err) {
@@ -83,11 +83,9 @@ export async function readStationMonitor(
     const name = err instanceof Error ? err.name : "";
     if (name === "AbortError" || /aborted/i.test(msg)) {
       throw new Error(
-        kind === "nibp"
-          ? "La presión tardó demasiado. Pulse NIBP en el monitor y espere el número."
-          : kind === "spo2"
-            ? "SpO₂ tardó demasiado. Deje el dedo en el sensor del monitor."
-            : "La temperatura tardó demasiado. Mantenga la sonda en la axila.",
+        kind === "spo2"
+          ? "SpO₂ tardó demasiado. Deje el dedo en el sensor del monitor."
+          : "La temperatura tardó demasiado. Mantenga la sonda en la axila.",
       );
     }
     if (/Failed to fetch|NetworkError/i.test(msg)) {
