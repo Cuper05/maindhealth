@@ -1475,7 +1475,7 @@ export function PatientKioskWizard() {
     setError(null);
     setOxygenCapturing(true);
     setDeviceStatus("reading");
-    setOxygenStatus("Coloque el dedo y espere el resultado en el oxímetro…");
+    setOxygenStatus("Pulse el botón blanco del oxímetro, coloque el dedo y espere…");
     speakKiosk(OXYGEN_START_VOICE, { force: true });
     try {
       const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
@@ -1483,7 +1483,7 @@ export function PatientKioskWizard() {
       const hr = sample.hr;
       if (spo2 == null || hr == null) {
         throw new Error(
-          "El oxímetro no envió SpO₂ y pulso. Coloque el dedo y espere el resultado en la máquina.",
+          "El oxímetro no envió SpO₂ y pulso. Pulse el botón blanco, coloque el dedo y espere el resultado.",
         );
       }
       const patch: VitalsDraft = {
@@ -3057,7 +3057,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureOximeter()}
           captureLabel="Leer oxímetro ahora"
           capturingLabel="Esperando lectura estable…"
-          captureHelp="Toque el botón verde, coloque el dedo y espere el resultado en la máquina. No retire el dedo hasta ver el número."
+          captureHelp="Toque el botón verde, pulse el botón blanco del oxímetro, coloque el dedo y espere el resultado. No retire el dedo hasta ver el número."
           capturing={oxygenCapturing}
           onSimulate={() =>
             simulateReading({

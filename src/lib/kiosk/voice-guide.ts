@@ -31,6 +31,7 @@ export const BLOOD_PRESSURE_VOICE_STEPS = [
 export const OXYGEN_VOICE_STEPS = [
   "Paso tres: oxigenación y pulso.",
   "Toque el botón verde «Leer oxímetro ahora».",
+  "Pulse el botón blanco del oxímetro.",
   "Coloque el dedo en el oxímetro.",
   "Espere a que la máquina muestre el resultado.",
   "Solo entonces retire el dedo y déjelo en su lugar.",
@@ -127,7 +128,7 @@ export const SCALE_SUCCESS_VOICE =
 
 /** Al iniciar lectura del oxímetro (botón). */
 export const OXYGEN_START_VOICE =
-  "Coloque el dedo en el oxímetro y manténgalo quieto hasta que la máquina muestre el resultado. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
+  "Pulse el botón blanco del oxímetro, coloque el dedo y manténgalo quieto hasta que la máquina muestre el resultado. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
 
 /** Tras SpO₂/FC: retirar y devolver al lugar. */
 export const OXYGEN_SUCCESS_VOICE =
