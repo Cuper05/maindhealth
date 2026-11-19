@@ -38,7 +38,7 @@ export async function readStationOximeter(
     if (!res.ok || !data.ok) {
       throw new Error(
         data.error ||
-          `Sin lectura estable del oxímetro${typeof data.bytes === "number" ? ` (${data.bytes} bytes)` : ""}. Encienda el aparato, coloque el dedo bien y espere.`,
+          `Sin lectura estable del oxímetro${typeof data.bytes === "number" ? ` (${data.bytes} bytes)` : ""}. Coloque el dedo bien y espere el resultado en la máquina.`,
       );
     }
     const spo2 = Number(data.oxygenSaturation);

@@ -90,7 +90,7 @@ export function ThermometerIllustration() {
         className="min-h-0 w-full flex-1 rounded-xl object-contain object-center shadow-sm ring-1 ring-slate-200"
       />
       <figcaption className="w-full shrink-0 px-0.5 pb-0.5 text-center text-[clamp(0.8rem,1.6vh,1.15rem)] font-semibold leading-snug text-slate-700">
-        Frente al sensor, 5–10 cm, espere el pitido
+        Acerque la frente y espere el pitido
       </figcaption>
     </figure>
   );

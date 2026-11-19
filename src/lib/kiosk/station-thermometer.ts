@@ -76,7 +76,7 @@ export async function readStationThermometer(
   }
 
   onStatus?.(
-    "Acérquese al K3 Pro: frente a 5–10 cm hasta el pitido (modo corporal)…",
+    "Acerque la frente al termómetro y espere el pitido…",
   );
 
   let stopPoll = false;
@@ -113,7 +113,7 @@ export async function readStationThermometer(
         data.error ||
           (status === 409
             ? "Ya hay una lectura de temperatura en curso."
-            : "Sin lectura del K3 Pro. Enciéndalo, modo corporal, frente a 5–10 cm hasta el pitido."),
+            : "Sin lectura del termómetro. Acerque la frente y espere el pitido."),
       );
     }
 

@@ -7,7 +7,7 @@ Confirmo que la información proporcionada es verídica según mi leal saber y e
 export const STATION_VITALS_INSTRUCTIONS = [
   "Siéntese y descanse 5 minutos antes de la toma.",
   "Encienda el baumanómetro, brazo en el túnel a la altura del corazón, pulse encendido otra vez para medir y apague al terminar.",
-  "Mantenga el dedo quieto en el oxímetro hasta que marque lectura estable.",
-  "Registre temperatura con termómetro sin contacto o digital.",
+  "Toque Leer oxímetro, coloque el dedo y espere el resultado antes de retirarlo.",
+  "Ubique el termómetro, toque Leer temperatura y acerque la frente hasta el pitido.",
   "Si usa glucómetro, indique ayuno o posprandial al personal.",
 ];
