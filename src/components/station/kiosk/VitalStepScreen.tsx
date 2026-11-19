@@ -272,7 +272,7 @@ export function VitalStepScreen({
               </ul>
             ) : null}
             {tips && tips.length > 0 && compact ? (
-              <div className="max-h-[50%] min-h-0 shrink-0 overflow-hidden [&_*]:!px-[clamp(1.5rem,4cqw,2.2rem)] [&_*]:!py-[clamp(0.7rem,2.6cqh,1.4rem)] [&_*]:!text-[clamp(1.85rem,8cqh,2.6rem)] [&_*]:!leading-snug [&_*]:!font-semibold">
+              <div className="max-h-[29%] min-h-0 shrink-0 overflow-hidden [&_*]:!px-[clamp(0.85rem,2.2cqw,1.15rem)] [&_*]:!py-[clamp(0.35rem,1.3cqh,0.7rem)] [&_*]:!text-[clamp(1rem,4.2cqh,1.35rem)] [&_*]:!leading-snug">
                 {tips.map((tip) => (
                   <KioskImportant key={tip}>{tip}</KioskImportant>
                 ))}
