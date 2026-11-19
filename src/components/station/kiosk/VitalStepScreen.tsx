@@ -238,36 +238,26 @@ export function VitalStepScreen({
               : "grid-cols-1 lg:grid-cols-[1fr_1fr]"
           }`}
         >
-          <div className="relative z-10 flex min-h-0 flex-col gap-2 overflow-hidden">
+          <div className="@container/steps relative z-10 flex min-h-0 flex-1 flex-col gap-[clamp(0.35rem,1.2cqh,0.75rem)] overflow-hidden [container-type:size]">
             {steps && steps.length > 0 ? (
               <ol
-                className={`grid min-h-0 flex-1 content-start overflow-y-auto overflow-x-hidden pr-0.5 ${
-                  steps.length >= 5 ? "gap-1.5" : "gap-2.5"
-                } ${
+                className={`grid min-h-0 flex-1 gap-[clamp(0.35rem,1.4cqh,0.75rem)] overflow-hidden ${
                   compact && steps.length > 3
-                    ? "grid-cols-1 sm:grid-cols-2 sm:auto-rows-min"
-                    : "grid-cols-1"
+                    ? "grid-cols-1 sm:grid-cols-2 sm:auto-rows-fr"
+                    : "auto-rows-fr grid-cols-1"
                 }`}
               >
                 {steps.map((item, index) => (
                   <li
                     key={`${index}-${item}`}
-                    className={`flex items-start rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] font-semibold leading-snug text-slate-900 ${
-                      steps.length >= 5
-                        ? "gap-2 px-2.5 py-2 text-[clamp(0.9rem,1.7vh,1.25rem)] xl:gap-2.5 xl:px-3 xl:py-2.5 xl:text-[clamp(0.95rem,1.85vh,1.35rem)]"
-                        : "gap-3 px-3.5 py-3 text-[clamp(1.05rem,2.2vh,1.65rem)] xl:gap-3.5 xl:px-4 xl:py-3.5 xl:text-[clamp(1.15rem,2.4vh,1.85rem)]"
-                    }`}
+                    className="flex min-h-0 items-center gap-[clamp(0.4rem,1.8cqh,0.85rem)] overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-[clamp(0.55rem,2cqw,1rem)] py-[clamp(0.35rem,1.6cqh,0.85rem)] text-[clamp(0.8rem,5.2cqh,1.55rem)] font-semibold leading-snug text-slate-900"
                   >
-                    <span
-                      className={`mt-0.5 flex shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] font-bold text-white ${
-                        steps.length >= 5
-                          ? "h-8 w-8 text-sm xl:h-9 xl:w-9 xl:text-base"
-                          : "h-10 w-10 text-lg xl:h-12 xl:w-12 xl:text-xl"
-                      }`}
-                    >
+                    <span className="flex aspect-square h-[clamp(1.6rem,7cqh,2.75rem)] w-[clamp(1.6rem,7cqh,2.75rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.75rem,3.6cqh,1.25rem)] font-bold text-white">
                       {index + 1}
                     </span>
-                    <span className="min-w-0 flex-1 whitespace-normal break-words">{item}</span>
+                    <span className="min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-normal break-words">
+                      {item}
+                    </span>
                   </li>
                 ))}
               </ol>
@@ -282,7 +272,7 @@ export function VitalStepScreen({
               </ul>
             ) : null}
             {tips && tips.length > 0 && compact ? (
-              <div className={`shrink-0 ${(steps?.length ?? 0) >= 5 ? "[&_*]:!text-base [&_*]:!leading-snug [&_*]:!py-2" : ""}`}>
+              <div className="max-h-[22%] min-h-0 shrink overflow-hidden [&_*]:!py-[clamp(0.25rem,1cqh,0.5rem)] [&_*]:!text-[clamp(0.75rem,3.2cqh,1rem)] [&_*]:!leading-snug">
                 {tips.map((tip) => (
                   <KioskImportant key={tip}>{tip}</KioskImportant>
                 ))}
