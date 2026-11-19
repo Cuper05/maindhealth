@@ -29,7 +29,7 @@
 
 ## C. Paquete mínimo de arranque
 
-**Clínico:** tensiómetro **U90B Pro** por Bluetooth LE (bridge `tools/u90b-bridge` en `127.0.0.1:3931`, MAC `23:51:D6:CE:70:BB`), oxímetro CMS50D+ (`:3927`), ECG **MD100C_P** BLE (`:3928`), báscula+altura **Lejia HW-701** (`:3930`), termómetro **K3 Pro** (`:3933`). El monitor Ethernet (`cms-lan-bridge` `:3932`) sigue disponible para SpO₂ de respaldo.
+**Clínico:** tensiómetro **U90B Pro** por Bluetooth LE (bridge `tools/u90b-bridge` en `127.0.0.1:3931`, MAC `23:51:D6:CE:70:BB`), oxímetro **CMS50D+** USB (`:3927`, única fuente de SpO₂), ECG **MD100C_P** BLE (`:3928`), báscula+altura **Lejia HW-701** (`:3930`), termómetro **K3 Pro** (`:3933`).
 
 **Tecnológico:** cámara, bocina fija, micrófono fijo, pantalla, computadora, conectividad estable.
 

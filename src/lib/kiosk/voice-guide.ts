@@ -29,9 +29,9 @@ export const BLOOD_PRESSURE_VOICE_STEPS = [
 
 export const OXYGEN_VOICE_STEPS = [
   "Paso tres: oxígeno y pulso.",
-  "Dedo en el sensor y toque Leer oxímetro ahora.",
-  "Espere la lectura estable.",
-  "Al terminar, retire el sensor y déjelo en su lugar.",
+  "Encienda el oxímetro CMS50D+.",
+  "Coloque el dedo y toque Leer oxímetro ahora.",
+  "Espere la lectura estable. Al terminar, retire el sensor y déjelo en su lugar.",
 ] as const;
 
 /** Nota visible/hablada: uñas largas o artificiales. */
@@ -125,7 +125,7 @@ export const SCALE_SUCCESS_VOICE =
 
 /** Al iniciar lectura del oxímetro (botón). */
 export const OXYGEN_START_VOICE =
-  "Iniciamos la lectura de oxígeno. Coloque el dedo en el sensor del monitor y manténgalo quieto. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
+  "Iniciamos la lectura de oxígeno con el CMS50D+. Enciéndalo, coloque el dedo y manténgalo quieto. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
 
 /** Tras SpO₂/FC: retirar y devolver al lugar. */
 export const OXYGEN_SUCCESS_VOICE =
