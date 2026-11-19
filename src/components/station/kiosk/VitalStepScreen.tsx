@@ -250,12 +250,12 @@ export function VitalStepScreen({
                 {steps.map((item, index) => (
                   <li
                     key={`${index}-${item}`}
-                    className="flex min-h-0 items-center gap-[clamp(0.4rem,1.8cqh,0.85rem)] overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-[clamp(0.55rem,2cqw,1rem)] py-[clamp(0.35rem,1.6cqh,0.85rem)] text-[clamp(0.8rem,5.2cqh,1.55rem)] font-semibold leading-snug text-slate-900"
+                    className="@container/card flex min-h-0 items-center gap-[clamp(0.4rem,1.8cqh,0.85rem)] overflow-hidden rounded-2xl border-2 border-[#1d6eb8]/20 bg-[#f0f7ff] px-[clamp(0.55rem,2cqw,1rem)] py-[clamp(0.35rem,1.6cqh,0.85rem)] [container-type:size]"
                   >
-                    <span className="flex aspect-square h-[clamp(1.6rem,7cqh,2.75rem)] w-[clamp(1.6rem,7cqh,2.75rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.75rem,3.6cqh,1.25rem)] font-bold text-white">
+                    <span className="flex aspect-square h-[clamp(1.55rem,38cqh,2.85rem)] w-[clamp(1.55rem,38cqh,2.85rem)] shrink-0 items-center justify-center rounded-full bg-[#1d6eb8] text-[clamp(0.7rem,18cqh,1.35rem)] font-bold leading-none text-white">
                       {index + 1}
                     </span>
-                    <span className="min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-normal break-words">
+                    <span className="min-h-0 min-w-0 flex-1 overflow-y-auto whitespace-normal break-words text-[clamp(0.85rem,26cqh,1.9rem)] font-semibold leading-snug text-slate-900">
                       {item}
                     </span>
                   </li>
