@@ -21,6 +21,7 @@ export const WEIGHT_HEIGHT_VOICE_STEPS = [
 ] as const;
 
 export const BLOOD_PRESSURE_VOICE_STEPS = [
+  "Paso dos: presión arterial.",
   "Pulse el botón de encendido del baumanómetro.",
   "Toque el botón verde «Leer presión ahora».",
   "Brazo en el túnel, a la altura del corazón; pulse encendido otra vez para medir.",
@@ -28,10 +29,10 @@ export const BLOOD_PRESSURE_VOICE_STEPS = [
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
-  "Paso tres: oxígeno y pulso.",
-  "Encienda el oxímetro CMS50D+.",
-  "Coloque el dedo y toque Leer oxímetro ahora.",
-  "Espere la lectura estable. Al terminar, retire el sensor y déjelo en su lugar.",
+  "Toque el botón verde «Leer oxímetro ahora».",
+  "Coloque el dedo en el oxímetro.",
+  "Espere a que la máquina muestre el resultado.",
+  "Solo entonces retire el dedo y déjelo en su lugar.",
 ] as const;
 
 /** Nota visible/hablada: uñas largas o artificiales. */
@@ -40,10 +41,10 @@ export const OXYGEN_NAIL_TIP =
 
 /** Mismas frases, palabra por palabra, que las tarjetas del paso en pantalla. */
 export const TEMPERATURE_VOICE_STEPS = [
-  "Tome el termómetro K3 Pro.",
-  "Enciéndalo en modo corporal.",
-  "Toque el botón verde de esta pantalla.",
-  "Frente a 5–10 cm hasta el pitido.",
+  "Paso cuatro: temperatura.",
+  "Ubique el termómetro de la estación.",
+  "Toque el botón verde «Leer temperatura ahora».",
+  "Acerque la frente al termómetro y espere el pitido.",
   "Deje el termómetro en su lugar.",
 ] as const;
 
@@ -125,18 +126,18 @@ export const SCALE_SUCCESS_VOICE =
 
 /** Al iniciar lectura del oxímetro (botón). */
 export const OXYGEN_START_VOICE =
-  "Iniciamos la lectura de oxígeno con el CMS50D+. Enciéndalo, coloque el dedo y manténgalo quieto. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
+  "Coloque el dedo en el oxímetro y manténgalo quieto hasta que la máquina muestre el resultado. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
 
 /** Tras SpO₂/FC: retirar y devolver al lugar. */
 export const OXYGEN_SUCCESS_VOICE =
-  "Listo. Terminó la medición de oxígeno y pulso. Retire el oxímetro del dedo y colóquelo de nuevo en su lugar asignado. Luego toque Continuar.";
+  "Listo. Terminó la medición de oxígeno y pulso. Ya puede retirar el dedo y dejar el oxímetro en su lugar. Luego toque Continuar.";
 
 /** Al iniciar lectura de presión (botón). */
 export const BP_START_VOICE =
   "Introduzca el brazo en el túnel a la altura del corazón y pulse otra vez el botón de encendido del baumanómetro. Quédese quieto hasta que termine la medición.";
 
 export const TEMP_START_VOICE =
-  "Tome el termómetro K3 Pro. Enciéndalo en modo corporal. Toque el botón verde y acerque la frente a 5 o 10 centímetros hasta el pitido.";
+  "Acerque la frente al termómetro y espere el pitido. No retire el termómetro hasta escuchar el pitido.";
 
 /** Tras presión arterial: sacar el brazo y apagar. */
 export const BP_SUCCESS_VOICE =

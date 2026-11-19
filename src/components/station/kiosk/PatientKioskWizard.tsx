@@ -1475,7 +1475,7 @@ export function PatientKioskWizard() {
     setError(null);
     setOxygenCapturing(true);
     setDeviceStatus("reading");
-    setOxygenStatus("Encienda el CMS50D+, coloque el dedo y espere…");
+    setOxygenStatus("Coloque el dedo y espere el resultado en el oxímetro…");
     speakKiosk(OXYGEN_START_VOICE, { force: true });
     try {
       const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
@@ -1483,7 +1483,7 @@ export function PatientKioskWizard() {
       const hr = sample.hr;
       if (spo2 == null || hr == null) {
         throw new Error(
-          "El CMS50D+ no envió SpO₂ y pulso. Enciéndalo, coloque el dedo y espere.",
+          "El oxímetro no envió SpO₂ y pulso. Coloque el dedo y espere el resultado en la máquina.",
         );
       }
       const patch: VitalsDraft = {
@@ -1586,13 +1586,13 @@ export function PatientKioskWizard() {
     setError(null);
     setTempCapturing(true);
     setDeviceStatus("reading");
-    setTempStatus("Encienda el K3 Pro en modo corporal y acerque la frente…");
+    setTempStatus("Acerque la frente al termómetro y espere el pitido…");
     speakKiosk(TEMP_START_VOICE, { force: true });
     try {
       const sample = await readStationThermometer((msg) => setTempStatus(msg));
       if (sample.temperature == null) {
         throw new Error(
-          "El K3 Pro no envió la temperatura. Enciéndalo en modo corporal y acerque la frente a 5–10 cm hasta el pitido.",
+          "El termómetro no envió la temperatura. Acerque la frente y espere el pitido.",
         );
       }
       const patch: VitalsDraft = { temperature: sample.temperature.toFixed(1) };
@@ -3057,7 +3057,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureOximeter()}
           captureLabel="Leer oxímetro ahora"
           capturingLabel="Esperando lectura estable…"
-          captureHelp="Use solo el oxímetro CMS50D+ de la estación (USB). Enciéndalo, dedo hasta el fondo y espere la lectura estable."
+          captureHelp="Toque el botón verde, coloque el dedo y espere el resultado en la máquina. No retire el dedo hasta ver el número."
           capturing={oxygenCapturing}
           onSimulate={() =>
             simulateReading({
@@ -3092,9 +3092,6 @@ export function PatientKioskWizard() {
           title="Temperatura"
           instruction=""
           steps={[...TEMPERATURE_VOICE_STEPS]}
-          tips={[
-            "Tome el K3 Pro, enciéndalo en modo corporal, toque Leer temperatura y acerque la frente a 5–10 cm hasta el pitido.",
-          ]}
           illustration="temperature"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.temperature))}
           referenceRanges={[VITAL_RANGE_COPY.temperature]}
@@ -3111,8 +3108,8 @@ export function PatientKioskWizard() {
           }
           onCapture={() => void captureTemperature()}
           captureLabel="Leer temperatura ahora"
-          capturingLabel="Esperando el K3 Pro…"
-          captureHelp="Con el termómetro encendido en modo corporal, toque este botón y acerque la frente hasta el pitido. Luego déjelo en su lugar."
+          capturingLabel="Esperando el pitido…"
+          captureHelp="Ubique el termómetro, toque el botón verde y acerque la frente hasta el pitido."
           capturing={tempCapturing}
           onSimulate={() => simulateReading({ temperature: "36.7" })}
           onContinue={async () => {
