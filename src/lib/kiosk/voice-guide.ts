@@ -29,6 +29,7 @@ export const BLOOD_PRESSURE_VOICE_STEPS = [
 ] as const;
 
 export const OXYGEN_VOICE_STEPS = [
+  "Paso tres: oxigenación y pulso.",
   "Toque el botón verde «Leer oxímetro ahora».",
   "Coloque el dedo en el oxímetro.",
   "Espere a que la máquina muestre el resultado.",
