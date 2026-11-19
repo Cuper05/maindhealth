@@ -9,7 +9,6 @@ import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
 import { readStationEcg, confirmStationEcgDone } from "@/lib/kiosk/station-ecg";
 import { readStationScale } from "@/lib/kiosk/station-scale";
 import { confirmStationBpDone, readStationBp } from "@/lib/kiosk/station-bp";
-import { probeStationMonitor, readStationMonitor } from "@/lib/kiosk/station-monitor";
 import { readStationThermometer } from "@/lib/kiosk/station-thermometer";
 import { WaitingIllustration, DigitalScaleHeightIcon } from "./KioskIllustrations";
 import {
@@ -1476,22 +1475,16 @@ export function PatientKioskWizard() {
     setError(null);
     setOxygenCapturing(true);
     setDeviceStatus("reading");
-    setOxygenStatus("Iniciando lectura de oxígeno…");
+    setOxygenStatus("Encienda el CMS50D+, coloque el dedo y espere…");
     speakKiosk(OXYGEN_START_VOICE, { force: true });
     try {
-      let spo2;
-      let hr;
-      if (await probeStationMonitor()) {
-        const sample = await readStationMonitor("spo2", (msg) => setOxygenStatus(msg));
-        spo2 = sample.spo2;
-        hr = sample.heartRate;
-      } else {
-        const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
-        spo2 = sample.spo2;
-        hr = sample.hr;
-      }
+      const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
+      const spo2 = sample.spo2;
+      const hr = sample.hr;
       if (spo2 == null || hr == null) {
-        throw new Error("El monitor no envió SpO₂ y pulso. Deje el dedo en el sensor.");
+        throw new Error(
+          "El CMS50D+ no envió SpO₂ y pulso. Enciéndalo, coloque el dedo y espere.",
+        );
       }
       const patch: VitalsDraft = {
         oxygenSaturation: String(spo2),
@@ -3064,7 +3057,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureOximeter()}
           captureLabel="Leer oxímetro ahora"
           capturingLabel="Esperando lectura estable…"
-          captureHelp="Dedo en el sensor de SpO₂ del monitor. Si Edge pide red local, elija Permitir."
+          captureHelp="Use solo el oxímetro CMS50D+ de la estación (USB). Enciéndalo, dedo hasta el fondo y espere la lectura estable."
           capturing={oxygenCapturing}
           onSimulate={() =>
             simulateReading({

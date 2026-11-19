@@ -14,40 +14,7 @@ const HOST = "127.0.0.1";
 const PORT = Number(process.env.BRIDGE_PORT || 3927);
 const DEFAULT_SERIAL_PATH = process.env.CMS50_PORT || "";
 const BAUDS = [115200, 19200];
-const MONITOR_URL = process.env.CMS_LAN_URL || "http://127.0.0.1:3932";
-
-async function readFromEthernetMonitor(maxMs = 70000) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), maxMs);
-  try {
-    const res = await fetch(`${MONITOR_URL}/read?kind=spo2`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: ctrl.signal,
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(
-        data.error ||
-          "El monitor no envió SpO₂. Coloque el clip de dedo del monitor y espere números en pantalla.",
-      );
-    }
-    const spo2 = Number(data.spo2);
-    const hr = Number(data.heartRate);
-    if (!(spo2 >= 70 && spo2 <= 100) || !(hr >= 30 && hr <= 220)) {
-      throw new Error("El monitor no envió SpO₂ y pulso válidos. Deje el dedo en el sensor.");
-    }
-    return { spo2, hr, port: "cms-lan", baudRate: 0, bytes: 0, format: "cms-lan" };
-  } catch (err) {
-    const name = err instanceof Error ? err.name : "";
-    if (name === "AbortError") {
-      throw new Error("SpO₂ tardó demasiado. Deje el dedo en el sensor del monitor.");
-    }
-    throw err instanceof Error ? err : new Error(String(err));
-  } finally {
-    clearTimeout(timer);
-  }
-}
+/** SpO₂ solo por CMS50D+ USB. El monitor Ethernet ya no es respaldo. */
 
 function parseClassic5(buffer) {
   const readings = [];
@@ -404,7 +371,8 @@ const server = http.createServer(async (req, res) => {
       busy: readBusy,
       configuredPort: DEFAULT_SERIAL_PATH || null,
       resolvedPort: await pickPort(),
-      fallback: (await pickPort()) ? "usb" : "cms-lan",
+      device: "cms50dplus",
+      fallback: "none",
       ports: ports.map((p) => ({
         path: p.path,
         name: p.friendlyName || p.manufacturer || "",
@@ -426,7 +394,15 @@ const server = http.createServer(async (req, res) => {
     readBusy = true;
     try {
       const usbPort = await pickPort();
-      const sample = usbPort ? await readOnce(35000) : await readFromEthernetMonitor(70000);
+      if (!usbPort) {
+        throw Object.assign(
+          new Error(
+            "No se encontró el CMS50D+ por USB. Conéctelo, enciéndalo (COM Silicon Labs CP210x) y reintente.",
+          ),
+          { code: "NO_PORT", bytes: 0 },
+        );
+      }
+      const sample = await readOnce(35000);
       console.log(
         `[read] OK SpO2=${sample.spo2} FC=${sample.hr} @ ${sample.port || sample.baudRate} bytes=${sample.bytes}`,
       );

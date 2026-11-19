@@ -595,7 +595,7 @@ const httpServer = http.createServer(async (req, res) => {
   if (req.method === "POST" && url.pathname === "/read") {
     const kind = (url.searchParams.get("kind") || "any").toLowerCase();
     const mapped = kind === "oxygen" ? "spo2" : kind;
-    // Presión arterial: solo U90B Pro BLE (:3931). Ethernet ya no mide TA.
+    // Presión = U90B BLE (:3931). SpO₂ = CMS50D+ (:3927). Ethernet no mide TA ni SpO₂.
     if (mapped === "nibp" || mapped === "bp" || mapped === "pressure") {
       const message =
         "La presión arterial no se lee por Ethernet. Use el U90B Pro (Bluetooth) en http://127.0.0.1:3931.";
@@ -603,28 +603,29 @@ const httpServer = http.createServer(async (req, res) => {
       sendJson(res, 400, { ok: false, error: message, ...publicSnapshot() });
       return;
     }
-    const timeouts = { spo2: 70000, temp: 90000, any: 90000 };
+    if (mapped === "spo2" || mapped === "oxygen") {
+      const message =
+        "SpO₂ no se lee por Ethernet. Use el oxímetro CMS50D+ (USB) en http://127.0.0.1:3927.";
+      progress.message = message;
+      sendJson(res, 400, { ok: false, error: message, ...publicSnapshot() });
+      return;
+    }
+    const timeouts = { temp: 90000, any: 90000 };
     const timeoutMs = timeouts[mapped] || 90000;
     progress.message =
-      mapped === "spo2"
-        ? "Enlace Ethernet. Dedo en el sensor de SpO₂ del monitor."
-        : mapped === "temp"
-          ? "Enlace Ethernet. Sonda de temperatura en la axila."
-          : "Esperando SpO₂ / temp del monitor…";
+      mapped === "temp"
+        ? "Enlace Ethernet. Sonda de temperatura en la axila."
+        : "Esperando temperatura del monitor…";
     try {
       if (mapped === "any") {
-        const sample = await waitFor(
-          snapshot.spo2 ? "spo2" : "temp",
-          timeoutMs,
-          () => {},
-        );
+        const sample = await waitFor("temp", timeoutMs, () => {});
         sendJson(res, 200, { ok: true, ...sample });
         return;
       }
-      if (mapped !== "spo2" && mapped !== "temp") {
+      if (mapped !== "temp") {
         sendJson(res, 400, {
           ok: false,
-          error: "kind inválido. Use spo2 o temp. Presión = U90B BLE :3931.",
+          error: "kind inválido. Use temp. SpO₂ = CMS50D+ :3927. Presión = U90B :3931.",
           ...publicSnapshot(),
         });
         return;

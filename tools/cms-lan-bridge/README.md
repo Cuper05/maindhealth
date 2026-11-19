@@ -14,7 +14,9 @@ Servicio local: `http://127.0.0.1:3932`
 
 ## Lectura
 
-El kiosko usa este bridge **solo para SpO₂** (y temp de respaldo).
+El kiosko **ya no** usa este bridge para SpO₂ ni presión arterial.
 
-**Presión arterial = U90B Pro por Bluetooth** (`tools/u90b-bridge`, `:3931`).  
-`/read?kind=nibp` responde error a propósito.
+- **SpO₂** = CMS50D+ USB (`tools/cms50dplus-bridge`, `:3927`)
+- **Presión** = U90B Pro BLE (`tools/u90b-bridge`, `:3931`)
+
+`/read?kind=spo2` y `/read?kind=nibp` responden error a propósito.

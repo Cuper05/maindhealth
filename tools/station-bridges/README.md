@@ -9,7 +9,7 @@ Desde entonces, al encender la PC arrancan solos:
 - impresora → `127.0.0.1:3929`
 - báscula → `127.0.0.1:3930`
 - baumanómetro → `127.0.0.1:3931`
-- monitor Ethernet (solo SpO₂ respaldo; TA = U90B BLE) → `127.0.0.1:3932`
+- monitor Ethernet (ya no SpO₂/TA; SpO₂ = CMS50D+, TA = U90B) → `127.0.0.1:3932`
 - termómetro K3 Pro (COM8) → `127.0.0.1:3933`
 
 **Ya no hace falta** dejar abiertos los `.bat` viejos.

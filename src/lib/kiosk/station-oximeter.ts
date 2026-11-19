@@ -1,5 +1,6 @@
 /**
  * Lectura CMS50D+ desde el servicio local de estación (127.0.0.1:3927).
+ * Única fuente de SpO₂ / pulso del kiosco — no usa el monitor Ethernet.
  * Solo acepta lecturas estables (el bridge espera varias muestras coherentes).
  */
 
