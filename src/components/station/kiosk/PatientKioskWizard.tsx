@@ -3186,12 +3186,14 @@ export function PatientKioskWizard() {
           captureCanConfirm
           extra={
             ecgCapturing || ecgWave.length > 0 ? (
-              <EcgWaveform
-                samples={ecgWave}
-                live={ecgCapturing}
-                height={148}
-                label={ecgCapturing ? "Onda ECG en vivo" : "Último trazado"}
-              />
+              <div className="shrink-0">
+                <EcgWaveform
+                  samples={ecgWave}
+                  live={ecgCapturing}
+                  height={168}
+                  label={ecgCapturing ? "Onda ECG en vivo (data[3])" : "Último trazado"}
+                />
+              </div>
             ) : null
           }
           onSimulate={() => {

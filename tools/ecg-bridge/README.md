@@ -15,7 +15,9 @@ Servicio local en `http://127.0.0.1:3928`.
 
 ### Decodificación de onda (`ecg.py`)
 
-En cada notificación BLE con `len(data) >= 4`, si `30 <= data[3] <= 200`, ese byte es un punto del trazado.
+1. Si la trama es onda `0x01` (16/17/20 B): se toman los bytes `1..n` (20–220) como muestras densas.
+2. Si no: igual que `ecg.py` — con `len(data) >= 4` y `30 <= data[3] <= 200`, ese byte es un punto.
+3. El kiosko **interpola** (easing coseno) entre puntos para dibujar la sinusoidal continua.
 
 ## Una sola vez
 
