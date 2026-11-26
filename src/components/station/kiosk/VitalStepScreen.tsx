@@ -319,9 +319,18 @@ export function VitalStepScreen({
             ← Atrás
           </KioskSecondaryButton>
         ) : null}
-        {!showCenterContinue && onRetry && deviceStatus === "done" && (
-          <KioskSecondaryButton onClick={onRetry}>Repetir medición</KioskSecondaryButton>
-        )}
+        {onRetry && deviceStatus === "done" ? (
+          <KioskSecondaryButton
+            onClick={onRetry}
+            className={
+              showCenterContinue
+                ? "!min-h-[88px] !border-[3px] !border-[#1d6eb8] !bg-white !px-8 !text-3xl !font-black !text-[#0b4f8a] shadow-lg xl:!min-h-[104px] xl:!px-10 xl:!text-4xl"
+                : undefined
+            }
+          >
+            Repetir medición
+          </KioskSecondaryButton>
+        ) : null}
         <div className="min-h-[72px] flex-1 xl:min-h-[80px]" aria-hidden />
         {!showCenterContinue ? (
           <button
@@ -368,6 +377,15 @@ export function VitalStepScreen({
                 →
               </span>
             </button>
+            {onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded-2xl border-2 border-white/80 bg-white/95 px-8 py-3 text-xl font-bold text-[#0b4f8a] shadow-md xl:text-2xl"
+              >
+                Repetir medición
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
