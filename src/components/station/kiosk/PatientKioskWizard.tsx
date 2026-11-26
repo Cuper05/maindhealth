@@ -3214,16 +3214,11 @@ export function PatientKioskWizard() {
           }}
           onBack={goBack}
           onRetry={async () => {
-            await clearVitalFields([
-              "ecgStatus",
-              "ecgRhythm",
-              "ecgHeartRate",
-              "ecgSource",
-              "ecgKardiaReady",
-              "ecgKardiaFileName",
-              "ecgKardiaMime",
-            ]);
+            void confirmStationEcgDone();
+            ecgCaptureLock.current = false;
+            setEcgCapturing(false);
             setEcgWave([]);
+            await clearVitalFields(VITAL_FIELDS.ecg);
             setEcgStatusMsg("Pulsa Leer electrocardiograma");
             setDeviceStatus("idle");
           }}
@@ -3273,8 +3268,10 @@ export function PatientKioskWizard() {
                   ...VITAL_FIELDS.oxygen,
                   ...VITAL_FIELDS.weight_height,
                   ...VITAL_FIELDS.temperature,
+                  ...VITAL_FIELDS.ecg,
                   "heartRate",
                 ]);
+                setEcgWave([]);
                 await goToStep("blood_pressure");
               }}
             >
