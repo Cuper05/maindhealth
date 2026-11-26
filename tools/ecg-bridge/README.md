@@ -10,7 +10,7 @@ Servicio local en `http://127.0.0.1:3928`.
 - Comandos de activación (del script de prueba):
   - `01 00`
   - `55 AA 20 00 00 00 20`
-- Entrega **frecuencia cardiaca** y una etiqueta clínica derivada (bradicardia / normal / taquicardia) para el análisis médico.
+- Entrega **frecuencia cardiaca**, una etiqueta clínica derivada (bradicardia / normal / taquicardia) y la **onda en vivo** (`wave` en `GET /progress`) para el trazado del kiosko.
 
 Sustituye al PC-80B USB y al flujo KardiaMobile del kiosco.
 

@@ -6,7 +6,12 @@ import { StationAutoPrintWatcher } from "@/components/station/StationAutoPrintWa
 import { STATION_CONSENT_TEXT } from "@/lib/station/copy";
 import type { KioskStep } from "@/lib/db/schema/station-kiosk";
 import { readStationOximeter } from "@/lib/kiosk/station-oximeter";
-import { readStationEcg, confirmStationEcgDone } from "@/lib/kiosk/station-ecg";
+import {
+  readStationEcg,
+  confirmStationEcgDone,
+  buildSyntheticEcgWave,
+} from "@/lib/kiosk/station-ecg";
+import { EcgWaveform } from "./EcgWaveform";
 import { readStationScale } from "@/lib/kiosk/station-scale";
 import { confirmStationBpDone, readStationBp } from "@/lib/kiosk/station-bp";
 import { readStationThermometer } from "@/lib/kiosk/station-thermometer";
@@ -353,6 +358,7 @@ export function PatientKioskWizard() {
   const tempCaptureLock = useRef(false);
   const [ecgStatusMsg, setEcgStatusMsg] = useState<string>("");
   const [ecgCapturing, setEcgCapturing] = useState(false);
+  const [ecgWave, setEcgWave] = useState<number[]>([]);
   const ecgCaptureLock = useRef(false);
   const calmSilencedRef = useRef(false);
   const doctorJoinedRef = useRef(false);
@@ -1619,11 +1625,17 @@ export function PatientKioskWizard() {
     ecgCaptureLock.current = true;
     setError(null);
     setEcgCapturing(true);
+    setEcgWave([]);
     setDeviceStatus("reading");
     setEcgStatusMsg("Conectando al MD100C_P. Dedos en las placas…");
     speakKiosk(ECG_START_VOICE, { force: true });
     try {
-      const sample = await readStationEcg((msg) => setEcgStatusMsg(msg));
+      const sample = await readStationEcg((progress) => {
+        if (progress.message) setEcgStatusMsg(progress.message);
+        if (progress.wave && progress.wave.length > 0) {
+          setEcgWave(progress.wave);
+        }
+      });
       const patch: VitalsDraft = {
         ecgStatus: "done",
         ecgRhythm: sample.rhythm,
@@ -1700,6 +1712,7 @@ export function PatientKioskWizard() {
       return;
     }
     setEcgCapturing(false);
+    setEcgWave([]);
     setDeviceStatus("idle");
     setEcgStatusMsg("Toque Leer electrocardiograma cuando esté listo.");
   }, [step, vitalsDraft.ecgStatus]);
@@ -3169,21 +3182,33 @@ export function PatientKioskWizard() {
           captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la FC, Ya terminó."
           capturing={ecgCapturing}
           captureCanConfirm
-          onSimulate={() =>
+          extra={
+            ecgCapturing || ecgWave.length > 0 ? (
+              <EcgWaveform
+                samples={ecgWave}
+                live={ecgCapturing}
+                height={148}
+                label={ecgCapturing ? "Onda ECG en vivo" : "Último trazado"}
+              />
+            ) : null
+          }
+          onSimulate={() => {
+            setEcgWave(buildSyntheticEcgWave(280, 72));
             simulateReading({
               ecgStatus: "done",
               ecgRhythm: "FC en rango normal (MD100C_P)",
               ecgHeartRate: "72",
               heartRate: vitalsDraft.heartRate ?? "72",
               ecgSource: "md100c_p",
-            })
-          }
+            });
+          }}
           onContinue={async () => {
             if (!vitalsDraft.ecgStatus) {
               await simulateReading({ ecgStatus: "skipped" });
             }
             setError(null);
             setEcgStatusMsg("");
+            setEcgWave([]);
             setDeviceStatus("idle");
             await goToStep("summary");
           }}
@@ -3198,6 +3223,7 @@ export function PatientKioskWizard() {
               "ecgKardiaFileName",
               "ecgKardiaMime",
             ]);
+            setEcgWave([]);
             setEcgStatusMsg("Pulsa Leer electrocardiograma");
             setDeviceStatus("idle");
           }}
