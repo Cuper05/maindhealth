@@ -16,7 +16,7 @@ import os
 import statistics
 import threading
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -31,6 +31,10 @@ READ_TIMEOUT_MS = int(os.environ.get("ECG_READ_TIMEOUT_MS", "150000"))
 MIN_SAMPLES = int(os.environ.get("ECG_MIN_SAMPLES", "3"))
 MIN_MEASURE_SEC = float(os.environ.get("ECG_MIN_MEASURE_SEC", "28"))
 HEX_LOG_LIMIT = int(os.environ.get("ECG_HEX_LOG_LIMIT", "80"))
+# Ventana de trazado en vivo (~unos segundos de onda BLE).
+WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "420"))
+# Cuántos puntos devolver en /progress (payload JSON acotado).
+WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "280"))
 
 # Comandos de activación del script de estación.
 ACTIVATE_COMMANDS = [
@@ -45,6 +49,7 @@ _reading = False
 _loop: asyncio.AbstractEventLoop | None = None
 _pulse_samples: list[int] = []
 _raw_packets: list[bytes] = []
+_wave_samples: deque[int] = deque(maxlen=WAVE_BUFFER_MAX)
 _hex_logged = 0
 
 
@@ -54,11 +59,34 @@ def set_progress(phase: str, message: str) -> None:
         _progress["message"] = message
         _progress["device"] = "md100c_p"
         _progress["samples"] = len(_pulse_samples)
+        _progress["wavePoints"] = len(_wave_samples)
 
 
 def get_progress() -> dict[str, Any]:
     with _lock:
-        return dict(_progress)
+        out = dict(_progress)
+        if _wave_samples:
+            # Copia acotada para el kiosko (trazado en vivo).
+            wave = list(_wave_samples)
+            if len(wave) > WAVE_PROGRESS_POINTS:
+                wave = wave[-WAVE_PROGRESS_POINTS:]
+            out["wave"] = wave
+        else:
+            out["wave"] = []
+        return out
+
+
+def extract_wave_samples(data: bytes) -> list[int]:
+    """
+    Decodifica muestras de onda PPG/ECG de tramas ChoiceMMed frecuentes.
+    Trama típica: 16 bytes empezando en 0x01 (NO es FC).
+    """
+    if not data or data[0] != 0x01:
+        return []
+    if len(data) not in (16, 17, 20):
+        return []
+    # Byte 0 = tipo; el resto son amplitudes 0–255 (a menudo ~30–80 en reposo).
+    return [int(b) for b in data[1:]]
 
 
 def rhythm_from_hr(hr: int) -> str:
@@ -211,10 +239,13 @@ def infer_hr_from_session(packets: list[bytes]) -> int | None:
 
 def notification_handler(_sender: Any, data: bytearray) -> None:
     raw = bytes(data)
+    wave = extract_wave_samples(raw)
     with _lock:
         _raw_packets.append(raw)
+        if wave:
+            _wave_samples.extend(wave)
     hr = extract_hr_from_packet(raw)
-    note = f"hr={hr} " if hr is not None else ""
+    note = f"hr={hr} " if hr is not None else ("wave " if wave else "")
     _log_hex(raw, note)
 
     if hr is None:
@@ -268,6 +299,7 @@ async def measure_once() -> dict[str, Any]:
     with _lock:
         _pulse_samples = []
         _raw_packets = []
+        _wave_samples.clear()
         _patient_done = False
         _hex_logged = 0
 
