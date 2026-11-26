@@ -54,7 +54,7 @@ export const ECG_VOICE_STEPS = [
   "Paso cinco: electrocardiograma.",
   "Encienda el aparato MD100C_P.",
   "Toque Leer ECG; dedos en las placas ~30 s, quietos.",
-  "Al ver la frecuencia, toque Ya terminó y Continuar.",
+  "Cuando vea la onda en pantalla, toque Ya terminó y Continuar.",
 ] as const;
 
 /** Frases humanas por paso — guía hablada del kiosko táctil. */
@@ -151,7 +151,7 @@ export const TEMP_SUCCESS_VOICE =
 
 /** Al iniciar lectura del ECG (botón). */
 export const ECG_START_VOICE =
-  "Iniciamos el electrocardiograma. Encienda el MD100C_P, ponga los dedos en las placas y manténgalos quietos unos treinta segundos. Cuando vea la frecuencia en el aparato, toque Ya terminó.";
+  "Iniciamos el electrocardiograma. Encienda el MD100C_P, ponga los dedos en las placas y manténgalos quietos unos treinta segundos. Cuando vea la onda en la pantalla, toque Ya terminó. El pulso lo tomamos con el oxímetro.";
 
 /** Tras ECG. */
 export const ECG_SUCCESS_VOICE =

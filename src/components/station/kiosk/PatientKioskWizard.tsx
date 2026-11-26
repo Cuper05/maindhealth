@@ -1636,17 +1636,19 @@ export function PatientKioskWizard() {
           setEcgWave(progress.wave);
         }
       });
+      if (sample.wave && sample.wave.length > 0) {
+        setEcgWave(sample.wave);
+      }
+      // FC (lpm) solo del oxímetro; el ECG aporta el trazado.
       const patch: VitalsDraft = {
         ecgStatus: "done",
         ecgRhythm: sample.rhythm,
-        ecgHeartRate: String(sample.heartRate),
-        heartRate: String(sample.heartRate),
         ecgSource: sample.source ?? "md100c_p",
       };
       setVitalsDraft((prev) => ({ ...prev, ...patch }));
       await kioskApi.patchVitals(patch, "done");
       setDeviceStatus("done");
-      setEcgStatusMsg(`${sample.rhythm} · FC ${sample.heartRate} lpm`);
+      setEcgStatusMsg(sample.rhythm);
     } catch (err) {
       setDeviceStatus("retry");
       const msg = err instanceof Error ? err.message : "No se pudo leer el ECG";
@@ -3153,7 +3155,7 @@ export function PatientKioskWizard() {
           steps={[...ECG_VOICE_STEPS]}
           tips={[
             "Encienda el MD100C_P de la estación (Bluetooth).",
-            "Dedos en las placas ~30 s. Cuando vea la FC en el aparato, toque Ya terminó.",
+            "Dedos en las placas ~30 s. Cuando vea la onda, toque Ya terminó. El pulso (lpm) lo da el oxímetro.",
           ]}
           illustration="ecg"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.ecgStatus))}
@@ -3162,8 +3164,8 @@ export function PatientKioskWizard() {
             vitalsDraft.ecgStatus
               ? [
                   interpretEcg(vitalsDraft.ecgStatus, vitalsDraft.ecgRhythm)!,
-                  ...(interpretHeartRate(vitalsDraft.ecgHeartRate ?? vitalsDraft.heartRate)
-                    ? [interpretHeartRate(vitalsDraft.ecgHeartRate ?? vitalsDraft.heartRate)!]
+                  ...(interpretHeartRate(vitalsDraft.heartRate)
+                    ? [interpretHeartRate(vitalsDraft.heartRate)!]
                     : []),
                 ]
               : undefined
@@ -3179,7 +3181,7 @@ export function PatientKioskWizard() {
           onCapture={() => void captureEcg()}
           captureLabel="Leer electrocardiograma"
           capturingLabel="Ya terminó"
-          captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la FC, Ya terminó."
+          captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la onda, Ya terminó. El pulso lo tomamos con el oxímetro."
           capturing={ecgCapturing}
           captureCanConfirm
           extra={
@@ -3193,12 +3195,10 @@ export function PatientKioskWizard() {
             ) : null
           }
           onSimulate={() => {
-            setEcgWave(buildSyntheticEcgWave(280, 72));
+            setEcgWave(buildSyntheticEcgWave(90));
             simulateReading({
               ecgStatus: "done",
-              ecgRhythm: "FC en rango normal (MD100C_P)",
-              ecgHeartRate: "72",
-              heartRate: vitalsDraft.heartRate ?? "72",
+              ecgRhythm: "Trazado ECG registrado (MD100C_P)",
               ecgSource: "md100c_p",
             });
           }}

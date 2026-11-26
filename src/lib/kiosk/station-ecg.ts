@@ -1,14 +1,14 @@
 /**
  * Lectura del MD100C_P (BLE) desde 127.0.0.1:3928.
- * Flujo: conectar → dedo ~30 s → «Ya terminó» → FC + etiqueta clínica + onda en vivo.
+ * Solo trazado/onda. La FC (lpm) la da el oxímetro, no este bridge.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3928";
 
 export type StationEcgSample = {
-  heartRate: number;
   rhythm: string;
-  quality?: string;
+  wavePoints?: number;
+  wave?: number[];
   source?: string;
 };
 
@@ -31,7 +31,7 @@ export async function readStationEcg(
 ): Promise<StationEcgSample> {
   onProgress?.({
     message:
-      "Encienda el MD100C_P, dedos en las placas ~30 s. Cuando vea la FC en el aparato, toque Ya terminó.",
+      "Encienda el MD100C_P, dedos en las placas ~30 s. Cuando vea la onda, toque Ya terminó.",
     wave: [],
   });
 
@@ -65,9 +65,9 @@ export async function readStationEcg(
     });
     const data = (await res.json()) as {
       ok?: boolean;
-      heartRate?: number;
       rhythm?: string;
-      quality?: string;
+      wavePoints?: number;
+      wave?: number[];
       source?: string;
       error?: string;
     };
@@ -77,18 +77,16 @@ export async function readStationEcg(
           "Sin lectura del MD100C_P. Mantenga el dedo ~30 s y toque Ya terminó.",
       );
     }
-    const heartRate = Number(data.heartRate);
-    const rhythm = typeof data.rhythm === "string" ? data.rhythm.trim() : "";
-    if (!(heartRate >= 30 && heartRate <= 250) || !rhythm) {
-      throw new Error(
-        "Lectura inválida del MD100C_P. Reintente con el dedo firme en el sensor.",
-      );
-    }
-    onProgress?.({ message: `${rhythm} · FC ${heartRate} lpm` });
+    const rhythm =
+      typeof data.rhythm === "string" && data.rhythm.trim()
+        ? data.rhythm.trim()
+        : "Trazado ECG registrado (MD100C_P)";
+    const wave = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
+    onProgress?.({ message: rhythm, wave });
     return {
-      heartRate,
       rhythm,
-      quality: data.quality,
+      wavePoints: data.wavePoints ?? wave.length,
+      wave,
       source: data.source ?? "md100c_p",
     };
   } catch (err) {
@@ -111,39 +109,13 @@ export async function readStationEcg(
   }
 }
 
-/** Trazado sintético PQRST para demo / simulación (no clínico). */
-export function buildSyntheticEcgWave(points = 280, bpm = 72): number[] {
+/** Trazado sintético (estilo data[3] ~60–100) para demo / simulación. */
+export function buildSyntheticEcgWave(points = 90): number[] {
   const samples: number[] = [];
-  const samplesPerBeat = Math.max(40, Math.round((60 / bpm) * 90));
   for (let i = 0; i < points; i++) {
-    const t = (i % samplesPerBeat) / samplesPerBeat;
-    let y = 0.5;
-    // P
-    if (t > 0.08 && t < 0.16) {
-      const u = (t - 0.08) / 0.08;
-      y += 0.12 * Math.sin(Math.PI * u);
-    }
-    // Q
-    if (t > 0.28 && t < 0.32) {
-      const u = (t - 0.28) / 0.04;
-      y -= 0.15 * u;
-    }
-    // R
-    if (t >= 0.32 && t < 0.38) {
-      const u = (t - 0.32) / 0.06;
-      y += u < 0.5 ? -0.15 + u * 2.2 : 0.95 - (u - 0.5) * 2.4;
-    }
-    // S
-    if (t >= 0.38 && t < 0.44) {
-      const u = (t - 0.38) / 0.06;
-      y += -0.25 + u * 0.35;
-    }
-    // T
-    if (t > 0.52 && t < 0.72) {
-      const u = (t - 0.52) / 0.2;
-      y += 0.22 * Math.sin(Math.PI * u);
-    }
-    samples.push(Math.round(40 + y * 80 + Math.sin(i / 17) * 1.5));
+    const base = 70 + Math.sin(i / 3.2) * 22;
+    const notch = Math.sin(i / 1.1) * 6;
+    samples.push(Math.round(base + notch));
   }
   return samples;
 }

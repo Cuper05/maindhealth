@@ -7,12 +7,15 @@ Servicio local en `http://127.0.0.1:3928`.
 **MD100C_P** por Bluetooth LE.
 
 - MAC fija de esta estación: `FB:1E:E4:A4:03:00`
-- Comandos de activación (del script de prueba):
+- Comandos de activación (del script de prueba / `ecg.py`):
   - `01 00`
   - `55 AA 20 00 00 00 20`
-- Entrega **frecuencia cardiaca**, una etiqueta clínica derivada (bradicardia / normal / taquicardia) y la **onda en vivo** (`wave` en `GET /progress`) para el trazado del kiosko.
+- Entrega la **onda en vivo** (`wave` en `GET /progress`) para el trazado del kiosko.
+- **No** entrega frecuencia cardiaca: los **lpm** los toma el oxímetro CMS50D+.
 
-Sustituye al PC-80B USB y al flujo KardiaMobile del kiosco.
+### Decodificación de onda (`ecg.py`)
+
+En cada notificación BLE con `len(data) >= 4`, si `30 <= data[3] <= 200`, ese byte es un punto del trazado.
 
 ## Una sola vez
 
@@ -26,7 +29,7 @@ Requiere Python 3 y el paquete `bleak`. Bluetooth de la PC encendido.
 
 1. Encender el MD100C_P cerca de la estación
 2. Tocar **Leer electrocardiograma**
-3. Dedo en el sensor ~30 s
+3. Dedos en las placas ~30 s (ver onda en pantalla)
 4. Tocar **Ya terminó**
 
 ## Arranque
