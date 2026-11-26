@@ -1,6 +1,6 @@
 /**
  * Lectura del MD100C_P (BLE) desde 127.0.0.1:3928.
- * Solo trazado/onda. La FC (lpm) la da el oxímetro, no este bridge.
+ * Solo trazado/onda (data[3] / trama 0x01). La FC (lpm) la da el oxímetro.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3928";
@@ -46,16 +46,17 @@ export async function readStationEcg(
           wave?: number[];
           phase?: string;
         };
+        const raw = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
         onProgress?.({
           message: data.message,
-          wave: Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [],
+          wave: interpolateWave(raw),
           phase: data.phase,
         });
       } catch {
         /* ignore */
       }
     })();
-  }, 200);
+  }, 180);
 
   try {
     const res = await fetch(`${BRIDGE_URL}/read`, {
@@ -81,11 +82,12 @@ export async function readStationEcg(
       typeof data.rhythm === "string" && data.rhythm.trim()
         ? data.rhythm.trim()
         : "Trazado ECG registrado (MD100C_P)";
-    const wave = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
+    const raw = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
+    const wave = interpolateWave(raw);
     onProgress?.({ message: rhythm, wave });
     return {
       rhythm,
-      wavePoints: data.wavePoints ?? wave.length,
+      wavePoints: data.wavePoints ?? raw.length,
       wave,
       source: data.source ?? "md100c_p",
     };
@@ -109,13 +111,36 @@ export async function readStationEcg(
   }
 }
 
-/** Trazado sintético (estilo data[3] ~60–100) para demo / simulación. */
-export function buildSyntheticEcgWave(points = 90): number[] {
-  const samples: number[] = [];
-  for (let i = 0; i < points; i++) {
-    const base = 70 + Math.sin(i / 3.2) * 22;
-    const notch = Math.sin(i / 1.1) * 6;
-    samples.push(Math.round(base + notch));
+/**
+ * Interpolación coseno entre puntos crudos (data[3] / trama 0x01 de ecg.py).
+ * Rellena huecos para que el trazado se vea como onda sinusoidal continua.
+ */
+export function interpolateWave(raw: number[], outPoints = 180): number[] {
+  const pts = raw.filter((n) => Number.isFinite(n));
+  if (pts.length === 0) return [];
+  if (pts.length === 1) return Array.from({ length: Math.min(outPoints, 24) }, () => pts[0]!);
+
+  const target = Math.max(pts.length, Math.min(outPoints, pts.length * 6));
+  const out: number[] = [];
+  for (let i = 0; i < target; i++) {
+    const t = (i / (target - 1)) * (pts.length - 1);
+    const i0 = Math.floor(t);
+    const i1 = Math.min(i0 + 1, pts.length - 1);
+    const frac = t - i0;
+    // Cosine ease = tramo suave tipo seno entre muestras BLE.
+    const mu = (1 - Math.cos(frac * Math.PI)) / 2;
+    out.push(pts[i0]! * (1 - mu) + pts[i1]! * mu);
   }
-  return samples;
+  return out;
+}
+
+/** Trazado sintético (estilo data[3] ~40–180 de ecg.py) para demo. */
+export function buildSyntheticEcgWave(points = 90): number[] {
+  const raw: number[] = [];
+  for (let i = 0; i < Math.max(12, Math.floor(points / 4)); i++) {
+    const base = 70 + Math.sin(i / 1.6) * 28;
+    const beat = Math.sin(i * 1.7) * 10;
+    raw.push(Math.round(base + beat));
+  }
+  return interpolateWave(raw, points);
 }

@@ -34,9 +34,9 @@ MIN_MEASURE_SEC = float(os.environ.get("ECG_MIN_MEASURE_SEC", "28"))
 # Mínimo de puntos de onda antes de poder auto-cerrar (tras MIN_MEASURE_SEC).
 MIN_WAVE_POINTS = int(os.environ.get("ECG_MIN_WAVE_POINTS", "40"))
 HEX_LOG_LIMIT = int(os.environ.get("ECG_HEX_LOG_LIMIT", "80"))
-# Ventana de trazado (~últimos puntos, como el historial de 30 en ecg.py).
-WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "120"))
-WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "90"))
+# Ventana de trazado (ecg.py guarda ~30; aquí más puntos para interpolar en el kiosko).
+WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "240"))
+WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "120"))
 
 # Comandos de activación (mismos que ecg.py / script de estación).
 ACTIVATE_COMMANDS = [
@@ -75,17 +75,29 @@ def get_progress() -> dict[str, Any]:
         return out
 
 
-def extract_wave_point(data: bytes) -> int | None:
+def extract_wave_points(data: bytes) -> list[int]:
     """
-    Traducción de onda según ecg.py de estación:
-    data[3] = amplitud del trazado (un punto por notificación BLE).
+    Traducción de onda según ecg.py + densificación.
+
+    ecg.py: si len >= 4 y 30 <= data[3] <= 200 → un punto.
+    Tramas de onda ChoiceMMed (0x01, 16 B): también bytes 1..n como muestras
+    para que el kiosko pueda interpolar una sinusoidal continua.
     """
-    if len(data) < 4:
-        return None
-    value = int(data[3])
-    if 30 <= value <= 200:
-        return value
-    return None
+    if not data:
+        return []
+
+    # Trama rápida de onda: varias muestras por notificación.
+    if data[0] == 0x01 and len(data) in (16, 17, 20):
+        pts = [int(b) for b in data[1:] if 20 <= int(b) <= 220]
+        if pts:
+            return pts
+
+    # Fallback exacto de ecg.py: un punto en data[3].
+    if len(data) >= 4:
+        value = int(data[3])
+        if 30 <= value <= 200:
+            return [value]
+    return []
 
 
 def _log_hex(data: bytes, note: str = "") -> None:
@@ -100,19 +112,19 @@ def _log_hex(data: bytes, note: str = "") -> None:
 def notification_handler(_sender: Any, data: bytearray) -> None:
     global _wave_total
     raw = bytes(data)
-    point = extract_wave_point(raw)
-    note = f"wave={point} " if point is not None else ""
+    points = extract_wave_points(raw)
+    note = f"wave+{len(points)} " if points else ""
     _log_hex(raw, note)
 
-    if point is None:
+    if not points:
         return
 
     with _lock:
-        _wave_samples.append(point)
-        _wave_total += 1
+        _wave_samples.extend(points)
+        _wave_total += len(points)
         n = _wave_total
 
-    if n == 1 or n % 8 == 0:
+    if n <= 16 or n % 24 == 0:
         set_progress(
             "measure",
             f"Onda en vivo… {n} puntos. Dedos en las placas; luego Ya terminó.",
