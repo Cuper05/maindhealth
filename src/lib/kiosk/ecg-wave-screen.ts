@@ -224,7 +224,7 @@ export function analyzeEcgWave(
     if (irregular) {
       flags.push("irregular");
       // Sospecha FA suave: irregularidad alta + varios latidos + calidad ok.
-      if (cv > 0.28 && rmssdNorm > 0.24 && peaks.length >= 8 && quality !== "poor") {
+      if (cv > 0.28 && rmssdNorm > 0.24 && peaks.length >= 8) {
         flags.push("possible_af");
       }
     }
