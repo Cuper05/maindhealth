@@ -3226,7 +3226,7 @@ export function PatientKioskWizard() {
                     label={
                       ecgCapturing
                         ? "Monitor ECG"
-                        : "Onda ECG (monitor)"
+                        : "Onda ECG completa"
                     }
                   />
                 ) : null}
