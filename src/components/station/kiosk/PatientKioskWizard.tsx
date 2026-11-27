@@ -3190,14 +3190,14 @@ export function PatientKioskWizard() {
                 <EcgWaveform
                   samples={ecgWave}
                   live={ecgCapturing}
-                  height={168}
-                  label={ecgCapturing ? "Onda ECG en vivo (data[3])" : "Último trazado"}
+                  height={190}
+                  label={ecgCapturing ? "Onda ECG en vivo" : "Último trazado"}
                 />
               </div>
             ) : null
           }
           onSimulate={() => {
-            setEcgWave(buildSyntheticEcgWave(90));
+            setEcgWave(buildSyntheticEcgWave(280));
             simulateReading({
               ecgStatus: "done",
               ecgRhythm: "Trazado ECG registrado (MD100C_P)",

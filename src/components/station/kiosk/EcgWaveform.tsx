@@ -11,15 +11,13 @@ type EcgWaveformProps = {
 };
 
 /**
- * Trazado estilo ecg.py (matplotlib):
- * - eje Y fijo 40–180
- * - línea crimson con puntos
- * - últimos samples interpolados en el kiosko
+ * Papel ECG rosa + trazo oscuro (como la app ChoiceMMed).
+ * Muestras uint16 ya decodificadas (LO|HI<<8), no bytes sueltos.
  */
 export function EcgWaveform({
   samples,
   live = false,
-  height = 168,
+  height = 190,
   className = "",
   label = "Onda ECG",
 }: EcgWaveformProps) {
@@ -44,35 +42,42 @@ export function EcgWaveform({
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      ctx.fillStyle = "#fff8f8";
+      // Fondo papel ECG (rosa claro).
+      ctx.fillStyle = "#ffe4ec";
       ctx.fillRect(0, 0, w, h);
 
-      // Grilla como ax.grid(True) de ecg.py
-      ctx.strokeStyle = "rgba(220, 20, 60, 0.12)";
+      const minor = 8;
+      const major = 40;
+      ctx.strokeStyle = "rgba(233, 90, 120, 0.28)";
       ctx.lineWidth = 1;
-      for (let x = 0; x <= w; x += 24) {
+      for (let x = 0; x <= w; x += minor) {
         ctx.beginPath();
         ctx.moveTo(x + 0.5, 0);
         ctx.lineTo(x + 0.5, h);
         ctx.stroke();
       }
-      for (let y = 0; y <= h; y += 24) {
+      for (let y = 0; y <= h; y += minor) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(200, 50, 80, 0.45)";
+      for (let x = 0; x <= w; x += major) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= h; y += major) {
         ctx.beginPath();
         ctx.moveTo(0, y + 0.5);
         ctx.lineTo(w, y + 0.5);
         ctx.stroke();
       }
 
-      const yMin = 40;
-      const yMax = 180;
-      const yAt = (v: number) => {
-        const clamped = Math.min(yMax, Math.max(yMin, v));
-        const t = (clamped - yMin) / (yMax - yMin);
-        return h - 10 - t * (h - 20);
-      };
-
       if (!samples.length) {
-        ctx.fillStyle = "#64748b";
+        ctx.fillStyle = "#7f1d1d";
         ctx.font = "600 16px system-ui, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(
@@ -83,13 +88,32 @@ export function EcgWaveform({
         return;
       }
 
+      let min = samples[0]!;
+      let max = samples[0]!;
+      for (const v of samples) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      const span = max - min;
+      const pad = Math.max(span * 0.15, span < 8 ? 40 : 12);
+      min -= pad;
+      max += pad;
+      if (max - min < 20) {
+        min -= 30;
+        max += 30;
+      }
+
       const n = samples.length;
       const xStep = n > 1 ? w / (n - 1) : w;
+      const yAt = (v: number) => {
+        const t = (v - min) / (max - min || 1);
+        return h - 8 - t * (h - 16);
+      };
 
-      // Línea crimson (como color='crimson' en ecg.py)
+      // Trazo oscuro como la app del aparato.
       ctx.beginPath();
-      ctx.strokeStyle = "#dc143c";
-      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "#1a1a1a";
+      ctx.lineWidth = 1.75;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       samples.forEach((v, i) => {
@@ -100,20 +124,11 @@ export function EcgWaveform({
       });
       ctx.stroke();
 
-      // Marcadores cada ~N puntos (marker='o' de matplotlib, sin saturar)
-      const markEvery = Math.max(1, Math.floor(n / 28));
-      ctx.fillStyle = "#dc143c";
-      for (let i = 0; i < n; i += markEvery) {
-        ctx.beginPath();
-        ctx.arc(i * xStep, yAt(samples[i]!), 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
       if (live) {
         const last = samples[n - 1]!;
         ctx.beginPath();
-        ctx.fillStyle = "#ea580c";
-        ctx.arc((n - 1) * xStep, yAt(last), 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#dc143c";
+        ctx.arc((n - 1) * xStep, yAt(last), 3.5, 0, Math.PI * 2);
         ctx.fill();
       }
     };
@@ -127,14 +142,14 @@ export function EcgWaveform({
   return (
     <div
       ref={wrapRef}
-      className={`shrink-0 overflow-hidden rounded-2xl border-2 border-rose-300/70 bg-[#fff8f8] shadow-sm ${className}`}
+      className={`shrink-0 overflow-hidden rounded-2xl border-2 border-rose-300 bg-[#ffe4ec] shadow-sm ${className}`}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-rose-200/80 px-3 py-1.5">
-        <p className="text-sm font-bold uppercase tracking-wide text-rose-900 xl:text-base">
+      <div className="flex items-center justify-between gap-2 border-b border-rose-300/70 bg-white/50 px-3 py-1.5">
+        <p className="text-sm font-bold uppercase tracking-wide text-rose-950 xl:text-base">
           {label}
         </p>
         {live ? (
-          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-800">
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-900">
             <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" />
             En vivo
           </span>

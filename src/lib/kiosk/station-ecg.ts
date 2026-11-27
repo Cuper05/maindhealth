@@ -1,6 +1,6 @@
 /**
  * Lectura del MD100C_P (BLE) desde 127.0.0.1:3928.
- * Solo trazado/onda (data[3] / trama 0x01). La FC (lpm) la da el oxímetro.
+ * Onda ChoiceMMed: 0x01 + 5×[LO,HI,FLAG] → uint16. FC = oxímetro.
  */
 
 const BRIDGE_URL = "http://127.0.0.1:3928";
@@ -49,14 +49,14 @@ export async function readStationEcg(
         const raw = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
         onProgress?.({
           message: data.message,
-          wave: interpolateWave(raw),
+          wave: prepareWaveForDisplay(raw),
           phase: data.phase,
         });
       } catch {
         /* ignore */
       }
     })();
-  }, 180);
+  }, 160);
 
   try {
     const res = await fetch(`${BRIDGE_URL}/read`, {
@@ -83,7 +83,7 @@ export async function readStationEcg(
         ? data.rhythm.trim()
         : "Trazado ECG registrado (MD100C_P)";
     const raw = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
-    const wave = interpolateWave(raw);
+    const wave = prepareWaveForDisplay(raw);
     onProgress?.({ message: rhythm, wave });
     return {
       rhythm,
@@ -112,35 +112,51 @@ export async function readStationEcg(
 }
 
 /**
- * Interpolación coseno entre puntos crudos (data[3] / trama 0x01 de ecg.py).
- * Rellena huecos para que el trazado se vea como onda sinusoidal continua.
+ * Con muestras densas (uint16 de trama 0x01) se muestran crudas.
+ * Solo si llegan pocos puntos (fallback data[3]) se rellenan con coseno.
  */
-export function interpolateWave(raw: number[], outPoints = 180): number[] {
+export function prepareWaveForDisplay(raw: number[], maxPoints = 360): number[] {
   const pts = raw.filter((n) => Number.isFinite(n));
   if (pts.length === 0) return [];
-  if (pts.length === 1) return Array.from({ length: Math.min(outPoints, 24) }, () => pts[0]!);
+  if (pts.length >= 40) {
+    return pts.length > maxPoints ? pts.slice(-maxPoints) : pts;
+  }
+  return interpolateSparseWave(pts, Math.min(180, Math.max(48, pts.length * 8)));
+}
 
-  const target = Math.max(pts.length, Math.min(outPoints, pts.length * 6));
+function interpolateSparseWave(pts: number[], outPoints: number): number[] {
+  if (pts.length === 1) {
+    return Array.from({ length: Math.min(outPoints, 24) }, () => pts[0]!);
+  }
   const out: number[] = [];
-  for (let i = 0; i < target; i++) {
-    const t = (i / (target - 1)) * (pts.length - 1);
+  for (let i = 0; i < outPoints; i++) {
+    const t = (i / (outPoints - 1)) * (pts.length - 1);
     const i0 = Math.floor(t);
     const i1 = Math.min(i0 + 1, pts.length - 1);
     const frac = t - i0;
-    // Cosine ease = tramo suave tipo seno entre muestras BLE.
     const mu = (1 - Math.cos(frac * Math.PI)) / 2;
     out.push(pts[i0]! * (1 - mu) + pts[i1]! * mu);
   }
   return out;
 }
 
-/** Trazado sintético (estilo data[3] ~40–180 de ecg.py) para demo. */
-export function buildSyntheticEcgWave(points = 90): number[] {
+/** Demo: morfología tipo ECG (no clínico). */
+export function buildSyntheticEcgWave(points = 280): number[] {
   const raw: number[] = [];
-  for (let i = 0; i < Math.max(12, Math.floor(points / 4)); i++) {
-    const base = 70 + Math.sin(i / 1.6) * 28;
-    const beat = Math.sin(i * 1.7) * 10;
-    raw.push(Math.round(base + beat));
+  const samplesPerBeat = 42;
+  for (let i = 0; i < points; i++) {
+    const t = (i % samplesPerBeat) / samplesPerBeat;
+    let y = 512;
+    if (t > 0.1 && t < 0.18) y += 40 * Math.sin(((t - 0.1) / 0.08) * Math.PI);
+    if (t > 0.28 && t < 0.32) y -= 50 * ((t - 0.28) / 0.04);
+    if (t >= 0.32 && t < 0.38) {
+      const u = (t - 0.32) / 0.06;
+      y += u < 0.45 ? -50 + u * 900 : 355 - (u - 0.45) * 820;
+    }
+    if (t >= 0.38 && t < 0.44) y += -80 + ((t - 0.38) / 0.06) * 100;
+    if (t > 0.55 && t < 0.75) y += 70 * Math.sin(((t - 0.55) / 0.2) * Math.PI);
+    y += Math.sin(i / 11) * 4;
+    raw.push(Math.round(y));
   }
-  return interpolateWave(raw, points);
+  return raw;
 }

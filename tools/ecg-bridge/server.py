@@ -7,8 +7,10 @@ Solo captura la onda (trazado) para el kiosko.
 La frecuencia cardiaca (lpm) NO se toma de este aparato:
 viene del oxímetro CMS50D+ en el paso de SpO₂.
 
-Decodificación de onda (ecg.py de estación):
-  si len(data) >= 4 y 30 <= data[3] <= 200 → un punto del trazado.
+Decodificación de onda ChoiceMMed (trama 16 B):
+  0x01 + 5×[LO, HI, FLAG] → amplitud uint16 = LO | (HI<<8).
+  (Leer byte a byte daba diente de sierra; FLAG≈0x01 / HI≈0).
+  Fallback ecg.py: data[3] si 30..200.
 """
 
 from __future__ import annotations
@@ -34,9 +36,9 @@ MIN_MEASURE_SEC = float(os.environ.get("ECG_MIN_MEASURE_SEC", "28"))
 # Mínimo de puntos de onda antes de poder auto-cerrar (tras MIN_MEASURE_SEC).
 MIN_WAVE_POINTS = int(os.environ.get("ECG_MIN_WAVE_POINTS", "40"))
 HEX_LOG_LIMIT = int(os.environ.get("ECG_HEX_LOG_LIMIT", "80"))
-# Ventana de trazado (ecg.py guarda ~30; aquí más puntos para interpolar en el kiosko).
-WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "240"))
-WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "120"))
+# ~3–4 s de onda a ~120 Hz (5 muestras/paquete).
+WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "480"))
+WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "360"))
 
 # Comandos de activación (mismos que ecg.py / script de estación).
 ACTIVATE_COMMANDS = [
@@ -77,22 +79,29 @@ def get_progress() -> dict[str, Any]:
 
 def extract_wave_points(data: bytes) -> list[int]:
     """
-    Traducción de onda según ecg.py + densificación.
+    Onda ChoiceMMed BLE (misma familia que MD300 / MD100C):
 
-    ecg.py: si len >= 4 y 30 <= data[3] <= 200 → un punto.
-    Tramas de onda ChoiceMMed (0x01, 16 B): también bytes 1..n como muestras
-    para que el kiosko pueda interpolar una sinusoidal continua.
+    Trama 16 bytes: 0x01 + cinco muestras [LO, HI, FLAG].
+    Amplitud = LO | (HI << 8). FLAG se ignora.
+
+    Fallback (ecg.py): un punto en data[3] si 30..200.
     """
     if not data:
         return []
 
-    # Trama rápida de onda: varias muestras por notificación.
-    if data[0] == 0x01 and len(data) in (16, 17, 20):
-        pts = [int(b) for b in data[1:] if 20 <= int(b) <= 220]
-        if pts:
+    if data[0] == 0x01 and len(data) >= 16:
+        pts: list[int] = []
+        # 5 triplets caben en 16 bytes (offsets 1,4,7,10,13).
+        for i in range(1, 16, 3):
+            if i + 1 >= len(data):
+                break
+            lo = int(data[i])
+            hi = int(data[i + 1])
+            pts.append(lo | (hi << 8))
+        if len(pts) >= 3:
             return pts
 
-    # Fallback exacto de ecg.py: un punto en data[3].
+    # Fallback exacto de ecg.py.
     if len(data) >= 4:
         value = int(data[3])
         if 30 <= value <= 200:
@@ -323,8 +332,17 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/read":
             simulate = qs.get("simulate", ["0"])[0] == "1" or body.get("simulate") is True
             if simulate:
-                # Onda sintética; sin heartRate (eso es del oxímetro).
-                synthetic = [70 + int(25 * math.sin(i / 3.2)) for i in range(60)]
+                # Onda sintética tipo ECG (uint16); sin heartRate (oxímetro).
+                synthetic = []
+                for i in range(200):
+                    t = (i % 40) / 40.0
+                    y = 512.0
+                    if 0.28 <= t < 0.38:
+                        u = (t - 0.28) / 0.1
+                        y += -40 + (900 * u if u < 0.4 else 360 - (u - 0.4) * 700)
+                    elif 0.55 < t < 0.75:
+                        y += 60 * math.sin(((t - 0.55) / 0.2) * math.pi)
+                    synthetic.append(int(y + 3 * math.sin(i / 9)))
                 self._send(
                     200,
                     {
