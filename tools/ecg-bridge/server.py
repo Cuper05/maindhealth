@@ -368,17 +368,24 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/read":
             simulate = qs.get("simulate", ["0"])[0] == "1" or body.get("simulate") is True
             if simulate:
-                # Onda sintética tipo ECG (uint16); sin heartRate (oxímetro).
+                # Onda sintética tipo monitor (P–QRS–T suave / sinusoidal).
+                # Solo senos — sin picos triangulares. Sin heartRate (oxímetro).
                 synthetic = []
-                for i in range(200):
-                    t = (i % 40) / 40.0
-                    y = 512.0
-                    if 0.28 <= t < 0.38:
-                        u = (t - 0.28) / 0.1
-                        y += -40 + (900 * u if u < 0.4 else 360 - (u - 0.4) * 700)
-                    elif 0.55 < t < 0.75:
-                        y += 60 * math.sin(((t - 0.55) / 0.2) * math.pi)
-                    synthetic.append(int(y + 3 * math.sin(i / 9)))
+                samples_per_beat = 50  # ~72 lpm a ~60 Hz
+                for i in range(480):
+                    phase = (i % samples_per_beat) / float(samples_per_beat)
+                    y = 512.0 + 5.0 * math.sin(i / 48.0)
+                    if 0.08 < phase < 0.18:
+                        y += 32.0 * math.sin(((phase - 0.08) / 0.1) * math.pi)
+                    if 0.26 < phase < 0.30:
+                        y -= 38.0 * math.sin(((phase - 0.26) / 0.04) * math.pi)
+                    if 0.30 <= phase < 0.38:
+                        y += 205.0 * math.sin(((phase - 0.30) / 0.08) * math.pi)
+                    if 0.38 <= phase < 0.45:
+                        y -= 58.0 * math.sin(((phase - 0.38) / 0.07) * math.pi)
+                    if 0.52 < phase < 0.74:
+                        y += 58.0 * math.sin(((phase - 0.52) / 0.22) * math.pi)
+                    synthetic.append(int(round(y)))
                 self._send(
                     200,
                     {

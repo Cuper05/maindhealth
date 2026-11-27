@@ -170,22 +170,39 @@ export function prepareWaveForDisplay(raw: number[], maxPoints = 600): number[] 
   return pts.length > maxPoints ? pts.slice(-maxPoints) : pts;
 }
 
-/** Demo: morfología tipo ECG (no clínico). */
-export function buildSyntheticEcgWave(points = 280): number[] {
+/**
+ * Demo: onda tipo monitor de signos vitales (P–QRS–T suave / sinusoidal).
+ * Sin picos triangulares; solo senos. No clínico.
+ */
+export function buildSyntheticEcgWave(points = 480, bpm = 72): number[] {
+  const sampleRate = 60;
+  const samplesPerBeat = Math.max(24, Math.round((60 / bpm) * sampleRate));
   const raw: number[] = [];
-  const samplesPerBeat = 42;
   for (let i = 0; i < points; i++) {
-    const t = (i % samplesPerBeat) / samplesPerBeat;
-    let y = 512;
-    if (t > 0.1 && t < 0.18) y += 40 * Math.sin(((t - 0.1) / 0.08) * Math.PI);
-    if (t > 0.28 && t < 0.32) y -= 50 * ((t - 0.28) / 0.04);
-    if (t >= 0.32 && t < 0.38) {
-      const u = (t - 0.32) / 0.06;
-      y += u < 0.45 ? -50 + u * 900 : 355 - (u - 0.45) * 820;
+    const phase = (i % samplesPerBeat) / samplesPerBeat;
+    let y = 512 + 5 * Math.sin(i / 48);
+
+    // P (seno suave)
+    if (phase > 0.08 && phase < 0.18) {
+      y += 32 * Math.sin(((phase - 0.08) / 0.1) * Math.PI);
     }
-    if (t >= 0.38 && t < 0.44) y += -80 + ((t - 0.38) / 0.06) * 100;
-    if (t > 0.55 && t < 0.75) y += 70 * Math.sin(((t - 0.55) / 0.2) * Math.PI);
-    y += Math.sin(i / 11) * 4;
+    // Q (valle seno)
+    if (phase > 0.26 && phase < 0.3) {
+      y -= 38 * Math.sin(((phase - 0.26) / 0.04) * Math.PI);
+    }
+    // R (seno alto — aspecto monitor, no diente de sierra)
+    if (phase >= 0.3 && phase < 0.38) {
+      y += 205 * Math.sin(((phase - 0.3) / 0.08) * Math.PI);
+    }
+    // S (valle seno)
+    if (phase >= 0.38 && phase < 0.45) {
+      y -= 58 * Math.sin(((phase - 0.38) / 0.07) * Math.PI);
+    }
+    // T (seno)
+    if (phase > 0.52 && phase < 0.74) {
+      y += 58 * Math.sin(((phase - 0.52) / 0.22) * Math.PI);
+    }
+
     raw.push(Math.round(y));
   }
   return raw;
