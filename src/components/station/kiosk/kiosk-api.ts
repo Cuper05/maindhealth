@@ -199,6 +199,9 @@ export type VitalsDraft = {
   ecgStatus?: string;
   ecgRhythm?: string;
   ecgHeartRate?: string;
+  ecgQuality?: string;
+  ecgFlags?: string;
+  ecgEstimatedHr?: string;
   ecgSource?: string;
   ecgKardiaReady?: string;
   ecgKardiaFileName?: string;

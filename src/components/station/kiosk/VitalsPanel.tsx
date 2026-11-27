@@ -29,7 +29,12 @@ function buildRows(draft: VitalsDraft): Row[] {
   const bmi = interpretBmi(draft.bmi);
   const weight = interpretWeight(draft.weight);
   const height = interpretHeight(draft.height);
-  const ecg = interpretEcg(draft.ecgStatus, draft.ecgRhythm);
+  const ecg = interpretEcg(
+    draft.ecgStatus,
+    draft.ecgRhythm,
+    draft.ecgQuality,
+    draft.ecgFlags,
+  );
 
   return [
     {

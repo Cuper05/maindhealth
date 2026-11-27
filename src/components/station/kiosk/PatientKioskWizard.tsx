@@ -11,7 +11,12 @@ import {
   confirmStationEcgDone,
   buildSyntheticEcgWave,
 } from "@/lib/kiosk/station-ecg";
+import {
+  analyzeEcgWave,
+  ecgFlagsToCsv,
+} from "@/lib/kiosk/ecg-wave-screen";
 import { EcgWaveform } from "./EcgWaveform";
+import { EcgScreenChips } from "./EcgScreenChips";
 import { readStationScale } from "@/lib/kiosk/station-scale";
 import { confirmStationBpDone, readStationBp } from "@/lib/kiosk/station-bp";
 import { readStationThermometer } from "@/lib/kiosk/station-thermometer";
@@ -223,7 +228,18 @@ const VITAL_FIELDS: Record<string, (keyof VitalsDraft)[]> = {
   blood_pressure: ["systolicPressure", "diastolicPressure"],
   oxygen: ["oxygenSaturation"],
   temperature: ["temperature"],
-  ecg: ["ecgStatus", "ecgRhythm", "ecgHeartRate", "ecgSource", "ecgKardiaReady", "ecgKardiaFileName", "ecgKardiaMime"],
+  ecg: [
+    "ecgStatus",
+    "ecgRhythm",
+    "ecgHeartRate",
+    "ecgQuality",
+    "ecgFlags",
+    "ecgEstimatedHr",
+    "ecgSource",
+    "ecgKardiaReady",
+    "ecgKardiaFileName",
+    "ecgKardiaMime",
+  ],
 };
 
 /** Si ya hay lectura del paso, no bloquear en "reading" (evita Continuar/Atrás trabados). */
@@ -1636,19 +1652,28 @@ export function PatientKioskWizard() {
           setEcgWave(progress.wave);
         }
       });
-      if (sample.wave && sample.wave.length > 0) {
-        setEcgWave(sample.wave);
-      }
-      // FC (lpm) solo del oxímetro; el ECG aporta el trazado.
+      const wave = sample.wave && sample.wave.length > 0 ? sample.wave : [];
+      if (wave.length > 0) setEcgWave(wave);
+
+      const oxHr = Number(vitalsDraft.heartRate);
+      const screen = analyzeEcgWave(wave, {
+        oximeterHr: Number.isFinite(oxHr) ? oxHr : null,
+      });
+
+      // FC oficial = oxímetro; el ECG aporta trazado + cribado no diagnóstico.
       const patch: VitalsDraft = {
         ecgStatus: "done",
-        ecgRhythm: sample.rhythm,
+        ecgRhythm: screen.summaryEs,
+        ecgQuality: screen.quality,
+        ecgFlags: ecgFlagsToCsv(screen.flags),
+        ecgEstimatedHr:
+          screen.estimatedHr != null ? String(screen.estimatedHr) : "",
         ecgSource: sample.source ?? "md100c_p",
       };
       setVitalsDraft((prev) => ({ ...prev, ...patch }));
       await kioskApi.patchVitals(patch, "done");
       setDeviceStatus("done");
-      setEcgStatusMsg(sample.rhythm);
+      setEcgStatusMsg(screen.summaryEs);
     } catch (err) {
       setDeviceStatus("retry");
       const msg = err instanceof Error ? err.message : "No se pudo leer el ECG";
@@ -1658,7 +1683,7 @@ export function PatientKioskWizard() {
       setEcgCapturing(false);
       ecgCaptureLock.current = false;
     }
-  }, []);
+  }, [vitalsDraft.heartRate]);
 
   // Al entrar a oxígeno sin SpO2, siempre idle (nunca quedarse en "reading" de sesión vieja).
   useEffect(() => {
@@ -3163,7 +3188,12 @@ export function PatientKioskWizard() {
           readingViews={
             vitalsDraft.ecgStatus
               ? [
-                  interpretEcg(vitalsDraft.ecgStatus, vitalsDraft.ecgRhythm)!,
+                  interpretEcg(
+                    vitalsDraft.ecgStatus,
+                    vitalsDraft.ecgRhythm,
+                    vitalsDraft.ecgQuality,
+                    vitalsDraft.ecgFlags,
+                  )!,
                   ...(interpretHeartRate(vitalsDraft.heartRate)
                     ? [interpretHeartRate(vitalsDraft.heartRate)!]
                     : []),
@@ -3181,26 +3211,44 @@ export function PatientKioskWizard() {
           onCapture={() => void captureEcg()}
           captureLabel="Leer electrocardiograma"
           capturingLabel="Ya terminó"
-          captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la onda, Ya terminó. El pulso lo tomamos con el oxímetro."
+          captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la onda, Ya terminó. El pulso lo tomamos con el oxímetro. El cribado del trazado no es un diagnóstico."
           capturing={ecgCapturing}
           captureCanConfirm
           extra={
-            ecgCapturing || ecgWave.length > 0 ? (
-              <div className="shrink-0">
-                <EcgWaveform
-                  samples={ecgWave}
-                  live={ecgCapturing}
-                  height={190}
-                  label={ecgCapturing ? "Onda ECG en vivo" : "Último trazado"}
-                />
+            ecgCapturing || ecgWave.length > 0 || vitalsDraft.ecgStatus === "done" ? (
+              <div className="shrink-0 space-y-2">
+                {ecgCapturing || ecgWave.length > 0 ? (
+                  <EcgWaveform
+                    samples={ecgWave}
+                    live={ecgCapturing}
+                    height={190}
+                    label={ecgCapturing ? "Onda ECG en vivo" : "Último trazado"}
+                  />
+                ) : null}
+                {vitalsDraft.ecgStatus === "done" ? (
+                  <EcgScreenChips
+                    quality={vitalsDraft.ecgQuality}
+                    flagsCsv={vitalsDraft.ecgFlags}
+                    estimatedHr={vitalsDraft.ecgEstimatedHr}
+                  />
+                ) : null}
               </div>
             ) : null
           }
           onSimulate={() => {
-            setEcgWave(buildSyntheticEcgWave(280));
+            const wave = buildSyntheticEcgWave(280);
+            setEcgWave(wave);
+            const oxHr = Number(vitalsDraft.heartRate);
+            const screen = analyzeEcgWave(wave, {
+              oximeterHr: Number.isFinite(oxHr) ? oxHr : 72,
+            });
             simulateReading({
               ecgStatus: "done",
-              ecgRhythm: "Trazado ECG registrado (MD100C_P)",
+              ecgRhythm: screen.summaryEs,
+              ecgQuality: screen.quality,
+              ecgFlags: ecgFlagsToCsv(screen.flags),
+              ecgEstimatedHr:
+                screen.estimatedHr != null ? String(screen.estimatedHr) : "",
               ecgSource: "md100c_p",
             });
           }}
