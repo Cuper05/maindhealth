@@ -3303,10 +3303,10 @@ export function PatientKioskWizard() {
             <KioskSecondaryButton
               disabled={busy}
               onClick={async () => {
+                // Conserva báscula (peso/altura/IMC); reinicia desde presión.
                 await clearVitalFields([
                   ...VITAL_FIELDS.blood_pressure,
                   ...VITAL_FIELDS.oxygen,
-                  ...VITAL_FIELDS.weight_height,
                   ...VITAL_FIELDS.temperature,
                   ...VITAL_FIELDS.ecg,
                   "heartRate",
