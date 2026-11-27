@@ -3222,11 +3222,10 @@ export function PatientKioskWizard() {
                     samples={ecgWave}
                     live={ecgCapturing}
                     liveWindow={280}
-                    eraseGap={20}
                     height={190}
                     label={
                       ecgCapturing
-                        ? "Onda ECG en vivo (barrido)"
+                        ? "Onda ECG en vivo"
                         : "Trazado completo de la lectura"
                     }
                   />

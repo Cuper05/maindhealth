@@ -5,10 +5,8 @@ import { useEffect, useRef } from "react";
 type EcgWaveformProps = {
   samples: number[];
   live?: boolean;
-  /** Columnas del barrido en vivo (~ancho del monitor). */
+  /** Columnas máximas del trazo en vivo (primera pasada L→R). */
   liveWindow?: number;
-  /** Ancho de la “borra” delante del cursor (px/columnas). */
-  eraseGap?: number;
   height?: number;
   className?: string;
   label?: string;
@@ -16,32 +14,30 @@ type EcgWaveformProps = {
 
 /**
  * Papel ECG rosa + trazo oscuro.
- * En vivo: barrido tipo monitor de signos vitales (la onda pasa L→R y la borra limpia delante).
+ * En vivo: dibuja la primera onda de izquierda a derecha y la deja fija
+ * (sin borrar ni volver a barrer).
  * Al terminar: trazado completo de la lectura.
  */
 export function EcgWaveform({
   samples,
   live = false,
   liveWindow = 280,
-  eraseGap = 18,
   height = 190,
   className = "",
   label = "Onda ECG",
 }: EcgWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  /** Buffer circular de columnas (NaN = vacío / borrado). */
-  const sweepRef = useRef<number[]>([]);
-  const writeRef = useRef(0);
-  const seenRef = useRef(0);
+  /** Primera pasada congelada (null = aún llenando). */
+  const frozenRef = useRef<number[] | null>(null);
+  const filledRef = useRef(0);
   const scaleRef = useRef({ min: 0, max: 1 });
 
-  // Reset del barrido al iniciar/detener vivo o vaciar muestras.
+  // Nueva lectura / detener vivo → soltar congelado.
   useEffect(() => {
     if (!live || samples.length === 0) {
-      sweepRef.current = [];
-      writeRef.current = 0;
-      seenRef.current = 0;
+      frozenRef.current = null;
+      filledRef.current = 0;
     }
   }, [live, samples.length]);
 
@@ -94,10 +90,8 @@ export function EcgWaveform({
       let min = vals[0]!;
       let max = vals[0]!;
       for (const v of vals) {
-        if (Number.isFinite(v)) {
-          if (v < min) min = v;
-          if (v > max) max = v;
-        }
+        if (v < min) min = v;
+        if (v > max) max = v;
       }
       const span = max - min;
       const pad = Math.max(span * 0.15, span < 8 ? 40 : 12);
@@ -107,9 +101,8 @@ export function EcgWaveform({
         min -= 30;
         max += 30;
       }
-      // Suaviza el zoom para que no “salte” en vivo.
       const prev = scaleRef.current;
-      if (prev.max > prev.min + 1 && live) {
+      if (prev.max > prev.min + 1 && live && !frozenRef.current) {
         scaleRef.current = {
           min: prev.min * 0.85 + min * 0.15,
           max: prev.max * 0.85 + max * 0.15,
@@ -117,6 +110,31 @@ export function EcgWaveform({
       } else {
         scaleRef.current = { min, max };
       }
+    };
+
+    const strokeTrace = (
+      ctx: CanvasRenderingContext2D,
+      vals: number[],
+      w: number,
+      h: number,
+      min: number,
+      max: number,
+    ) => {
+      const n = vals.length;
+      if (!n) return;
+      const xStep = n > 1 ? w / (n - 1) : w;
+      ctx.beginPath();
+      ctx.strokeStyle = "#1a1a1a";
+      ctx.lineWidth = 1.85;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      vals.forEach((v, i) => {
+        const x = i * xStep;
+        const y = yAt(v, h, min, max);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
     };
 
     const draw = () => {
@@ -149,108 +167,55 @@ export function EcgWaveform({
       if (!live) {
         updateScale(samples);
         const { min, max } = scaleRef.current;
-        const n = samples.length;
-        const xStep = n > 1 ? w / (n - 1) : w;
-        ctx.beginPath();
-        ctx.strokeStyle = "#1a1a1a";
-        ctx.lineWidth = 1.75;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        samples.forEach((v, i) => {
-          const x = i * xStep;
-          const y = yAt(v, h, min, max);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
+        strokeTrace(ctx, samples, w, h, min, max);
         return;
       }
 
-      // ——— Modo vivo: barrido L→R con borra delante del cursor ———
+      // ——— Modo vivo: primera pasada L→R y se congela ———
       const cols = Math.max(80, Math.min(liveWindow, Math.floor(w)));
-      if (sweepRef.current.length !== cols) {
-        sweepRef.current = Array.from({ length: cols }, () => Number.NaN);
-        writeRef.current = 0;
-        seenRef.current = 0;
+
+      if (samples.length < filledRef.current) {
+        // Nueva captura: reinicia.
+        frozenRef.current = null;
+        filledRef.current = 0;
       }
 
-      const buf = sweepRef.current;
-      const prevSeen = seenRef.current;
-      if (samples.length < prevSeen) {
-        // Nueva lectura.
-        buf.fill(Number.NaN);
-        writeRef.current = 0;
-        seenRef.current = 0;
-      }
-
-      const fresh = samples.slice(seenRef.current);
-      seenRef.current = samples.length;
-
-      if (fresh.length) {
-        updateScale(fresh.length >= 8 ? fresh : samples.slice(-Math.min(samples.length, 60)));
-      }
-
-      const gap = Math.max(8, Math.min(eraseGap, Math.floor(cols * 0.08)));
-      for (const v of fresh) {
-        const wi = writeRef.current % cols;
-        buf[wi] = v;
-        // Borra delante del cursor (hueco del monitor).
-        for (let g = 1; g <= gap; g++) {
-          buf[(wi + g) % cols] = Number.NaN;
+      if (!frozenRef.current) {
+        const slice = samples.slice(0, cols);
+        filledRef.current = samples.length;
+        updateScale(slice);
+        if (slice.length >= cols) {
+          frozenRef.current = slice.slice();
         }
-        writeRef.current = (wi + 1) % cols;
+        const { min, max } = scaleRef.current;
+        // Dibuja solo lo acumulado (crece L→R; no borra ni da la vuelta).
+        const drawW =
+          slice.length > 1 ? (w * (slice.length - 1)) / (cols - 1) : 0;
+        strokeTrace(ctx, slice, Math.max(drawW, 1), h, min, max);
+
+        if (slice.length) {
+          const x =
+            slice.length > 1 ? ((slice.length - 1) / (cols - 1)) * w : 0;
+          const last = slice[slice.length - 1]!;
+          ctx.beginPath();
+          ctx.fillStyle = "#dc143c";
+          ctx.arc(x, yAt(last, h, min, max), 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        return;
       }
 
+      // Primera onda ya completa: se queda fija.
+      updateScale(frozenRef.current);
       const { min, max } = scaleRef.current;
-      const xStep = cols > 1 ? w / (cols - 1) : w;
-
-      // Dibuja segmentos continuos (salta NaN = borra).
-      ctx.strokeStyle = "#1a1a1a";
-      ctx.lineWidth = 1.85;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      let drawing = false;
-      ctx.beginPath();
-      for (let i = 0; i < cols; i++) {
-        const v = buf[i]!;
-        if (!Number.isFinite(v)) {
-          drawing = false;
-          continue;
-        }
-        const x = i * xStep;
-        const y = yAt(v, h, min, max);
-        if (!drawing) {
-          ctx.moveTo(x, y);
-          drawing = true;
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      ctx.stroke();
-
-      // Cursor / punta de la onda.
-      const cursorCol = (writeRef.current - 1 + cols) % cols;
-      const cursorX = cursorCol * xStep;
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(220, 20, 60, 0.45)";
-      ctx.lineWidth = 1.5;
-      ctx.moveTo(cursorX, 0);
-      ctx.lineTo(cursorX, h);
-      ctx.stroke();
-      const cv = buf[cursorCol];
-      if (Number.isFinite(cv)) {
-        ctx.beginPath();
-        ctx.fillStyle = "#dc143c";
-        ctx.arc(cursorX, yAt(cv!, h, min, max), 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      strokeTrace(ctx, frozenRef.current, w, h, min, max);
     };
 
     draw();
     const ro = new ResizeObserver(() => draw());
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [samples, height, live, liveWindow, eraseGap]);
+  }, [samples, height, live, liveWindow]);
 
   return (
     <div
@@ -264,7 +229,7 @@ export function EcgWaveform({
         {live ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-900">
             <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" />
-            En vivo · barrido
+            En vivo
           </span>
         ) : null}
       </div>
