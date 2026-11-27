@@ -10,6 +10,7 @@ import {
   readStationEcg,
   confirmStationEcgDone,
   buildSyntheticEcgWave,
+  buildDisplaySinusFromSamples,
 } from "@/lib/kiosk/station-ecg";
 import {
   analyzeEcgWave,
@@ -1649,11 +1650,15 @@ export function PatientKioskWizard() {
       const sample = await readStationEcg((progress) => {
         if (progress.message) setEcgStatusMsg(progress.message);
         if (progress.wave && progress.wave.length > 0) {
-          setEcgWave(progress.wave);
+          // Display: ritmo sinusal tipo papel ECG paced por los datos recibidos.
+          // El cribado usa la onda cruda al finalizar.
+          setEcgWave(buildDisplaySinusFromSamples(progress.wave));
         }
       });
       const wave = sample.wave && sample.wave.length > 0 ? sample.wave : [];
-      if (wave.length > 0) setEcgWave(wave);
+      if (wave.length > 0) {
+        setEcgWave(buildDisplaySinusFromSamples(wave));
+      }
 
       const oxHr = Number(vitalsDraft.heartRate);
       const screen = analyzeEcgWave(wave, {
@@ -3232,6 +3237,7 @@ export function PatientKioskWizard() {
             const wave = buildSyntheticEcgWave(480, 72);
             setEcgWave(wave);
             const oxHr = Number(vitalsDraft.heartRate);
+            // Demo: misma morfología sinusal; cribado sobre esa onda.
             const screen = analyzeEcgWave(wave, {
               oximeterHr: Number.isFinite(oxHr) ? oxHr : 72,
             });

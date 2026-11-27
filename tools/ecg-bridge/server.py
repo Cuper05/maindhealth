@@ -368,23 +368,28 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/read":
             simulate = qs.get("simulate", ["0"])[0] == "1" or body.get("simulate") is True
             if simulate:
-                # Onda sintética tipo monitor (P–QRS–T suave / sinusoidal).
-                # Solo senos — sin picos triangulares. Sin heartRate (oxímetro).
+                # Ritmo sinusal (P–QRS–T) tipo papel ECG educativo. ~72 lpm @ 60 Hz.
+                def _lobe(t, center, half_w, amp):
+                    d = abs(t - center)
+                    if d >= half_w or half_w <= 0:
+                        return 0.0
+                    return amp * (math.sin((1.0 - d / half_w) * (math.pi / 2.0)) ** 2)
+
                 synthetic = []
-                samples_per_beat = 50  # ~72 lpm a ~60 Hz
+                sample_rate = 60.0
+                bpm = 72.0
+                spb = max(20, int(round((60.0 / bpm) * sample_rate)))
+                rr = spb / sample_rate
+                t_r = min(0.28, rr * 0.32)
+                t_p, t_q, t_s, t_t = t_r - 0.16, t_r - 0.025, t_r + 0.03, t_r + 0.22
                 for i in range(480):
-                    phase = (i % samples_per_beat) / float(samples_per_beat)
-                    y = 512.0 + 5.0 * math.sin(i / 48.0)
-                    if 0.08 < phase < 0.18:
-                        y += 32.0 * math.sin(((phase - 0.08) / 0.1) * math.pi)
-                    if 0.26 < phase < 0.30:
-                        y -= 38.0 * math.sin(((phase - 0.26) / 0.04) * math.pi)
-                    if 0.30 <= phase < 0.38:
-                        y += 205.0 * math.sin(((phase - 0.30) / 0.08) * math.pi)
-                    if 0.38 <= phase < 0.45:
-                        y -= 58.0 * math.sin(((phase - 0.38) / 0.07) * math.pi)
-                    if 0.52 < phase < 0.74:
-                        y += 58.0 * math.sin(((phase - 0.52) / 0.22) * math.pi)
+                    t = (i % spb) / sample_rate
+                    y = 512.0 + 2.5 * math.sin(i / 55.0)
+                    y += _lobe(t, t_p, 0.045, 36.0)
+                    y -= _lobe(t, t_q, 0.018, 42.0)
+                    y += _lobe(t, t_r, 0.028, 220.0)
+                    y -= _lobe(t, t_s, 0.024, 62.0)
+                    y += _lobe(t, t_t, 0.09, 64.0)
                     synthetic.append(int(round(y)))
                 self._send(
                     200,

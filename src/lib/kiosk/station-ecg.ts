@@ -170,40 +170,120 @@ export function prepareWaveForDisplay(raw: number[], maxPoints = 600): number[] 
   return pts.length > maxPoints ? pts.slice(-maxPoints) : pts;
 }
 
+/** Semi-seno positivo en [center ± halfWidth]. */
+function sineLobe(
+  tSec: number,
+  center: number,
+  halfWidth: number,
+  amp: number,
+): number {
+  const d = Math.abs(tSec - center);
+  if (d >= halfWidth || halfWidth <= 0) return 0;
+  return amp * Math.sin((1 - d / halfWidth) * (Math.PI / 2)) ** 2;
+}
+
 /**
- * Demo: onda tipo monitor de signos vitales (P–QRS–T suave / sinusoidal).
- * Sin picos triangulares; solo senos. No clínico.
+ * Ritmo sinusal normal (P–QRS–T) como en papel ECG educativo.
+ * Intervalos orientativos: PR 0.12–0.20 s, QRS ~0.08 s, QT ~0.36–0.40 s.
+ * Solo para visualización / demo — no clínico.
  */
-export function buildSyntheticEcgWave(points = 480, bpm = 72): number[] {
-  const sampleRate = 60;
-  const samplesPerBeat = Math.max(24, Math.round((60 / bpm) * sampleRate));
-  const raw: number[] = [];
+export function buildSinusRhythmWave(
+  points = 480,
+  bpm = 72,
+  sampleRate = 60,
+): number[] {
+  const hr = Math.min(140, Math.max(40, Math.round(bpm)));
+  const samplesPerBeat = Math.max(
+    20,
+    Math.round((60 / hr) * sampleRate),
+  );
+  const rr = samplesPerBeat / sampleRate; // segundos por latido
+
+  // Anclas en segundos dentro del ciclo (R cerca de 1/3 del RR).
+  const tR = Math.min(0.28, rr * 0.32);
+  const tP = tR - 0.16; // PR ~0.16 s
+  const tQ = tR - 0.025;
+  const tS = tR + 0.03;
+  const tT = tR + 0.22; // QT ~0.36–0.40
+
+  const out: number[] = [];
   for (let i = 0; i < points; i++) {
-    const phase = (i % samplesPerBeat) / samplesPerBeat;
-    let y = 512 + 5 * Math.sin(i / 48);
+    const t = ((i % samplesPerBeat) / sampleRate);
+    let y = 512 + 2.5 * Math.sin(i / 55);
 
-    // P (seno suave)
-    if (phase > 0.08 && phase < 0.18) {
-      y += 32 * Math.sin(((phase - 0.08) / 0.1) * Math.PI);
-    }
-    // Q (valle seno)
-    if (phase > 0.26 && phase < 0.3) {
-      y -= 38 * Math.sin(((phase - 0.26) / 0.04) * Math.PI);
-    }
-    // R (seno alto — aspecto monitor, no diente de sierra)
-    if (phase >= 0.3 && phase < 0.38) {
-      y += 205 * Math.sin(((phase - 0.3) / 0.08) * Math.PI);
-    }
-    // S (valle seno)
-    if (phase >= 0.38 && phase < 0.45) {
-      y -= 58 * Math.sin(((phase - 0.38) / 0.07) * Math.PI);
-    }
-    // T (seno)
-    if (phase > 0.52 && phase < 0.74) {
-      y += 58 * Math.sin(((phase - 0.52) / 0.22) * Math.PI);
-    }
+    // P redondeada
+    y += sineLobe(t, tP, 0.045, 36);
+    // Q pequeña
+    y -= sineLobe(t, tQ, 0.018, 42);
+    // R alta (pico sinusal)
+    y += sineLobe(t, tR, 0.028, 220);
+    // S
+    y -= sineLobe(t, tS, 0.024, 62);
+    // T redondeada
+    y += sineLobe(t, tT, 0.09, 64);
 
-    raw.push(Math.round(y));
+    out.push(Math.round(y));
   }
-  return raw;
+  return out;
+}
+
+/** Estimación rápida de FC por picos (para pacing del sinusal de display). */
+export function estimateHrForDisplay(
+  samples: number[],
+  sampleRate = 60,
+): number | null {
+  const pts = samples.filter((n) => Number.isFinite(n));
+  if (pts.length < Math.max(40, sampleRate)) return null;
+
+  const mean = pts.reduce((a, b) => a + b, 0) / pts.length;
+  const centered = pts.map((v) => v - mean);
+  const positives = centered.filter((v) => v > 0);
+  if (positives.length < 8) return null;
+  positives.sort((a, b) => a - b);
+  const thr = positives[Math.floor(positives.length * 0.85)]! * 0.55;
+  const minDist = Math.max(8, Math.round(sampleRate * 0.32));
+
+  const peaks: number[] = [];
+  for (let i = 2; i < centered.length - 2; i++) {
+    const v = centered[i]!;
+    if (v < thr) continue;
+    if (
+      v >= centered[i - 1]! &&
+      v >= centered[i + 1]! &&
+      v >= centered[i - 2]! &&
+      v >= centered[i + 2]!
+    ) {
+      if (peaks.every((p) => Math.abs(p - i) >= minDist)) peaks.push(i);
+    }
+  }
+  if (peaks.length < 3) return null;
+  const rrs: number[] = [];
+  for (let i = 1; i < peaks.length; i++) {
+    rrs.push((peaks[i]! - peaks[i - 1]!) / sampleRate);
+  }
+  rrs.sort((a, b) => a - b);
+  const med = rrs[Math.floor(rrs.length / 2)]!;
+  if (!(med > 0.28 && med < 2.0)) return null;
+  return Math.round(60 / med);
+}
+
+/**
+ * Con los datos recibidos: misma longitud, morfología de ritmo sinusal
+ * paced por la FC estimada del trazado (o 72 lpm).
+ */
+export function buildDisplaySinusFromSamples(
+  raw: number[],
+  opts?: { sampleRateHz?: number; fallbackBpm?: number },
+): number[] {
+  const sampleRate = opts?.sampleRateHz ?? 60;
+  const pts = prepareWaveForDisplay(raw);
+  if (pts.length === 0) return [];
+  const bpm =
+    estimateHrForDisplay(pts, sampleRate) ?? opts?.fallbackBpm ?? 72;
+  return buildSinusRhythmWave(pts.length, bpm, sampleRate);
+}
+
+/** Alias demo / simulación kiosko. */
+export function buildSyntheticEcgWave(points = 480, bpm = 72): number[] {
+  return buildSinusRhythmWave(points, bpm, 60);
 }
