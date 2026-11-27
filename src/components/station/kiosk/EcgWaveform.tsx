@@ -5,14 +5,14 @@ import { useEffect, useRef } from "react";
 type EcgWaveformProps = {
   samples: number[];
   live?: boolean;
-  /** Columnas fijas del barrido en vivo. */
+  /** Columnas del barrido en vivo (fijas → scroll continuo). */
   liveWindow?: number;
   height?: number;
   className?: string;
   label?: string;
 };
 
-/** Suaviza ligero para monitor (no altera el cribado). */
+/** Suavizado ligero y estable (misma receta siempre). */
 function softenMonitorWave(pts: number[], window = 5): number[] {
   if (pts.length < 3) return pts.slice();
   const half = Math.floor(window / 2);
@@ -32,21 +32,34 @@ function softenMonitorWave(pts: number[], window = 5): number[] {
 }
 
 function rangeOf(vals: number[]): { min: number; max: number } | null {
-  if (!vals.length) return null;
-  let min = vals[0]!;
-  let max = vals[0]!;
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
   for (const v of vals) {
+    if (!Number.isFinite(v)) continue;
     if (v < min) min = v;
     if (v > max) max = v;
   }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
   return { min, max };
 }
 
+/** Downsample uniforme para la onda completa (misma densidad visual que el vivo). */
+function downsampleEven(pts: number[], target: number): number[] {
+  if (pts.length <= target) return pts;
+  const out: number[] = [];
+  const last = pts.length - 1;
+  for (let i = 0; i < target; i++) {
+    const idx = Math.round((i / (target - 1)) * last);
+    out.push(pts[idx]!);
+  }
+  return out;
+}
+
 /**
- * Monitor ECG:
- * - Escala Y se fija al inicio y no vuelve a cambiar en vivo.
- * - Barrido: nuevas a la derecha, viejas salen por la izquierda.
- * - Al terminar: onda completa.
+ * Monitor ECG continuo:
+ * - Mismo modo de dibujo siempre (no cambia de “gráfica” a mitad).
+ * - Escala Y según las mediciones visibles (suave, sin saltos bruscos).
+ * - Vivo: scroll derecha→izquierda. Fin: onda completa.
  */
 export function EcgWaveform({
   samples,
@@ -58,16 +71,12 @@ export function EcgWaveform({
 }: EcgWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const scaleRef = useRef<{ min: number; max: number; locked: boolean }>({
-    min: 0,
-    max: 1,
-    locked: false,
-  });
+  const scaleRef = useRef({ min: 0, max: 1, ready: false });
   const seenLenRef = useRef(0);
 
   useEffect(() => {
     if (samples.length === 0) {
-      scaleRef.current = { min: 0, max: 1, locked: false };
+      scaleRef.current = { min: 0, max: 1, ready: false };
       seenLenRef.current = 0;
     }
   }, [samples.length]);
@@ -126,28 +135,37 @@ export function EcgWaveform({
       return h - 10 - t * (h - 20);
     };
 
-    /** Fija la escala UNA vez con las primeras muestras de la lectura. */
-    const lockScaleFromStart = (all: number[]) => {
-      if (scaleRef.current.locked) return;
-      // Usa solo el tramo inicial (no la ventana deslizante).
-      const seed = softenMonitorWave(all.slice(0, Math.min(48, all.length)));
-      const r = rangeOf(seed);
+    /** Escala según las mediciones actuales (EMA suave, sin bloqueo al inicio). */
+    const autoscale = (vals: number[]) => {
+      const r = rangeOf(vals);
       if (!r) return;
-      const span = Math.max(r.max - r.min, 30);
-      const pad = Math.max(span * 0.55, 50);
+      const span = Math.max(r.max - r.min, 20);
+      const pad = Math.max(span * 0.25, 18);
       let min = r.min - pad;
       let max = r.max + pad;
-      if (max - min < 100) {
+      if (max - min < 60) {
         const mid = (min + max) / 2;
-        min = mid - 50;
-        max = mid + 50;
+        min = mid - 30;
+        max = mid + 30;
       }
-      // Bloquea en cuanto hay señal útil; si aún hay muy poco, deja provisional.
-      if (all.length >= 24) {
-        scaleRef.current = { min, max, locked: true };
-      } else {
-        scaleRef.current = { min, max, locked: false };
+
+      const prev = scaleRef.current;
+      if (!prev.ready) {
+        scaleRef.current = { min, max, ready: true };
+        return;
       }
+      // Sigue las mediciones con suavizado (sube más rápido que baja).
+      const up = 0.35;
+      const down = 0.12;
+      const nextMin =
+        min < prev.min
+          ? prev.min * (1 - up) + min * up
+          : prev.min * (1 - down) + min * down;
+      const nextMax =
+        max > prev.max
+          ? prev.max * (1 - up) + max * up
+          : prev.max * (1 - down) + max * down;
+      scaleRef.current = { min: nextMin, max: nextMax, ready: true };
     };
 
     const strokeSeries = (
@@ -231,30 +249,28 @@ export function EcgWaveform({
       }
 
       if (samples.length < seenLenRef.current) {
-        scaleRef.current = { min: 0, max: 1, locked: false };
+        scaleRef.current = { min: 0, max: 1, ready: false };
       }
       seenLenRef.current = samples.length;
 
-      // Escala del inicio: no se recalcula con el barrido.
-      lockScaleFromStart(samples);
-      const { min, max } = scaleRef.current;
-
+      // Misma tubería siempre: suavizar → ventana o completa → autoscale → trazo.
+      let frame: number[];
       if (live) {
-        // Buffer fijo de `cols`: nuevas a la derecha, viejas salen a la izquierda.
-        const raw = samples.slice(-cols);
-        const soft = softenMonitorWave(raw);
+        const soft = softenMonitorWave(samples.slice(-cols));
         const pad = Math.max(0, cols - soft.length);
-        const frame: number[] = [
+        frame = [
           ...Array.from({ length: pad }, () => Number.NaN),
           ...soft,
         ];
-        strokeSeries(ctx, frame, w, h, min, max, true);
-        return;
+      } else {
+        // Completa, pero con densidad parecida al monitor (sin “otra gráfica” densa).
+        const soft = softenMonitorWave(samples);
+        frame = downsampleEven(soft, Math.min(soft.length, cols * 2));
       }
 
-      // Terminado: onda completa (misma escala Y del inicio).
-      const full = softenMonitorWave(samples);
-      strokeSeries(ctx, full, w, h, min, max, false);
+      autoscale(frame);
+      const { min, max } = scaleRef.current;
+      strokeSeries(ctx, frame, w, h, min, max, live);
     };
 
     draw();
@@ -275,7 +291,7 @@ export function EcgWaveform({
         {live ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
             <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            Barrido · ←
+            Continuo · ←
           </span>
         ) : (
           <span className="text-sm font-semibold text-emerald-500/90">

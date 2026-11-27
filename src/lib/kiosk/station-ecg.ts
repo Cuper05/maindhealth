@@ -160,32 +160,14 @@ export function stripProtocolConstant(raw: number[]): number[] {
 }
 
 /**
- * Con muestras densas se muestran crudas (tras quitar constante ~34).
- * Solo si llegan pocos puntos (fallback data[3]) se rellenan con coseno.
+ * Siempre la misma tubería de display: strip ~34 y muestras reales.
+ * (Antes, con <40 pts se interpolaba con coseno y al llegar a 40
+ * cambiaba de golpe a crudo → “otra gráfica” a los ~4 s.)
  */
-export function prepareWaveForDisplay(raw: number[], maxPoints = 480): number[] {
+export function prepareWaveForDisplay(raw: number[], maxPoints = 600): number[] {
   const pts = stripProtocolConstant(raw.filter((n) => Number.isFinite(n)));
   if (pts.length === 0) return [];
-  if (pts.length >= 40) {
-    return pts.length > maxPoints ? pts.slice(-maxPoints) : pts;
-  }
-  return interpolateSparseWave(pts, Math.min(180, Math.max(48, pts.length * 8)));
-}
-
-function interpolateSparseWave(pts: number[], outPoints: number): number[] {
-  if (pts.length === 1) {
-    return Array.from({ length: Math.min(outPoints, 24) }, () => pts[0]!);
-  }
-  const out: number[] = [];
-  for (let i = 0; i < outPoints; i++) {
-    const t = (i / (outPoints - 1)) * (pts.length - 1);
-    const i0 = Math.floor(t);
-    const i1 = Math.min(i0 + 1, pts.length - 1);
-    const frac = t - i0;
-    const mu = (1 - Math.cos(frac * Math.PI)) / 2;
-    out.push(pts[i0]! * (1 - mu) + pts[i1]! * mu);
-  }
-  return out;
+  return pts.length > maxPoints ? pts.slice(-maxPoints) : pts;
 }
 
 /** Demo: morfología tipo ECG (no clínico). */
