@@ -129,6 +129,16 @@ describe("analyzeEcgWave", () => {
     const r = analyzeEcgWave(syntheticAtBpm(72, 20), { oximeterHr: 110 });
     expect(r.flags).toContain("hr_mismatch");
   });
+
+  it("bandpass/detrend no rompe detección regular ~72", () => {
+    const r = analyzeEcgWave(syntheticAtBpm(72, 22));
+    expect(["good", "fair"]).toContain(r.quality);
+    expect(r.estimatedHr).not.toBeNull();
+    if (r.estimatedHr != null) {
+      expect(r.estimatedHr).toBeGreaterThan(55);
+      expect(r.estimatedHr).toBeLessThan(95);
+    }
+  });
 });
 
 describe("ritmo sinusal de display", () => {

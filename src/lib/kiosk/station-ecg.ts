@@ -10,12 +10,14 @@ export type StationEcgSample = {
   wavePoints?: number;
   wave?: number[];
   source?: string;
+  sampleRateHz?: number;
 };
 
 export type StationEcgProgress = {
   message?: string;
   wave?: number[];
   phase?: string;
+  sampleRateHz?: number;
 };
 
 export async function confirmStationEcgDone() {
@@ -45,12 +47,21 @@ export async function readStationEcg(
           message?: string;
           wave?: number[];
           phase?: string;
+          sampleRateHz?: number;
         };
         const raw = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
+        const rate =
+          typeof data.sampleRateHz === "number" &&
+          Number.isFinite(data.sampleRateHz) &&
+          data.sampleRateHz > 20 &&
+          data.sampleRateHz < 200
+            ? data.sampleRateHz
+            : undefined;
         onProgress?.({
           message: data.message,
           wave: prepareWaveForDisplay(raw),
           phase: data.phase,
+          sampleRateHz: rate,
         });
       } catch {
         /* ignore */
@@ -71,6 +82,7 @@ export async function readStationEcg(
       wave?: number[];
       source?: string;
       error?: string;
+      sampleRateHz?: number;
     };
     if (!res.ok || !data.ok) {
       throw new Error(
@@ -84,12 +96,20 @@ export async function readStationEcg(
         : "Trazado ECG registrado (MD100C_P)";
     const raw = Array.isArray(data.wave) ? data.wave.map((n) => Number(n)) : [];
     const wave = prepareWaveForDisplay(raw);
-    onProgress?.({ message: rhythm, wave });
+    const rate =
+      typeof data.sampleRateHz === "number" &&
+      Number.isFinite(data.sampleRateHz) &&
+      data.sampleRateHz > 20 &&
+      data.sampleRateHz < 200
+        ? data.sampleRateHz
+        : undefined;
+    onProgress?.({ message: rhythm, wave, sampleRateHz: rate });
     return {
       rhythm,
       wavePoints: data.wavePoints ?? raw.length,
       wave,
       source: data.source ?? "md100c_p",
+      sampleRateHz: rate,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

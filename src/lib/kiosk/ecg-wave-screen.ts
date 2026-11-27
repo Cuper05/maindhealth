@@ -93,11 +93,21 @@ function movingAverage(samples: number[], window: number): number[] {
   return out;
 }
 
-/** Señal centrada (resta media móvil lenta). */
+/** Señal centrada (resta media móvil lenta = high-pass suave). */
 function detrend(samples: number[], sampleRateHz: number): number[] {
-  const win = Math.max(5, Math.round(sampleRateHz * 0.4));
+  const win = Math.max(5, Math.round(sampleRateHz * 0.45));
   const baseline = movingAverage(samples, win);
   return samples.map((v, i) => v - baseline[i]!);
+}
+
+/**
+ * Prepara la señal para detección de picos:
+ * detrend (quita deriva) + media móvil corta (quita HF / ruido de dedos).
+ */
+function bandpassForPeaks(samples: number[], sampleRateHz: number): number[] {
+  const detrended = detrend(samples, sampleRateHz);
+  const lpWin = Math.max(3, Math.round(sampleRateHz * 0.045));
+  return movingAverage(detrended, lpWin);
 }
 
 /**
@@ -206,8 +216,8 @@ export function analyzeEcgWave(
     };
   }
 
-  const detrended = detrend(samples, sampleRateHz);
-  const peaks = findPeaks(detrended, sampleRateHz);
+  const filtered = bandpassForPeaks(samples, sampleRateHz);
+  const peaks = findPeaks(filtered, sampleRateHz);
   const quality = assessQuality(samples, peaks, sampleRateHz);
 
   if (quality === "poor") {
@@ -319,4 +329,39 @@ export function parseEcgFlagsCsv(raw?: string | null): EcgScreenFlag[] {
     .split(",")
     .map((s) => s.trim())
     .filter((s): s is EcgScreenFlag => allowed.has(s));
+}
+
+/** Feedback de contacto durante la captura (mensaje para el kiosko). */
+export function assessLiveEcgContact(
+  samples: number[] | undefined | null,
+  options: AnalyzeEcgWaveOptions = {},
+): { quality: EcgWaveQuality; message: string; peakCount: number } {
+  const pts = (samples ?? []).filter((n) => Number.isFinite(n));
+  if (pts.length < 40) {
+    return {
+      quality: "poor",
+      peakCount: 0,
+      message: "Esperando señal… mantenga los dedos en las placas",
+    };
+  }
+  const r = analyzeEcgWave(pts, options);
+  if (r.quality === "poor" || pts.length < MIN_SAMPLES_FOR_SCREEN) {
+    return {
+      quality: "poor",
+      peakCount: r.peakCount,
+      message: "Señal débil — presione los dedos con firmeza",
+    };
+  }
+  if (r.quality === "fair") {
+    return {
+      quality: "fair",
+      peakCount: r.peakCount,
+      message: "Señal aceptable — mantenga la posición",
+    };
+  }
+  return {
+    quality: "good",
+    peakCount: r.peakCount,
+    message: "Señal estable — puede tocar Ya terminó",
+  };
 }
