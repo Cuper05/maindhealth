@@ -3303,8 +3303,9 @@ export function PatientKioskWizard() {
             <KioskSecondaryButton
               disabled={busy}
               onClick={async () => {
-                // Conserva báscula (peso/altura/IMC); reinicia desde presión.
+                // Reinicia todas las mediciones desde la báscula.
                 await clearVitalFields([
+                  ...VITAL_FIELDS.weight_height,
                   ...VITAL_FIELDS.blood_pressure,
                   ...VITAL_FIELDS.oxygen,
                   ...VITAL_FIELDS.temperature,
@@ -3312,7 +3313,9 @@ export function PatientKioskWizard() {
                   "heartRate",
                 ]);
                 setEcgWave([]);
-                await goToStep("blood_pressure");
+                setScaleStatus("Pulsa Leer báscula ahora");
+                setDeviceStatus("idle");
+                await goToStep("weight_height");
               }}
             >
               Repetir mediciones
