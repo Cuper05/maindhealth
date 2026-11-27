@@ -163,7 +163,7 @@ export function stripProtocolConstant(raw: number[]): number[] {
  * Con muestras densas se muestran crudas (tras quitar constante ~34).
  * Solo si llegan pocos puntos (fallback data[3]) se rellenan con coseno.
  */
-export function prepareWaveForDisplay(raw: number[], maxPoints = 360): number[] {
+export function prepareWaveForDisplay(raw: number[], maxPoints = 480): number[] {
   const pts = stripProtocolConstant(raw.filter((n) => Number.isFinite(n)));
   if (pts.length === 0) return [];
   if (pts.length >= 40) {

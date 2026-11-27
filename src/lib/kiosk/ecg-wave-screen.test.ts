@@ -9,30 +9,33 @@ describe("stripProtocolConstant", () => {
   });
 });
 
-/** Onda ~120 Hz con latidos a `bpm` durante `seconds`. */
-function syntheticAtBpm(bpm: number, seconds = 20, sampleRate = 120): number[] {
+/** Onda ~60 Hz (tasa post-filtro MD100C) con latidos a `bpm`. */
+function syntheticAtBpm(bpm: number, seconds = 20, sampleRate = 60): number[] {
   const n = seconds * sampleRate;
-  const samplesPerBeat = Math.round((60 / bpm) * sampleRate);
+  const samplesPerBeat = Math.max(8, Math.round((60 / bpm) * sampleRate));
   const out: number[] = [];
   for (let i = 0; i < n; i++) {
     const phase = i % samplesPerBeat;
     let y = 500;
-    // Pico R estrecho
-    if (phase >= 12 && phase <= 16) {
-      y += phase === 14 ? 220 : 80;
-    } else if (phase > 16 && phase < 22) {
+    const r0 = Math.floor(samplesPerBeat * 0.22);
+    const r1 = Math.floor(samplesPerBeat * 0.3);
+    const rPeak = Math.floor((r0 + r1) / 2);
+    if (phase >= r0 && phase <= r1) {
+      y += phase === rPeak ? 220 : 80;
+    } else if (phase > r1 && phase < r1 + 4) {
       y -= 40;
-    } else if (phase > 30 && phase < 45) {
-      y += 35 * Math.sin(((phase - 30) / 15) * Math.PI);
+    } else if (phase > samplesPerBeat * 0.5 && phase < samplesPerBeat * 0.72) {
+      const u = (phase - samplesPerBeat * 0.5) / (samplesPerBeat * 0.22);
+      y += 35 * Math.sin(u * Math.PI);
     }
-    y += Math.sin(i / 40) * 3;
+    y += Math.sin(i / 25) * 3;
     out.push(y);
   }
   return out;
 }
 
 /** RR irregulares (jitter grande) → irregular / possible_af. */
-function irregularWave(seconds = 25, sampleRate = 120): number[] {
+function irregularWave(seconds = 25, sampleRate = 60): number[] {
   const out: number[] = [];
   let t = 0;
   const total = seconds * sampleRate;
@@ -40,11 +43,11 @@ function irregularWave(seconds = 25, sampleRate = 120): number[] {
   let gapIdx = 0;
   let nextPeak = Math.round(gaps[0]! * sampleRate);
   while (t < total) {
-    let y = 500 + Math.sin(t / 35) * 4;
-    if (t === nextPeak || (t > nextPeak && t < nextPeak + 3)) {
+    let y = 500 + Math.sin(t / 20) * 4;
+    if (t === nextPeak || (t > nextPeak && t < nextPeak + 2)) {
       y += t === nextPeak + 1 ? 240 : 90;
     }
-    if (t === nextPeak + 3) {
+    if (t === nextPeak + 2) {
       gapIdx = (gapIdx + 1) % gaps.length;
       nextPeak += Math.round(gaps[gapIdx]! * sampleRate);
     }
@@ -62,16 +65,24 @@ describe("analyzeEcgWave", () => {
     expect(r.flags).not.toContain("possible_af");
   });
 
+  it("acepta buffers cortos post-filtro (~120–200 pts) si hay morfología", () => {
+    const wave = syntheticAtBpm(72, 3, 60); // 180 pts
+    expect(wave.length).toBeGreaterThan(90);
+    expect(wave.length).toBeLessThan(360);
+    const r = analyzeEcgWave(wave);
+    expect(r.flags).not.toContain("poor_signal");
+    expect(["good", "fair"]).toContain(r.quality);
+  });
+
   it("señal plana → poor sin sospechas clínicas", () => {
-    const flat = Array.from({ length: 120 * 15 }, () => 100);
+    const flat = Array.from({ length: 60 * 15 }, () => 100);
     const r = analyzeEcgWave(flat);
     expect(r.quality).toBe("poor");
     expect(r.flags).toEqual(["poor_signal"]);
   });
 
   it("onda sintética regular ~72: sin flags fuertes", () => {
-    const wave = buildSyntheticEcgWave(120 * 18);
-    // buildSyntheticEcgWave ya es denso tipo PQRST ~72
+    const wave = buildSyntheticEcgWave(60 * 18);
     const r = analyzeEcgWave(syntheticAtBpm(72, 22));
     expect(["good", "fair"]).toContain(r.quality);
     expect(r.flags).not.toContain("poor_signal");

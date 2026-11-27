@@ -25,7 +25,13 @@ export type EcgWaveScreenResult = {
 export const ECG_SCREEN_DISCLAIMER =
   "Cribado automático del trazado (lead de dedos). No es diagnóstico; el médico interpreta el caso.";
 
-const DEFAULT_SAMPLE_RATE_HZ = 120;
+/**
+ * Tras filtrar el constante ~34, la tasa útil del MD100C_P es ~60 Hz
+ * (antes ~120 Hz con el canal de relleno).
+ */
+const DEFAULT_SAMPLE_RATE_HZ = 60;
+/** ~1.5 s a 60 Hz; no exigir 360 pts (umbral viejo a 120 Hz). */
+const MIN_SAMPLES_FOR_SCREEN = 90;
 
 export type AnalyzeEcgWaveOptions = {
   sampleRateHz?: number;
@@ -79,12 +85,17 @@ function detrend(samples: number[], sampleRateHz: number): number[] {
  * con distancia mínima ~0.28 s (FC máx ~214).
  */
 function findPeaks(detrended: number[], sampleRateHz: number): number[] {
-  if (detrended.length < sampleRateHz) return [];
+  // Con buffer corto (tras filtrar ~34) no exigir 1 s completo.
+  if (detrended.length < Math.max(40, Math.round(sampleRateHz * 0.6))) return [];
 
-  const abs = detrended.map((v) => Math.abs(v));
-  const noiseFloor = median(abs) + 0.5 * std(abs);
-  const peakFloor = Math.max(noiseFloor, percentile(abs, 75) * 0.55);
-  const minDist = Math.max(8, Math.round(sampleRateHz * 0.28));
+  // Solo picos positivos fuertes (R); evita contar P/T como latido.
+  const positives = detrended.filter((v) => v > 0);
+  if (positives.length < 8) return [];
+  const peakFloor = Math.max(
+    percentile(positives, 88) * 0.55,
+    median(positives) + 1.2 * std(positives),
+  );
+  const minDist = Math.max(8, Math.round(sampleRateHz * 0.32)); // ~187 lpm máx
 
   const candidates: { i: number; v: number }[] = [];
   for (let i = 2; i < detrended.length - 2; i++) {
@@ -118,24 +129,24 @@ function assessQuality(
   sampleRateHz: number,
 ): EcgWaveQuality {
   const durationSec = samples.length / sampleRateHz;
-  if (samples.length < sampleRateHz * 4 || durationSec < 4) return "poor";
+  if (samples.length < MIN_SAMPLES_FOR_SCREEN || durationSec < 1.2) return "poor";
 
   const span = Math.max(...samples) - Math.min(...samples);
   const s = std(samples);
-  if (span < 8 || s < 2) return "poor";
+  if (span < 5 || s < 1.2) return "poor";
 
-  // Saturación / clip: muchos valores en extremos.
+  // Clip: umbral alto (señales 8-bit disparaban falsos "poor").
   const lo = Math.min(...samples);
   const hi = Math.max(...samples);
   const nearClip = samples.filter((v) => v <= lo + 1 || v >= hi - 1).length;
-  if (nearClip / samples.length > 0.35) return "poor";
+  if (nearClip / samples.length > 0.55) return "poor";
 
-  const expectedMinPeaks = Math.max(3, Math.floor(durationSec * 0.6)); // ~36 lpm
+  const expectedMinPeaks = Math.max(2, Math.floor(durationSec * 0.45));
   if (peaks.length < expectedMinPeaks) return "poor";
 
   const expectedNominal = durationSec * (72 / 60);
-  if (peaks.length < expectedNominal * 0.35) return "fair";
-  if (s < 6) return "fair";
+  if (peaks.length < expectedNominal * 0.25) return "fair";
+  if (s < 4) return "fair";
   return "good";
 }
 
@@ -164,7 +175,7 @@ export function analyzeEcgWave(
   const samples = (samplesInput ?? []).filter((n) => Number.isFinite(n));
   const disclaimerEs = ECG_SCREEN_DISCLAIMER;
 
-  if (samples.length < sampleRateHz * 3) {
+  if (samples.length < MIN_SAMPLES_FOR_SCREEN) {
     return {
       quality: "poor",
       estimatedHr: null,
