@@ -84,7 +84,7 @@ import {
 import {
   interpretBmi,
   interpretBloodPressure,
-  interpretEcg,
+  buildEcgReadingViews,
   interpretHeartRate,
   interpretHeight,
   interpretSpo2,
@@ -3184,20 +3184,16 @@ export function PatientKioskWizard() {
           ]}
           illustration="ecg"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.ecgStatus))}
-          referenceRanges={[VITAL_RANGE_COPY.ecg, VITAL_RANGE_COPY.heartRate]}
+          referenceRanges={[VITAL_RANGE_COPY.ecg, VITAL_RANGE_COPY.ecgHr]}
           readingViews={
             vitalsDraft.ecgStatus
-              ? [
-                  interpretEcg(
-                    vitalsDraft.ecgStatus,
-                    vitalsDraft.ecgRhythm,
-                    vitalsDraft.ecgQuality,
-                    vitalsDraft.ecgFlags,
-                  )!,
-                  ...(interpretHeartRate(vitalsDraft.heartRate)
-                    ? [interpretHeartRate(vitalsDraft.heartRate)!]
-                    : []),
-                ]
+              ? buildEcgReadingViews(
+                  vitalsDraft.ecgStatus,
+                  vitalsDraft.ecgRhythm,
+                  vitalsDraft.ecgQuality,
+                  vitalsDraft.ecgFlags,
+                  vitalsDraft.ecgEstimatedHr,
+                )
               : undefined
           }
           statusMessage={

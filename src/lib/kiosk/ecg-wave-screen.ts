@@ -33,6 +33,26 @@ const DEFAULT_SAMPLE_RATE_HZ = 60;
 /** ~1.5 s a 60 Hz; no exigir 360 pts (umbral viejo a 120 Hz). */
 const MIN_SAMPLES_FOR_SCREEN = 90;
 
+/**
+ * Protocolos de cribado sobre la onda (adulto en reposo, lead de dedos).
+ * Referencia habitual: FC reposo ~60–100 lpm (p. ej. rangos adultos AHA/ACC).
+ * Irregularidad / sospecha FA = heurística de variabilidad RR (CV / RMSSD);
+ * no sustituye ECG de 12 derivaciones, Holter ni diagnóstico clínico.
+ */
+export const ECG_SCREEN_THRESHOLDS = {
+  bradycardiaBpm: 60,
+  tachycardiaBpm: 100,
+  /** Coeficiente de variación RR para marcar irregular. */
+  rrCvIrregular: 0.22,
+  rmssdNormIrregular: 0.2,
+  /** Umbrales más altos → sospecha tipo FA (solo cribado). */
+  rrCvPossibleAf: 0.28,
+  rmssdNormPossibleAf: 0.24,
+  minPeaksForAfSuspect: 8,
+  /** Desacuerdo FC trazado vs oxímetro (flag auxiliar). */
+  hrMismatchBpm: 15,
+} as const;
+
 export type AnalyzeEcgWaveOptions = {
   sampleRateHz?: number;
   oximeterHr?: number | null;
@@ -155,9 +175,9 @@ function flagLabel(flag: EcgScreenFlag): string {
     case "poor_signal":
       return "señal insuficiente";
     case "bradycardia":
-      return "posible bradicardia (FC estimada baja)";
+      return "posible bradicardia (FC estimada < 60 lpm)";
     case "tachycardia":
-      return "posible taquicardia (FC estimada alta)";
+      return "posible taquicardia (FC estimada > 100 lpm)";
     case "irregular":
       return "ritmo irregular";
     case "possible_af":
@@ -216,10 +236,11 @@ export function analyzeEcgWave(
 
   const flags: EcgScreenFlag[] = [];
 
-  // Capa 2–3: solo si hay RR suficientes.
+  // Capa 2–3: umbrales de protocolo (solo si hay RR suficientes).
+  const T = ECG_SCREEN_THRESHOLDS;
   if (rr.length >= 3 && estimatedHr != null) {
-    if (estimatedHr < 50) flags.push("bradycardia");
-    if (estimatedHr > 120) flags.push("tachycardia");
+    if (estimatedHr < T.bradycardiaBpm) flags.push("bradycardia");
+    if (estimatedHr > T.tachycardiaBpm) flags.push("tachycardia");
 
     const rrMean = mean(rr);
     const rrStd = std(rr);
@@ -231,11 +252,16 @@ export function analyzeEcgWave(
     const rmssd = diffs.length ? Math.sqrt(mean(diffs)) : 0;
     const rmssdNorm = rrMean > 0 ? rmssd / rrMean : 0;
 
-    const irregular = cv > 0.22 || rmssdNorm > 0.2;
+    const irregular =
+      cv > T.rrCvIrregular || rmssdNorm > T.rmssdNormIrregular;
     if (irregular) {
       flags.push("irregular");
-      // Sospecha FA suave: irregularidad alta + varios latidos + calidad ok.
-      if (cv > 0.28 && rmssdNorm > 0.24 && peaks.length >= 8) {
+      // Sospecha FA (cribado): irregularidad alta + varios latidos.
+      if (
+        cv > T.rrCvPossibleAf &&
+        rmssdNorm > T.rmssdNormPossibleAf &&
+        peaks.length >= T.minPeaksForAfSuspect
+      ) {
         flags.push("possible_af");
       }
     }
@@ -248,7 +274,7 @@ export function analyzeEcgWave(
     Number.isFinite(ox) &&
     ox >= 30 &&
     ox <= 250 &&
-    Math.abs(estimatedHr - ox) > 15
+    Math.abs(estimatedHr - ox) > T.hrMismatchBpm
   ) {
     flags.push("hr_mismatch");
   }

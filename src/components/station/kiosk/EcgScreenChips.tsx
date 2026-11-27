@@ -9,11 +9,11 @@ import {
 
 const FLAG_LABEL: Record<EcgScreenFlag, string> = {
   poor_signal: "Señal insuficiente",
-  bradycardia: "Posible bradicardia",
-  tachycardia: "Posible taquicardia",
+  bradycardia: "Posible bradicardia (< 60 lpm)",
+  tachycardia: "Posible taquicardia (> 100 lpm)",
   irregular: "Ritmo irregular",
   possible_af: "Sospecha irregularidad tipo FA",
-  hr_mismatch: "FC ≠ oxímetro",
+  hr_mismatch: "FC trazado ≠ oxímetro",
 };
 
 function qualityTone(q?: string | null) {

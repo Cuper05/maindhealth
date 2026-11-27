@@ -34,6 +34,7 @@ function buildRows(draft: VitalsDraft): Row[] {
     draft.ecgRhythm,
     draft.ecgQuality,
     draft.ecgFlags,
+    draft.ecgEstimatedHr,
   );
 
   return [

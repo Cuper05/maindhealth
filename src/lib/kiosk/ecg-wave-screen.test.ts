@@ -96,17 +96,17 @@ describe("analyzeEcgWave", () => {
     void wave;
   });
 
-  it("bradicardia estimada < 50", () => {
+  it("bradicardia estimada < 60 (protocolo adulto)", () => {
     const r = analyzeEcgWave(syntheticAtBpm(42, 30));
     expect(r.quality).not.toBe("poor");
     expect(r.flags).toContain("bradycardia");
     expect(r.estimatedHr).not.toBeNull();
     if (r.estimatedHr != null) {
-      expect(r.estimatedHr).toBeLessThan(50);
+      expect(r.estimatedHr).toBeLessThan(60);
     }
   });
 
-  it("taquicardia estimada > 120", () => {
+  it("taquicardia estimada > 100 (protocolo adulto)", () => {
     const r = analyzeEcgWave(syntheticAtBpm(140, 20));
     expect(r.quality).not.toBe("poor");
     expect(r.flags).toContain("tachycardia");
