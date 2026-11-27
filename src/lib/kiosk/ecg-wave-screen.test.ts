@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { analyzeEcgWave } from "./ecg-wave-screen";
-import { buildSyntheticEcgWave, stripProtocolConstant } from "./station-ecg";
+import {
+  buildDisplaySinusFromSamples,
+  buildSinusRhythmWave,
+  buildSyntheticEcgWave,
+  estimateHrForDisplay,
+  stripProtocolConstant,
+} from "./station-ecg";
 
 describe("stripProtocolConstant", () => {
   it("quita el 34 intercalado del MD100C_P", () => {
@@ -122,5 +128,26 @@ describe("analyzeEcgWave", () => {
   it("hr_mismatch si oxímetro difiere > 15", () => {
     const r = analyzeEcgWave(syntheticAtBpm(72, 20), { oximeterHr: 110 });
     expect(r.flags).toContain("hr_mismatch");
+  });
+});
+
+describe("ritmo sinusal de display", () => {
+  it("buildSinusRhythmWave genera latidos periódicos", () => {
+    const w = buildSinusRhythmWave(300, 72, 60);
+    expect(w.length).toBe(300);
+    const span = Math.max(...w) - Math.min(...w);
+    expect(span).toBeGreaterThan(100);
+  });
+
+  it("buildDisplaySinusFromSamples respeta longitud (cap display) y FC ~72", () => {
+    const raw = syntheticAtBpm(72, 8, 60); // 480 pts
+    const disp = buildDisplaySinusFromSamples(raw);
+    expect(disp.length).toBe(raw.length);
+    const hr = estimateHrForDisplay(disp, 60);
+    expect(hr).not.toBeNull();
+    if (hr != null) {
+      expect(hr).toBeGreaterThan(55);
+      expect(hr).toBeLessThan(95);
+    }
   });
 });
