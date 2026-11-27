@@ -35,9 +35,10 @@ export const OXYGEN_VOICE_STEPS = [
   "Coloque el dedo en el oxímetro.",
   "Espere a que la máquina muestre el resultado.",
   "Solo entonces retire el dedo y déjelo en su lugar.",
+  "Si tiene uñas largas o artificiales, coloque el dedo de lado para obtener una buena lectura.",
 ] as const;
 
-/** Nota visible/hablada: uñas largas o artificiales. */
+/** @deprecated Preferir el paso incluido en OXYGEN_VOICE_STEPS. */
 export const OXYGEN_NAIL_TIP =
   "Si tiene uñas largas o artificiales, coloque el dedo de lado para obtener una buena lectura.";
 
@@ -118,46 +119,22 @@ export const CRISIS_CALM_SCRIPTS = [
 export const ANTECEDENTS_PAGE2_VOICE =
   "¿Toma algún medicamento actualmente? Si sí, escríbalo. Si no toma ninguno, déjelo vacío y toque Continuar.";
 
-/** Al iniciar la lectura: recordar subir a la báscula. */
-export const SCALE_MOUNT_VOICE =
-  "Iniciamos peso y altura. Súbase a la báscula ahora. Párese erguido, mirando al frente, y quédese quieto.";
+/**
+ * Frases legacy de inicio/fin de lectura.
+ * En mediciones la bocina solo lee *_VOICE_STEPS (instrucciones en pantalla).
+ */
+export const SCALE_MOUNT_VOICE = joinVoiceSteps(WEIGHT_HEIGHT_VOICE_STEPS);
+export const SCALE_SUCCESS_VOICE = joinVoiceSteps(WEIGHT_HEIGHT_VOICE_STEPS);
+export const OXYGEN_START_VOICE = joinVoiceSteps(OXYGEN_VOICE_STEPS);
+export const OXYGEN_SUCCESS_VOICE = joinVoiceSteps(OXYGEN_VOICE_STEPS);
+export const BP_START_VOICE = joinVoiceSteps(BLOOD_PRESSURE_VOICE_STEPS);
+export const TEMP_START_VOICE = joinVoiceSteps(TEMPERATURE_VOICE_STEPS);
+export const BP_SUCCESS_VOICE = joinVoiceSteps(BLOOD_PRESSURE_VOICE_STEPS);
+export const TEMP_SUCCESS_VOICE = joinVoiceSteps(TEMPERATURE_VOICE_STEPS);
+export const ECG_START_VOICE = joinVoiceSteps(ECG_VOICE_STEPS);
+export const ECG_SUCCESS_VOICE = joinVoiceSteps(ECG_VOICE_STEPS);
 
-/** Tras registrar peso y altura con éxito. */
-export const SCALE_SUCCESS_VOICE =
-  "Listo. Terminó la medición de peso y altura. Baje de la báscula con cuidado y toque Continuar.";
-
-/** Al iniciar lectura del oxímetro (botón). */
-export const OXYGEN_START_VOICE =
-  "Pulse el botón blanco del oxímetro, coloque el dedo y manténgalo quieto hasta que la máquina muestre el resultado. Si tiene uñas largas o artificiales, coloque el dedo de lado.";
-
-/** Tras SpO₂/FC: retirar y devolver al lugar. */
-export const OXYGEN_SUCCESS_VOICE =
-  "Listo. Terminó la medición de oxígeno y pulso. Ya puede retirar el dedo y dejar el oxímetro en su lugar. Luego toque Continuar.";
-
-/** Al iniciar lectura de presión (botón). */
-export const BP_START_VOICE =
-  "Introduzca el brazo en el túnel a la altura del corazón y pulse otra vez el botón de encendido del baumanómetro. Quédese quieto hasta que termine la medición.";
-
-export const TEMP_START_VOICE =
-  "Acerque la frente al termómetro y espere el pitido. No retire el termómetro hasta escuchar el pitido.";
-
-/** Tras presión arterial: sacar el brazo y apagar. */
-export const BP_SUCCESS_VOICE =
-  "Listo. Terminó la medición de la presión. Retire el brazo del aparato, pulse el botón de encendido para apagarlo y déjelo en su lugar. Luego toque Continuar.";
-
-/** Tras temperatura: retirar termómetro y devolver. */
-export const TEMP_SUCCESS_VOICE =
-  "Listo. La temperatura ya se registró. Deje el termómetro en su lugar. Luego toque Continuar.";
-
-/** Al iniciar lectura del ECG (botón). */
-export const ECG_START_VOICE =
-  "Iniciamos el electrocardiograma. Encienda el MD100C_P, ponga los dedos en las placas y manténgalos quietos unos treinta segundos. Cuando vea la onda en la pantalla, toque Ya terminó. El pulso lo tomamos con el oxímetro. El cribado del trazado es automático y no es un diagnóstico.";
-
-/** Tras ECG. */
-export const ECG_SUCCESS_VOICE =
-  "Listo. Terminó el electrocardiograma. Puede soltar las placas y toque Continuar. Un cribado automático del trazado quedará para que el médico lo revise.";
-
-/** Frases de fin por paso de signos vitales (cuando la lectura queda registrada). */
+/** @deprecated Mediciones ya no hablan al terminar; se conservan por compatibilidad. */
 export const VITAL_DONE_VOICE: Partial<Record<KioskStep, string>> = {
   weight_height: SCALE_SUCCESS_VOICE,
   blood_pressure: BP_SUCCESS_VOICE,

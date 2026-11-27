@@ -55,16 +55,9 @@ import {
   RESULT_PRESCRIPTION_VOICE,
   TELECONSULTA_ENDED_VOICE,
   ANTECEDENTS_PAGE2_VOICE,
-  SCALE_MOUNT_VOICE,
-  OXYGEN_START_VOICE,
-  BP_START_VOICE,
-  TEMP_START_VOICE,
-  ECG_START_VOICE,
-  VITAL_DONE_VOICE,
   WEIGHT_HEIGHT_VOICE_STEPS,
   BLOOD_PRESSURE_VOICE_STEPS,
   OXYGEN_VOICE_STEPS,
-  OXYGEN_NAIL_TIP,
   TEMPERATURE_VOICE_STEPS,
   ECG_VOICE_STEPS,
   speakKiosk,
@@ -898,29 +891,8 @@ export function PatientKioskWizard() {
     };
   }, [step, antePage, voiceEnabled, crisisMode]);
 
-  // Signos vitales: avisar en voz cuando termina cada medición (y devolver equipo si aplica).
-  const vitalAwaitingDoneRef = useRef(false);
-  useEffect(() => {
-    if (!VITAL_STEPS.includes(step)) {
-      vitalAwaitingDoneRef.current = false;
-      return;
-    }
-    vitalAwaitingDoneRef.current = !vitalsCompleteForStep(step, vitalsDraft);
-  }, [step]);
-
-  useEffect(() => {
-    if (!VITAL_STEPS.includes(step) || !voiceEnabled || crisisMode) return;
-    if (!vitalsCompleteForStep(step, vitalsDraft)) return;
-    if (!vitalAwaitingDoneRef.current) return;
-    // Continuar sin ECG no debe decir que «terminó» la medición.
-    if (step === "ecg" && vitalsDraft.ecgStatus === "skipped") {
-      vitalAwaitingDoneRef.current = false;
-      return;
-    }
-    vitalAwaitingDoneRef.current = false;
-    const script = VITAL_DONE_VOICE[step];
-    if (script) speakKiosk(script, { force: true });
-  }, [step, vitalsDraft, voiceEnabled, crisisMode]);
+  // Signos vitales: la voz solo lee las instrucciones del paso (useKioskVoice /
+  // KIOSK_VOICE_SCRIPTS). Sin frases extra al iniciar o terminar cada lectura.
 
   // Solo cuando el médico ya está en la llamada Daily: cortar YA (sin frase extra).
   useEffect(() => {
@@ -1502,7 +1474,6 @@ export function PatientKioskWizard() {
     setOxygenCapturing(true);
     setDeviceStatus("reading");
     setOxygenStatus("Pulse el botón blanco del oxímetro, coloque el dedo y espere…");
-    speakKiosk(OXYGEN_START_VOICE, { force: true });
     try {
       const sample = await readStationOximeter((msg) => setOxygenStatus(msg));
       const spo2 = sample.spo2;
@@ -1538,7 +1509,6 @@ export function PatientKioskWizard() {
     setScaleCapturing(true);
     setDeviceStatus("reading");
     setScaleStatus("Iniciando lectura de la báscula…");
-    speakKiosk(SCALE_MOUNT_VOICE, { force: true });
     try {
       const sample = await readStationScale((msg) => setScaleStatus(msg));
       const patch: VitalsDraft = {
@@ -1575,7 +1545,6 @@ export function PatientKioskWizard() {
     setBpStatus(
       "Brazo en el túnel a la altura del corazón; pulse otra vez el botón de encendido del aparato…",
     );
-    speakKiosk(BP_START_VOICE, { force: true });
     try {
       const sample = await readStationBp((msg) => setBpStatus(msg));
       const { systolic, diastolic, heartRate } = sample;
@@ -1613,7 +1582,6 @@ export function PatientKioskWizard() {
     setTempCapturing(true);
     setDeviceStatus("reading");
     setTempStatus("Acerque la frente al termómetro y espere el pitido…");
-    speakKiosk(TEMP_START_VOICE, { force: true });
     try {
       const sample = await readStationThermometer((msg) => setTempStatus(msg));
       if (sample.temperature == null) {
@@ -1649,7 +1617,6 @@ export function PatientKioskWizard() {
     ecgSampleRateRef.current = undefined;
     setDeviceStatus("reading");
     setEcgStatusMsg("Conectando al MD100C_P. Dedos en las placas…");
-    speakKiosk(ECG_START_VOICE, { force: true });
     try {
       const sample = await readStationEcg((progress) => {
         if (progress.sampleRateHz) {
@@ -3093,7 +3060,6 @@ export function PatientKioskWizard() {
           title="Oxigenación y pulso"
           instruction=""
           steps={[...OXYGEN_VOICE_STEPS]}
-          tips={[OXYGEN_NAIL_TIP]}
           illustration="oxygen"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.oxygenSaturation))}
           statusMessage={
@@ -3187,10 +3153,6 @@ export function PatientKioskWizard() {
           title="Electrocardiograma"
           instruction=""
           steps={[...ECG_VOICE_STEPS]}
-          tips={[
-            "Encienda el MD100C_P de la estación (Bluetooth).",
-            "Dedos en las placas ~30 s. Cuando vea la onda, toque Ya terminó. El pulso (lpm) lo da el oxímetro.",
-          ]}
           illustration="ecg"
           deviceStatus={resolveVitalUiStatus(deviceStatus, Boolean(vitalsDraft.ecgStatus))}
           referenceRanges={[VITAL_RANGE_COPY.ecg, VITAL_RANGE_COPY.ecgHr]}
