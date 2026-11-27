@@ -3221,12 +3221,12 @@ export function PatientKioskWizard() {
                   <EcgWaveform
                     samples={ecgWave}
                     live={ecgCapturing}
-                    liveWindow={280}
+                    liveWindow={220}
                     height={190}
                     label={
                       ecgCapturing
-                        ? "Onda ECG en vivo"
-                        : "Trazado completo de la lectura"
+                        ? "Monitor ECG"
+                        : "Primera onda (monitor)"
                     }
                   />
                 ) : null}
