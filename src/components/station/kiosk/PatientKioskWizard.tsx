@@ -3229,7 +3229,7 @@ export function PatientKioskWizard() {
             ) : null
           }
           onSimulate={() => {
-            const wave = buildSyntheticEcgWave(280);
+            const wave = buildSyntheticEcgWave(480, 72);
             setEcgWave(wave);
             const oxHr = Number(vitalsDraft.heartRate);
             const screen = analyzeEcgWave(wave, {
