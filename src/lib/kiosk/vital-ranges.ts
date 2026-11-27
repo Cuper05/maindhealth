@@ -43,7 +43,8 @@ export const VITAL_RANGE_COPY = {
   heartRate: "Pulso normal adulto en reposo: 60 – 100 lpm",
   spo2: "Oxígeno (SpO₂) normal: 94 – 100 %",
   temperature: "Temperatura en la frente, normal: 36.0 – 37.5 °C",
-  ecg: "ECG: cribado automático del trazado · pulso (lpm) del oxímetro · el médico interpreta",
+  ecg: "ECG: cribado del trazado (FC estimada, ritmo) · no es diagnóstico · el médico interpreta",
+  ecgHr: "FC estimada del trazado (adulto en reposo): 60 – 100 lpm",
   disclaimer:
     "Rangos orientativos para adultos en reposo. El médico interpreta su caso completo.",
 } as const;
@@ -159,47 +160,141 @@ export function interpretHeight(height?: string | null): VitalReadingView | null
   };
 }
 
-export function interpretEcg(
-  ecgStatus?: string | null,
-  ecgRhythm?: string | null,
+function parseEcgFlagList(ecgFlags?: string | null): string[] {
+  return (ecgFlags ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** FC estimada desde picos R del trazado (no pulso del oxímetro). */
+export function interpretEcgHeartRate(
+  ecgEstimatedHr?: string | null,
   ecgQuality?: string | null,
   ecgFlags?: string | null,
+): VitalReadingView | null {
+  const flags = parseEcgFlagList(ecgFlags);
+  const poor = ecgQuality === "poor" || flags.includes("poor_signal");
+  const hr = num(ecgEstimatedHr);
+  if (hr == null) {
+    return {
+      label: "FC (ECG)",
+      valueText: poor ? "N/D" : "—",
+      normalRange: VITAL_RANGE_COPY.ecgHr,
+      band: "info",
+      verdict: poor
+        ? "Sin FC estimable — repetir medición"
+        : "Trazado sin FC estimada clara",
+    };
+  }
+  const band = bandFor(hr, 60, 100);
+  return {
+    label: "FC (ECG)",
+    valueText: `${hr} lpm`,
+    normalRange: VITAL_RANGE_COPY.ecgHr,
+    band,
+    verdict: verdictFor(
+      band,
+      "Por debajo del rango (posible bradicardia)",
+      "Por encima del rango (posible taquicardia)",
+    ),
+  };
+}
+
+/** Hallazgo de cribado sobre la onda (ritmo / calidad / FA sospechada). */
+export function interpretEcgAnalysis(
+  ecgStatus?: string | null,
+  ecgQuality?: string | null,
+  ecgFlags?: string | null,
+  ecgRhythm?: string | null,
 ): VitalReadingView | null {
   if (!ecgStatus) return null;
   if (ecgStatus === "skipped") {
     return {
-      label: "ECG",
+      label: "Análisis ECG",
       valueText: "Pendiente",
       normalRange: VITAL_RANGE_COPY.ecg,
       band: "info",
       verdict: "Sin lectura en esta visita",
     };
   }
-  const rhythm = (ecgRhythm ?? "Trazado ECG registrado").trim();
-  const flags = (ecgFlags ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+
+  const flags = parseEcgFlagList(ecgFlags);
+  const poor = ecgQuality === "poor" || flags.includes("poor_signal");
   const clinical = flags.some((f) =>
     ["bradycardia", "tachycardia", "irregular", "possible_af"].includes(f),
   );
-  const poor = ecgQuality === "poor" || flags.includes("poor_signal");
+
+  let valueText = "Ritmo aparente regular";
+  if (poor) valueText = "Señal insuficiente";
+  else if (flags.includes("possible_af")) valueText = "Sospecha irreg. tipo FA";
+  else if (flags.includes("irregular")) valueText = "Ritmo irregular";
+  else if (flags.includes("bradycardia")) valueText = "Posible bradicardia";
+  else if (flags.includes("tachycardia")) valueText = "Posible taquicardia";
+  else if (ecgQuality === "fair") valueText = "Calidad aceptable";
+
   let band: VitalBand = "normal";
   if (poor) band = "info";
   else if (clinical) band = "high";
   else if (ecgQuality === "fair" || flags.includes("hr_mismatch")) band = "info";
 
+  void ecgRhythm;
   return {
-    label: "ECG",
-    valueText: rhythm,
+    label: "Análisis ECG",
+    valueText,
     normalRange: VITAL_RANGE_COPY.ecg,
     band,
     verdict: poor
       ? "Señal insuficiente — conviene repetir"
       : clinical
         ? "Cribado con hallazgo — el médico lo revisará"
-        : "Trazado registrado — el médico lo revisará",
+        : "Sin hallazgos de cribado — el médico interpreta el caso",
   };
+}
+
+/** Vistas del paso ECG: FC del trazado + análisis (sin pulso del oxímetro). */
+export function buildEcgReadingViews(
+  ecgStatus?: string | null,
+  ecgRhythm?: string | null,
+  ecgQuality?: string | null,
+  ecgFlags?: string | null,
+  ecgEstimatedHr?: string | null,
+): VitalReadingView[] {
+  if (!ecgStatus) return [];
+  if (ecgStatus === "skipped") {
+    const skipped = interpretEcgAnalysis(ecgStatus);
+    return skipped ? [skipped] : [];
+  }
+  const views: VitalReadingView[] = [];
+  const hr = interpretEcgHeartRate(ecgEstimatedHr, ecgQuality, ecgFlags);
+  const analysis = interpretEcgAnalysis(
+    ecgStatus,
+    ecgQuality,
+    ecgFlags,
+    ecgRhythm,
+  );
+  if (hr) views.push(hr);
+  if (analysis) views.push(analysis);
+  return views;
+}
+
+export function interpretEcg(
+  ecgStatus?: string | null,
+  ecgRhythm?: string | null,
+  ecgQuality?: string | null,
+  ecgFlags?: string | null,
+  ecgEstimatedHr?: string | null,
+): VitalReadingView | null {
+  const views = buildEcgReadingViews(
+    ecgStatus,
+    ecgRhythm,
+    ecgQuality,
+    ecgFlags,
+    ecgEstimatedHr,
+  );
+  if (!views.length) return null;
+  // Resumen compacto (panel médico / lista): prioriza el análisis.
+  return views.find((v) => v.label === "Análisis ECG") ?? views[0]!;
 }
 
 export function bandTone(band: VitalBand): {
