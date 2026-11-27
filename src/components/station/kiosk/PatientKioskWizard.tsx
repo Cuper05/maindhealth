@@ -376,10 +376,8 @@ export function PatientKioskWizard() {
   const tempCaptureLock = useRef(false);
   const [ecgStatusMsg, setEcgStatusMsg] = useState<string>("");
   const [ecgCapturing, setEcgCapturing] = useState(false);
-  /** Onda real (cribado / default). */
+  /** Onda real (cribado). La UI siempre muestra vista paciente sinusal. */
   const [ecgWave, setEcgWave] = useState<number[]>([]);
-  /** Vista paciente: sinusal anclado a picos reales (no altera el cribado). */
-  const [ecgPatientSinusView, setEcgPatientSinusView] = useState(false);
   const ecgCaptureLock = useRef(false);
   const ecgSampleRateRef = useRef<number | undefined>(undefined);
   const calmSilencedRef = useRef(false);
@@ -1648,7 +1646,6 @@ export function PatientKioskWizard() {
     setError(null);
     setEcgCapturing(true);
     setEcgWave([]);
-    setEcgPatientSinusView(false);
     ecgSampleRateRef.current = undefined;
     setDeviceStatus("reading");
     setEcgStatusMsg("Conectando al MD100C_P. Dedos en las placas…");
@@ -1772,7 +1769,6 @@ export function PatientKioskWizard() {
     }
     setEcgCapturing(false);
     setEcgWave([]);
-    setEcgPatientSinusView(false);
     setDeviceStatus("idle");
     setEcgStatusMsg("Toque Leer electrocardiograma cuando esté listo.");
   }, [step, vitalsDraft.ecgStatus]);
@@ -3226,35 +3222,20 @@ export function PatientKioskWizard() {
           hideGuideWhenReading
           illustrationSlot={
             ecgCapturing ? (
-              <div className="flex min-h-0 flex-1 flex-col gap-2">
-                <EcgWaveform
-                  samples={
-                    ecgPatientSinusView && ecgWave.length > 0
-                      ? buildDisplaySinusFromSamples(ecgWave, {
-                          sampleRateHz: ecgSampleRateRef.current,
-                        })
-                      : ecgWave
-                  }
-                  live
-                  liveWindow={240}
-                  height={240}
-                  className="min-h-0 flex-1"
-                  label={
-                    ecgPatientSinusView
-                      ? "Vista paciente (sinusal)"
-                      : "Monitor ECG (trazado real)"
-                  }
-                />
-                <label className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-800/40 bg-emerald-950/40 px-3 py-2 text-sm font-semibold text-emerald-100">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-emerald-500"
-                    checked={ecgPatientSinusView}
-                    onChange={(e) => setEcgPatientSinusView(e.target.checked)}
-                  />
-                  Vista paciente (sinusal)
-                </label>
-              </div>
+              <EcgWaveform
+                samples={
+                  ecgWave.length > 0
+                    ? buildDisplaySinusFromSamples(ecgWave, {
+                        sampleRateHz: ecgSampleRateRef.current,
+                      })
+                    : ecgWave
+                }
+                live
+                liveWindow={240}
+                height={260}
+                className="min-h-0 flex-1"
+                label="Vista paciente (sinusal)"
+              />
             ) : undefined
           }
           extra={
@@ -3264,40 +3245,19 @@ export function PatientKioskWizard() {
                   quality={vitalsDraft.ecgQuality}
                   flagsCsv={vitalsDraft.ecgFlags}
                   estimatedHr={vitalsDraft.ecgEstimatedHr}
-                  patientViewActive={ecgPatientSinusView}
+                  patientViewActive
                 />
                 {ecgWave.length > 0 ? (
-                  <>
-                    <EcgWaveform
-                      samples={
-                        ecgPatientSinusView
-                          ? buildDisplaySinusFromSamples(ecgWave, {
-                              sampleRateHz: ecgSampleRateRef.current,
-                            })
-                          : ecgWave
-                      }
-                      live={false}
-                      liveWindow={240}
-                      height={200}
-                      className="min-h-0 flex-1"
-                      label={
-                        ecgPatientSinusView
-                          ? "Vista paciente (sinusal)"
-                          : "Onda ECG real"
-                      }
-                    />
-                    <label className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-[#1d6eb8]"
-                        checked={ecgPatientSinusView}
-                        onChange={(e) =>
-                          setEcgPatientSinusView(e.target.checked)
-                        }
-                      />
-                      Vista paciente (sinusal) — el análisis usa el trazado real
-                    </label>
-                  </>
+                  <EcgWaveform
+                    samples={buildDisplaySinusFromSamples(ecgWave, {
+                      sampleRateHz: ecgSampleRateRef.current,
+                    })}
+                    live={false}
+                    liveWindow={240}
+                    height={220}
+                    className="min-h-0 flex-1"
+                    label="Vista paciente (sinusal)"
+                  />
                 ) : null}
               </div>
             ) : ecgCapturing && ecgStatusMsg ? (
@@ -3309,7 +3269,6 @@ export function PatientKioskWizard() {
           onSimulate={() => {
             const wave = buildSyntheticEcgWave(480, 72);
             setEcgWave(wave);
-            setEcgPatientSinusView(false);
             const oxHr = Number(vitalsDraft.heartRate);
             const screen = analyzeEcgWave(wave, {
               oximeterHr: Number.isFinite(oxHr) ? oxHr : 72,
@@ -3338,7 +3297,6 @@ export function PatientKioskWizard() {
             setError(null);
             setEcgStatusMsg("");
             setEcgWave([]);
-            setEcgPatientSinusView(false);
             setDeviceStatus("idle");
             await goToStep("summary");
           }}
