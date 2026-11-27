@@ -266,7 +266,7 @@ export function EcgWaveform({
   return (
     <div
       ref={wrapRef}
-      className={`shrink-0 overflow-hidden rounded-2xl border-2 border-emerald-800/80 bg-[#020806] shadow-sm ${className}`}
+      className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border-2 border-emerald-800/80 bg-[#020806] shadow-sm ${className || "shrink-0"}`}
     >
       <div className="flex items-center justify-between gap-2 border-b border-emerald-800/70 bg-emerald-950/60 px-3 py-1.5">
         <p className="text-sm font-bold uppercase tracking-wide text-emerald-100 xl:text-base">
