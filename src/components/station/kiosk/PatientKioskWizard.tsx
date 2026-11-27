@@ -3221,8 +3221,13 @@ export function PatientKioskWizard() {
                   <EcgWaveform
                     samples={ecgWave}
                     live={ecgCapturing}
+                    liveWindow={180}
                     height={190}
-                    label={ecgCapturing ? "Onda ECG en vivo" : "Último trazado"}
+                    label={
+                      ecgCapturing
+                        ? "Onda ECG en vivo (desplazándose)"
+                        : "Trazado completo de la lectura"
+                    }
                   />
                 ) : null}
                 {vitalsDraft.ecgStatus === "done" ? (
