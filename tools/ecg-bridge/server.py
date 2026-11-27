@@ -8,8 +8,9 @@ La frecuencia cardiaca (lpm) NO se toma de este aparato:
 viene del oxímetro CMS50D+ en el paso de SpO₂.
 
 Decodificación de onda ChoiceMMed (trama 16 B):
-  0x01 + 5×[LO, HI, FLAG] → amplitud uint16 = LO | (HI<<8).
-  (Leer byte a byte daba diente de sierra; FLAG≈0x01 / HI≈0).
+  0x01 + 5×[LO, HI, FLAG] → amplitud = LO | (HI<<8).
+  En MD100C_P suele intercalarse un byte/constante ~34 (no es amplitud);
+  si no se filtra, el trazo sale triangular / “diente de sierra”.
   Fallback ecg.py: data[3] si 30..200.
 """
 
@@ -21,7 +22,7 @@ import math
 import os
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -77,14 +78,48 @@ def get_progress() -> dict[str, Any]:
         return out
 
 
+def _strip_protocol_constant(pts: list[int]) -> list[int]:
+    """
+    Quita el canal constante (~34) intercalado en MD100C_P.
+    Ejemplo crudo: 34,146,34,147,34,152 → 146,147,152.
+    """
+    if len(pts) < 4:
+        return pts
+
+    even = pts[0::2]
+    odd = pts[1::2]
+
+    def mostly_constant(xs: list[int]) -> tuple[bool, int]:
+        if not xs:
+            return False, 0
+        val, n = Counter(xs).most_common(1)[0]
+        return n >= max(2, int(len(xs) * 0.65)), val
+
+    even_c, even_v = mostly_constant(even)
+    odd_c, odd_v = mostly_constant(odd)
+    # Un índice es casi fijo (~34) y el otro varía → quedarnos con el variable.
+    if even_c and not odd_c and 20 <= even_v <= 45:
+        return odd
+    if odd_c and not even_c and 20 <= odd_v <= 45:
+        return even
+
+    val, n = Counter(pts).most_common(1)[0]
+    if n >= max(3, int(len(pts) * 0.35)) and 20 <= val <= 45:
+        cleaned = [p for p in pts if p != val]
+        if len(cleaned) >= 2:
+            return cleaned
+    return pts
+
+
 def extract_wave_points(data: bytes) -> list[int]:
     """
-    Onda ChoiceMMed BLE (misma familia que MD300 / MD100C):
+    Onda ChoiceMMed BLE (MD100C_P):
 
     Trama 16 bytes: 0x01 + cinco muestras [LO, HI, FLAG].
     Amplitud = LO | (HI << 8). FLAG se ignora.
+    Luego se elimina el constante ~34 intercalado (si aparece).
 
-    Fallback (ecg.py): un punto en data[3] si 30..200.
+    Fallback (ecg.py): un punto en data[3] si 30..200 (y != 34 puro de relleno).
     """
     if not data:
         return []
@@ -98,13 +133,14 @@ def extract_wave_points(data: bytes) -> list[int]:
             lo = int(data[i])
             hi = int(data[i + 1])
             pts.append(lo | (hi << 8))
-        if len(pts) >= 3:
+        pts = _strip_protocol_constant(pts)
+        if len(pts) >= 2:
             return pts
 
-    # Fallback exacto de ecg.py.
+    # Fallback exacto de ecg.py (omite la constante típica 34).
     if len(data) >= 4:
         value = int(data[3])
-        if 30 <= value <= 200:
+        if 30 <= value <= 200 and value != 34:
             return [value]
     return []
 

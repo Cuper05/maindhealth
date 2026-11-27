@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { analyzeEcgWave } from "./ecg-wave-screen";
-import { buildSyntheticEcgWave } from "./station-ecg";
+import { buildSyntheticEcgWave, stripProtocolConstant } from "./station-ecg";
+
+describe("stripProtocolConstant", () => {
+  it("quita el 34 intercalado del MD100C_P", () => {
+    const raw = [34, 146, 34, 147, 34, 152, 34, 138, 34, 135];
+    expect(stripProtocolConstant(raw)).toEqual([146, 147, 152, 138, 135]);
+  });
+});
 
 /** Onda ~120 Hz con latidos a `bpm` durante `seconds`. */
 function syntheticAtBpm(bpm: number, seconds = 20, sampleRate = 120): number[] {
