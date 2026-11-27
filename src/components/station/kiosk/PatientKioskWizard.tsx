@@ -2998,11 +2998,6 @@ export function PatientKioskWizard() {
             await goToStep("blood_pressure");
           }}
           onBack={goBack}
-          onRetry={async () => {
-            await clearVitalFields(VITAL_FIELDS.weight_height);
-            setScaleStatus("Pulsa Leer báscula ahora");
-            setDeviceStatus("idle");
-          }}
         />
       )}
 
@@ -3058,11 +3053,6 @@ export function PatientKioskWizard() {
             await goToStep("oxygen");
           }}
           onBack={goBack}
-          onRetry={() => {
-            void clearVitalFields(VITAL_FIELDS.blood_pressure);
-            setBpStatus("Pulsa Leer presión ahora");
-            setDeviceStatus("idle");
-          }}
         />
       )}
 
@@ -3116,11 +3106,6 @@ export function PatientKioskWizard() {
             await goToStep("temperature");
           }}
           onBack={goBack}
-          onRetry={async () => {
-            await clearVitalFields(["oxygenSaturation", "heartRate"]);
-            setOxygenStatus("Pulsa Leer oxímetro ahora");
-            setDeviceStatus("idle");
-          }}
         />
       )}
 
@@ -3162,11 +3147,6 @@ export function PatientKioskWizard() {
             await goToStep("ecg");
           }}
           onBack={goBack}
-          onRetry={() => {
-            void clearVitalFields(VITAL_FIELDS.temperature);
-            setTempStatus("Pulsa Leer temperatura ahora");
-            setDeviceStatus("idle");
-          }}
         />
       )}
 
@@ -3276,15 +3256,6 @@ export function PatientKioskWizard() {
             await goToStep("summary");
           }}
           onBack={goBack}
-          onRetry={async () => {
-            void confirmStationEcgDone();
-            ecgCaptureLock.current = false;
-            setEcgCapturing(false);
-            setEcgWave([]);
-            await clearVitalFields(VITAL_FIELDS.ecg);
-            setEcgStatusMsg("Pulsa Leer electrocardiograma");
-            setDeviceStatus("idle");
-          }}
         />
       )}
 
