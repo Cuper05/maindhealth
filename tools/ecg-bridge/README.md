@@ -16,9 +16,9 @@ Servicio local en `http://127.0.0.1:3928`.
 ### Decodificación de onda (ChoiceMMed / `ecg.py`)
 
 1. Trama `0x01` de 16 bytes: **5 muestras** `[LO, HI, FLAG]` → `amplitud = LO | (HI<<8)`.
-   - Leer byte a byte generaba diente de sierra (HI≈0, FLAG≈1).
-2. Fallback `ecg.py`: `len >= 4` y `30 <= data[3] <= 200` → un punto.
-3. El kiosko dibuja las muestras uint16 en papel ECG (rosa); solo interpola si llegan pocos puntos.
+2. Se elimina el **constante ~34** intercalado (si no, el gráfico sale triangular).
+3. Fallback `ecg.py`: `len >= 4` y `30 <= data[3] <= 200` (omite 34 de relleno).
+4. Nota: un ECG real **no** es un seno puro (tiene morfología P–QRS–T / ruido de lead de dedos).
 
 ## Una sola vez
 

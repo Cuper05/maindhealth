@@ -112,11 +112,59 @@ export async function readStationEcg(
 }
 
 /**
- * Con muestras densas (uint16 de trama 0x01) se muestran crudas.
+ * Quita el canal constante ~34 intercalado (MD100C_P).
+ * Si no, el trazo se ve triangular en lugar de onda biológica.
+ */
+export function stripProtocolConstant(raw: number[]): number[] {
+  const pts = raw.filter((n) => Number.isFinite(n));
+  if (pts.length < 4) return pts;
+
+  const even = pts.filter((_, i) => i % 2 === 0);
+  const odd = pts.filter((_, i) => i % 2 === 1);
+
+  const mostlyConstant = (xs: number[]): { ok: boolean; val: number } => {
+    if (!xs.length) return { ok: false, val: 0 };
+    const counts = new Map<number, number>();
+    for (const x of xs) counts.set(x, (counts.get(x) ?? 0) + 1);
+    let best = xs[0]!;
+    let n = 0;
+    for (const [v, c] of counts) {
+      if (c > n) {
+        best = v;
+        n = c;
+      }
+    }
+    return { ok: n >= Math.max(2, Math.floor(xs.length * 0.65)), val: best };
+  };
+
+  const e = mostlyConstant(even);
+  const o = mostlyConstant(odd);
+  if (e.ok && !o.ok && e.val >= 20 && e.val <= 45) return odd;
+  if (o.ok && !e.ok && o.val >= 20 && o.val <= 45) return even;
+
+  const counts = new Map<number, number>();
+  for (const x of pts) counts.set(x, (counts.get(x) ?? 0) + 1);
+  let mode = pts[0]!;
+  let modeN = 0;
+  for (const [v, c] of counts) {
+    if (c > modeN) {
+      mode = v;
+      modeN = c;
+    }
+  }
+  if (modeN >= Math.max(3, Math.floor(pts.length * 0.35)) && mode >= 20 && mode <= 45) {
+    const cleaned = pts.filter((p) => p !== mode);
+    if (cleaned.length >= 2) return cleaned;
+  }
+  return pts;
+}
+
+/**
+ * Con muestras densas se muestran crudas (tras quitar constante ~34).
  * Solo si llegan pocos puntos (fallback data[3]) se rellenan con coseno.
  */
 export function prepareWaveForDisplay(raw: number[], maxPoints = 360): number[] {
-  const pts = raw.filter((n) => Number.isFinite(n));
+  const pts = stripProtocolConstant(raw.filter((n) => Number.isFinite(n)));
   if (pts.length === 0) return [];
   if (pts.length >= 40) {
     return pts.length > maxPoints ? pts.slice(-maxPoints) : pts;
