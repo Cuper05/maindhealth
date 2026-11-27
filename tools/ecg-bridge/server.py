@@ -34,8 +34,8 @@ PORT = int(os.environ.get("ECG_BRIDGE_PORT", "3928"))
 TARGET_ADDRESS = os.environ.get("ECG_MD100C_ADDRESS", "FB:1E:E4:A4:03:00").strip()
 READ_TIMEOUT_MS = int(os.environ.get("ECG_READ_TIMEOUT_MS", "150000"))
 MIN_MEASURE_SEC = float(os.environ.get("ECG_MIN_MEASURE_SEC", "28"))
-# Mínimo de puntos de onda antes de poder auto-cerrar (tras MIN_MEASURE_SEC).
-MIN_WAVE_POINTS = int(os.environ.get("ECG_MIN_WAVE_POINTS", "40"))
+# Alineado al mínimo de cribado (~90 pts post-strip) para no cerrar con buffers inútiles.
+MIN_WAVE_POINTS = int(os.environ.get("ECG_MIN_WAVE_POINTS", "90"))
 HEX_LOG_LIMIT = int(os.environ.get("ECG_HEX_LOG_LIMIT", "80"))
 # Más buffer: tras filtrar el ~34 quedan ~mitad de puntos para el cribado.
 WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "900"))
@@ -55,6 +55,7 @@ _loop: asyncio.AbstractEventLoop | None = None
 _wave_samples: deque[int] = deque(maxlen=WAVE_BUFFER_MAX)
 _wave_total = 0
 _hex_logged = 0
+_wave_t0: float | None = None
 
 
 def set_progress(phase: str, message: str) -> None:
@@ -63,6 +64,11 @@ def set_progress(phase: str, message: str) -> None:
         _progress["message"] = message
         _progress["device"] = "md100c_p"
         _progress["wavePoints"] = _wave_total
+        if _wave_t0 is not None and _wave_total > 8:
+            elapsed = max(0.25, time.monotonic() - _wave_t0)
+            _progress["sampleRateHz"] = round(_wave_total / elapsed, 1)
+        elif "sampleRateHz" in _progress:
+            del _progress["sampleRateHz"]
 
 
 def get_progress() -> dict[str, Any]:
@@ -155,7 +161,7 @@ def _log_hex(data: bytes, note: str = "") -> None:
 
 
 def notification_handler(_sender: Any, data: bytearray) -> None:
-    global _wave_total
+    global _wave_total, _wave_t0
     raw = bytes(data)
     points = extract_wave_points(raw)
     note = f"wave+{len(points)} " if points else ""
@@ -165,6 +171,8 @@ def notification_handler(_sender: Any, data: bytearray) -> None:
         return
 
     with _lock:
+        if _wave_t0 is None:
+            _wave_t0 = time.monotonic()
         _wave_samples.extend(points)
         _wave_total += len(points)
         n = _wave_total
@@ -209,11 +217,12 @@ async def _subscribe_all(client: BleakClient) -> None:
 
 
 async def measure_once() -> dict[str, Any]:
-    global _patient_done, _wave_total, _hex_logged
+    global _patient_done, _wave_total, _hex_logged, _wave_t0
 
     with _lock:
         _wave_samples.clear()
         _wave_total = 0
+        _wave_t0 = None
         _patient_done = False
         _hex_logged = 0
 
@@ -268,16 +277,20 @@ async def measure_once() -> dict[str, Any]:
             with _lock:
                 wave = list(_wave_samples)
                 total = _wave_total
+                rate = None
+                if _wave_t0 is not None and total > 8:
+                    elapsed = max(0.25, time.monotonic() - _wave_t0)
+                    rate = round(total / elapsed, 1)
 
-            if total < 8:
+            if total < MIN_WAVE_POINTS:
                 raise RuntimeError(
-                    "No llegó la onda del MD100C_P. "
+                    "Trazado insuficiente del MD100C_P. "
                     "Mantenga los dedos firmes en las placas ~30 s y toque Ya terminó."
                 )
 
             rhythm = "Trazado ECG registrado (MD100C_P)"
             set_progress("idle", f"{rhythm} · {total} puntos")
-            return {
+            out: dict[str, Any] = {
                 "ok": True,
                 "rhythm": rhythm,
                 "wavePoints": total,
@@ -285,6 +298,9 @@ async def measure_once() -> dict[str, Any]:
                 "source": "md100c_p",
                 "address": TARGET_ADDRESS,
             }
+            if rate is not None:
+                out["sampleRateHz"] = rate
+            return out
     except Exception as err:
         msg = str(err) or err.__class__.__name__
         if "not found" in msg.lower() or "could not" in msg.lower() or "failed to connect" in msg.lower():

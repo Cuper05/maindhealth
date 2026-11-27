@@ -14,6 +14,7 @@ import {
 } from "@/lib/kiosk/station-ecg";
 import {
   analyzeEcgWave,
+  assessLiveEcgContact,
   ecgFlagsToCsv,
 } from "@/lib/kiosk/ecg-wave-screen";
 import { EcgWaveform } from "./EcgWaveform";
@@ -375,8 +376,12 @@ export function PatientKioskWizard() {
   const tempCaptureLock = useRef(false);
   const [ecgStatusMsg, setEcgStatusMsg] = useState<string>("");
   const [ecgCapturing, setEcgCapturing] = useState(false);
+  /** Onda real (cribado / default). */
   const [ecgWave, setEcgWave] = useState<number[]>([]);
+  /** Vista paciente: sinusal anclado a picos reales (no altera el cribado). */
+  const [ecgPatientSinusView, setEcgPatientSinusView] = useState(false);
   const ecgCaptureLock = useRef(false);
+  const ecgSampleRateRef = useRef<number | undefined>(undefined);
   const calmSilencedRef = useRef(false);
   const doctorJoinedRef = useRef(false);
   const endingCallRef = useRef(false);
@@ -1643,27 +1648,49 @@ export function PatientKioskWizard() {
     setError(null);
     setEcgCapturing(true);
     setEcgWave([]);
+    setEcgPatientSinusView(false);
+    ecgSampleRateRef.current = undefined;
     setDeviceStatus("reading");
     setEcgStatusMsg("Conectando al MD100C_P. Dedos en las placas…");
     speakKiosk(ECG_START_VOICE, { force: true });
     try {
       const sample = await readStationEcg((progress) => {
-        if (progress.message) setEcgStatusMsg(progress.message);
+        if (progress.sampleRateHz) {
+          ecgSampleRateRef.current = progress.sampleRateHz;
+        }
         if (progress.wave && progress.wave.length > 0) {
-          // Display: ritmo sinusal tipo papel ECG paced por los datos recibidos.
-          // El cribado usa la onda cruda al finalizar.
-          setEcgWave(buildDisplaySinusFromSamples(progress.wave));
+          // Siempre guardar onda real (cribado + monitor por defecto).
+          setEcgWave(progress.wave);
+          const live = assessLiveEcgContact(progress.wave, {
+            sampleRateHz: progress.sampleRateHz ?? ecgSampleRateRef.current,
+          });
+          setEcgStatusMsg(live.message);
+        } else if (progress.message) {
+          setEcgStatusMsg(progress.message);
         }
       });
       const wave = sample.wave && sample.wave.length > 0 ? sample.wave : [];
-      if (wave.length > 0) {
-        setEcgWave(buildDisplaySinusFromSamples(wave));
-      }
+      if (wave.length > 0) setEcgWave(wave);
+      if (sample.sampleRateHz) ecgSampleRateRef.current = sample.sampleRateHz;
 
       const oxHr = Number(vitalsDraft.heartRate);
       const screen = analyzeEcgWave(wave, {
         oximeterHr: Number.isFinite(oxHr) ? oxHr : null,
+        sampleRateHz: sample.sampleRateHz ?? ecgSampleRateRef.current,
       });
+
+      // No aceptar trazados poor: obligar a repetir.
+      if (
+        screen.quality === "poor" ||
+        screen.flags.includes("poor_signal")
+      ) {
+        const msg =
+          "Señal insuficiente — repita con dedos firmes en las placas ~30 s.";
+        setEcgStatusMsg(msg);
+        setError(msg);
+        setDeviceStatus("retry");
+        return;
+      }
 
       // FC oficial = oxímetro; el ECG aporta trazado + cribado no diagnóstico.
       const patch: VitalsDraft = {
@@ -1745,6 +1772,7 @@ export function PatientKioskWizard() {
     }
     setEcgCapturing(false);
     setEcgWave([]);
+    setEcgPatientSinusView(false);
     setDeviceStatus("idle");
     setEcgStatusMsg("Toque Leer electrocardiograma cuando esté listo.");
   }, [step, vitalsDraft.ecgStatus]);
@@ -3198,14 +3226,35 @@ export function PatientKioskWizard() {
           hideGuideWhenReading
           illustrationSlot={
             ecgCapturing ? (
-              <EcgWaveform
-                samples={ecgWave}
-                live
-                liveWindow={240}
-                height={260}
-                className="min-h-0 flex-1"
-                label="Monitor ECG"
-              />
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <EcgWaveform
+                  samples={
+                    ecgPatientSinusView && ecgWave.length > 0
+                      ? buildDisplaySinusFromSamples(ecgWave, {
+                          sampleRateHz: ecgSampleRateRef.current,
+                        })
+                      : ecgWave
+                  }
+                  live
+                  liveWindow={240}
+                  height={240}
+                  className="min-h-0 flex-1"
+                  label={
+                    ecgPatientSinusView
+                      ? "Vista paciente (sinusal)"
+                      : "Monitor ECG (trazado real)"
+                  }
+                />
+                <label className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-800/40 bg-emerald-950/40 px-3 py-2 text-sm font-semibold text-emerald-100">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-emerald-500"
+                    checked={ecgPatientSinusView}
+                    onChange={(e) => setEcgPatientSinusView(e.target.checked)}
+                  />
+                  Vista paciente (sinusal)
+                </label>
+              </div>
             ) : undefined
           }
           extra={
@@ -3215,16 +3264,40 @@ export function PatientKioskWizard() {
                   quality={vitalsDraft.ecgQuality}
                   flagsCsv={vitalsDraft.ecgFlags}
                   estimatedHr={vitalsDraft.ecgEstimatedHr}
+                  patientViewActive={ecgPatientSinusView}
                 />
                 {ecgWave.length > 0 ? (
-                  <EcgWaveform
-                    samples={ecgWave}
-                    live={false}
-                    liveWindow={240}
-                    height={220}
-                    className="min-h-0 flex-1"
-                    label="Onda ECG completa"
-                  />
+                  <>
+                    <EcgWaveform
+                      samples={
+                        ecgPatientSinusView
+                          ? buildDisplaySinusFromSamples(ecgWave, {
+                              sampleRateHz: ecgSampleRateRef.current,
+                            })
+                          : ecgWave
+                      }
+                      live={false}
+                      liveWindow={240}
+                      height={200}
+                      className="min-h-0 flex-1"
+                      label={
+                        ecgPatientSinusView
+                          ? "Vista paciente (sinusal)"
+                          : "Onda ECG real"
+                      }
+                    />
+                    <label className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[#1d6eb8]"
+                        checked={ecgPatientSinusView}
+                        onChange={(e) =>
+                          setEcgPatientSinusView(e.target.checked)
+                        }
+                      />
+                      Vista paciente (sinusal) — el análisis usa el trazado real
+                    </label>
+                  </>
                 ) : null}
               </div>
             ) : ecgCapturing && ecgStatusMsg ? (
@@ -3236,11 +3309,18 @@ export function PatientKioskWizard() {
           onSimulate={() => {
             const wave = buildSyntheticEcgWave(480, 72);
             setEcgWave(wave);
+            setEcgPatientSinusView(false);
             const oxHr = Number(vitalsDraft.heartRate);
-            // Demo: misma morfología sinusal; cribado sobre esa onda.
             const screen = analyzeEcgWave(wave, {
               oximeterHr: Number.isFinite(oxHr) ? oxHr : 72,
             });
+            if (screen.quality === "poor") {
+              setEcgStatusMsg(
+                "Demo: señal insuficiente — use otra simulación o lea el dispositivo.",
+              );
+              setDeviceStatus("retry");
+              return;
+            }
             simulateReading({
               ecgStatus: "done",
               ecgRhythm: screen.summaryEs,
@@ -3258,6 +3338,7 @@ export function PatientKioskWizard() {
             setError(null);
             setEcgStatusMsg("");
             setEcgWave([]);
+            setEcgPatientSinusView(false);
             setDeviceStatus("idle");
             await goToStep("summary");
           }}

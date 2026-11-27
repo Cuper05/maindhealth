@@ -33,11 +33,14 @@ export function EcgScreenChips({
   flagsCsv,
   estimatedHr,
   compact = false,
+  patientViewActive = false,
 }: {
   quality?: string | null;
   flagsCsv?: string | null;
   estimatedHr?: string | null;
   compact?: boolean;
+  /** Si la UI muestra el sinusal paciente (el cribado sigue siendo del trazado real). */
+  patientViewActive?: boolean;
 }) {
   const flags = parseEcgFlagsCsv(flagsCsv);
   const q = (quality ?? "") as EcgWaveQuality | "";
@@ -69,6 +72,9 @@ export function EcgScreenChips({
       </div>
       <p className="text-xs font-medium leading-snug text-slate-600 xl:text-sm">
         {ECG_SCREEN_DISCLAIMER}
+        {patientViewActive
+          ? " La vista sinusal es solo para el paciente; el análisis usa el trazado real."
+          : null}
       </p>
     </div>
   );
