@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 type EcgWaveformProps = {
   samples: number[];
   live?: boolean;
-  /** Muestras de la “primera onda” (ancho tipo monitor). */
+  /** Ventana visible (~segundos de monitor). */
   liveWindow?: number;
   height?: number;
   className?: string;
@@ -13,14 +13,10 @@ type EcgWaveformProps = {
 };
 
 /** Suaviza para vista tipo monitor (no altera el cribado). */
-function softenMonitorWave(
-  pts: number[],
-  opts?: { window?: number; upsample?: boolean },
-): number[] {
+function softenMonitorWave(pts: number[], window = 5): number[] {
   if (pts.length < 3) return pts.slice();
-  const window = opts?.window ?? 7;
   const half = Math.floor(window / 2);
-  const avg: number[] = [];
+  const out: number[] = [];
   for (let i = 0; i < pts.length; i++) {
     let s = 0;
     let n = 0;
@@ -30,49 +26,52 @@ function softenMonitorWave(
         n += 1;
       }
     }
-    avg.push(s / n);
-  }
-  if (!opts?.upsample || avg.length < 40) return avg;
-  // Upsample suave (coseno) para que el trazo no se vea dentado.
-  const out: number[] = [];
-  const target = Math.min(avg.length * 2, 560);
-  for (let i = 0; i < target; i++) {
-    const t = (i / (target - 1)) * (avg.length - 1);
-    const i0 = Math.floor(t);
-    const i1 = Math.min(i0 + 1, avg.length - 1);
-    const frac = t - i0;
-    const mu = (1 - Math.cos(frac * Math.PI)) / 2;
-    out.push(avg[i0]! * (1 - mu) + avg[i1]! * mu);
+    out.push(s / n);
   }
   return out;
 }
 
+function rangeOf(vals: number[]): { min: number; max: number } | null {
+  if (!vals.length) return null;
+  let min = vals[0]!;
+  let max = vals[0]!;
+  for (const v of vals) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return { min, max };
+}
+
 /**
- * Vista tipo monitor de signos vitales.
- * Solo la primera pasada (no el trazado completo comprimido/picudo).
- * En vivo crece L→R y se congela; al terminar sigue esa misma onda.
+ * Monitor de signos vitales:
+ * - Escala Y fija (no “salta” de tamaño).
+ * - Trazo nuevo entra por la derecha y la onda se desplaza a la izquierda.
  */
 export function EcgWaveform({
   samples,
   live = false,
-  liveWindow = 220,
+  liveWindow = 240,
   height = 190,
   className = "",
   label = "Onda ECG",
 }: EcgWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  /** Primera onda congelada (ya suavizada). */
-  const frozenRef = useRef<number[] | null>(null);
-  const filledRef = useRef(0);
-  const scaleRef = useRef({ min: 0, max: 1 });
+  /** Escala Y bloqueada tras calibración. */
+  const scaleRef = useRef<{ min: number; max: number; locked: boolean }>({
+    min: 0,
+    max: 1,
+    locked: false,
+  });
+  /** Última ventana al terminar (se queda fija). */
+  const lastViewRef = useRef<number[] | null>(null);
+  const seenLenRef = useRef(0);
 
-  // Solo reinicia al vaciar muestras (nueva lectura).
-  // Al terminar live NO se suelta: se queda la primera onda.
   useEffect(() => {
     if (samples.length === 0) {
-      frozenRef.current = null;
-      filledRef.current = 0;
+      scaleRef.current = { min: 0, max: 1, locked: false };
+      lastViewRef.current = null;
+      seenLenRef.current = 0;
     }
   }, [samples.length]);
 
@@ -128,30 +127,29 @@ export function EcgWaveform({
       return h - 10 - t * (h - 20);
     };
 
-    const updateScale = (vals: number[], soft: boolean) => {
-      if (!vals.length) return;
-      let min = vals[0]!;
-      let max = vals[0]!;
-      for (const v of vals) {
-        if (v < min) min = v;
-        if (v > max) max = v;
+    /**
+     * Calibra una vez con las primeras muestras y bloquea.
+     * Solo amplía si algo se sale (nunca encoge → no “salta” el tamaño).
+     */
+    const ensureScale = (vals: number[]) => {
+      const r = rangeOf(vals);
+      if (!r) return;
+      const pad = Math.max((r.max - r.min) * 0.35, 40);
+      let min = r.min - pad;
+      let max = r.max + pad;
+      if (max - min < 80) {
+        const mid = (min + max) / 2;
+        min = mid - 40;
+        max = mid + 40;
       }
-      const span = max - min;
-      const pad = Math.max(span * 0.22, span < 8 ? 40 : 16);
-      min -= pad;
-      max += pad;
-      if (max - min < 24) {
-        min -= 30;
-        max += 30;
-      }
-      const prev = scaleRef.current;
-      if (soft && prev.max > prev.min + 1) {
-        scaleRef.current = {
-          min: prev.min * 0.8 + min * 0.2,
-          max: prev.max * 0.8 + max * 0.2,
-        };
+
+      const cur = scaleRef.current;
+      if (cur.locked) return; // escala fija: el tamaño de la onda ya no cambia
+      // Espera un poco de señal antes de fijar.
+      if (vals.length >= 36) {
+        scaleRef.current = { min, max, locked: true };
       } else {
-        scaleRef.current = { min, max };
+        scaleRef.current = { min, max, locked: false };
       }
     };
 
@@ -162,38 +160,38 @@ export function EcgWaveform({
       h: number,
       min: number,
       max: number,
-      tip?: boolean,
+      tip: boolean,
     ) => {
       const n = vals.length;
       if (!n) return;
-      const xStep = n > 1 ? w / (n - 1) : w;
+      // Siempre el ancho completo del monitor (tamaño horizontal fijo).
+      const xStep = n > 1 ? w / (n - 1) : 0;
 
-      // Halo suave tipo fosforo de monitor.
       ctx.beginPath();
       ctx.strokeStyle = "rgba(74, 222, 128, 0.28)";
       ctx.lineWidth = 4.5;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      vals.forEach((v, i) => {
+      for (let i = 0; i < n; i++) {
         const x = i * xStep;
-        const y = yAt(v, h, min, max);
+        const y = yAt(vals[i]!, h, min, max);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
-      });
+      }
       ctx.stroke();
 
       ctx.beginPath();
       ctx.strokeStyle = "#4ade80";
       ctx.lineWidth = 2;
-      vals.forEach((v, i) => {
+      for (let i = 0; i < n; i++) {
         const x = i * xStep;
-        const y = yAt(v, h, min, max);
+        const y = yAt(vals[i]!, h, min, max);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
-      });
+      }
       ctx.stroke();
 
-      if (tip && n) {
+      if (tip) {
         const x = (n - 1) * xStep;
         const y = yAt(vals[n - 1]!, h, min, max);
         ctx.beginPath();
@@ -202,9 +200,6 @@ export function EcgWaveform({
         ctx.fill();
       }
     };
-
-    const firstPassRaw = (src: number[], cols: number) =>
-      src.slice(0, Math.min(cols, src.length));
 
     const draw = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -220,7 +215,7 @@ export function EcgWaveform({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawMonitorBg(ctx, w, h);
 
-      if (!samples.length && !frozenRef.current) {
+      if (!samples.length && !lastViewRef.current) {
         ctx.fillStyle = "#86efac";
         ctx.font = "600 16px system-ui, sans-serif";
         ctx.textAlign = "center";
@@ -232,43 +227,80 @@ export function EcgWaveform({
         return;
       }
 
-      const cols = Math.max(80, Math.min(liveWindow, Math.floor(w * 0.55)));
+      const cols = Math.max(100, Math.min(liveWindow, Math.floor(w / 2.2)));
 
-      if (samples.length > 0 && samples.length < filledRef.current) {
-        frozenRef.current = null;
-        filledRef.current = 0;
+      if (samples.length > 0 && samples.length < seenLenRef.current) {
+        scaleRef.current = { min: 0, max: 1, locked: false };
+        lastViewRef.current = null;
+      }
+      seenLenRef.current = samples.length;
+
+      let view: number[];
+      if (live && samples.length) {
+        // Ventana deslizante: lo más nuevo a la derecha → la onda “pasa” a la izquierda.
+        const raw = samples.slice(-cols);
+        view = softenMonitorWave(raw);
+        lastViewRef.current = view;
+      } else if (lastViewRef.current?.length) {
+        view = lastViewRef.current;
+      } else if (samples.length) {
+        view = softenMonitorWave(samples.slice(-cols));
+        lastViewRef.current = view;
+      } else {
+        return;
       }
 
-      // Congela la primera pasada suavizada (nunca el trazado largo/picudo).
-      if (!frozenRef.current && samples.length > 0) {
-        const raw = firstPassRaw(samples, cols);
-        filledRef.current = samples.length;
-        if (raw.length >= cols || (!live && raw.length >= 24)) {
-          frozenRef.current = softenMonitorWave(raw, { upsample: true });
-        }
-      }
-
-      const rawPass = firstPassRaw(samples, cols);
-      const display = frozenRef.current
-        ? frozenRef.current
-        : softenMonitorWave(rawPass);
-
-      if (!display.length) return;
-
-      const filling = live && !frozenRef.current;
-      updateScale(display, filling);
+      ensureScale(view);
       const { min, max } = scaleRef.current;
 
-      if (filling) {
-        const progress = Math.min(
-          1,
-          rawPass.length / Math.max(cols - 1, 1),
-        );
-        const drawW = Math.max(progress * w, 2);
-        strokeTrace(ctx, display, drawW, h, min, max, true);
-      } else {
-        strokeTrace(ctx, display, w, h, min, max, false);
+      // Si aún no llena la ventana, ancla el trazo a la derecha (entra por la derecha).
+      if (live && view.length < cols) {
+        const pad = cols - view.length;
+        const padded = [
+          ...Array.from({ length: pad }, () => Number.NaN),
+          ...view,
+        ];
+        // Dibuja solo segmentos finitos (hueco a la izquierda).
+        const xStep = cols > 1 ? w / (cols - 1) : 0;
+        const { min: sMin, max: sMax } = scaleRef.current;
+
+        const strokeFinite = (width: number, color: string) => {
+          ctx.beginPath();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+          let drawing = false;
+          for (let i = 0; i < padded.length; i++) {
+            const v = padded[i]!;
+            if (!Number.isFinite(v)) {
+              drawing = false;
+              continue;
+            }
+            const x = i * xStep;
+            const y = yAt(v, h, sMin, sMax);
+            if (!drawing) {
+              ctx.moveTo(x, y);
+              drawing = true;
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+          ctx.stroke();
+        };
+        strokeFinite(4.5, "rgba(74, 222, 128, 0.28)");
+        strokeFinite(2, "#4ade80");
+
+        const last = view[view.length - 1]!;
+        const tipX = (cols - 1) * xStep;
+        ctx.beginPath();
+        ctx.fillStyle = "#bbf7d0";
+        ctx.arc(tipX, yAt(last, h, sMin, sMax), 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        return;
       }
+
+      strokeTrace(ctx, view, w, h, min, max, live);
     };
 
     draw();
@@ -289,11 +321,11 @@ export function EcgWaveform({
         {live ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
             <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            Monitor
+            En vivo · ← scroll
           </span>
         ) : (
           <span className="text-sm font-semibold text-emerald-500/90">
-            Primera onda
+            Vista fijada
           </span>
         )}
       </div>
