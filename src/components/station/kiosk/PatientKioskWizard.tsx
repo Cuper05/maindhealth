@@ -3214,30 +3214,42 @@ export function PatientKioskWizard() {
           captureHelp="Encienda el MD100C_P, dedos en las placas ~30 s; cuando vea la onda, Ya terminó. El pulso lo tomamos con el oxímetro. El cribado del trazado no es un diagnóstico."
           capturing={ecgCapturing}
           captureCanConfirm
+          hideGuideWhenReading
+          illustrationSlot={
+            ecgCapturing ? (
+              <EcgWaveform
+                samples={ecgWave}
+                live
+                liveWindow={240}
+                height={260}
+                className="min-h-0 flex-1"
+                label="Monitor ECG"
+              />
+            ) : undefined
+          }
           extra={
-            ecgCapturing || ecgWave.length > 0 || vitalsDraft.ecgStatus === "done" ? (
-              <div className="shrink-0 space-y-2">
-                {ecgCapturing || ecgWave.length > 0 ? (
+            vitalsDraft.ecgStatus === "done" && !ecgCapturing ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+                <EcgScreenChips
+                  quality={vitalsDraft.ecgQuality}
+                  flagsCsv={vitalsDraft.ecgFlags}
+                  estimatedHr={vitalsDraft.ecgEstimatedHr}
+                />
+                {ecgWave.length > 0 ? (
                   <EcgWaveform
                     samples={ecgWave}
-                    live={ecgCapturing}
+                    live={false}
                     liveWindow={240}
-                    height={190}
-                    label={
-                      ecgCapturing
-                        ? "Monitor ECG"
-                        : "Onda ECG completa"
-                    }
-                  />
-                ) : null}
-                {vitalsDraft.ecgStatus === "done" ? (
-                  <EcgScreenChips
-                    quality={vitalsDraft.ecgQuality}
-                    flagsCsv={vitalsDraft.ecgFlags}
-                    estimatedHr={vitalsDraft.ecgEstimatedHr}
+                    height={220}
+                    className="min-h-0 flex-1"
+                    label="Onda ECG completa"
                   />
                 ) : null}
               </div>
+            ) : ecgCapturing && ecgStatusMsg ? (
+              <p className="shrink-0 text-center text-base font-medium text-teal-800 xl:text-lg">
+                {ecgStatusMsg}
+              </p>
             ) : null
           }
           onSimulate={() => {
