@@ -5,14 +5,14 @@ import { useEffect, useRef } from "react";
 type EcgWaveformProps = {
   samples: number[];
   live?: boolean;
-  /** Ventana visible (~segundos de monitor). */
+  /** Columnas fijas del barrido en vivo. */
   liveWindow?: number;
   height?: number;
   className?: string;
   label?: string;
 };
 
-/** Suaviza para vista tipo monitor (no altera el cribado). */
+/** Suaviza ligero para monitor (no altera el cribado). */
 function softenMonitorWave(pts: number[], window = 5): number[] {
   if (pts.length < 3) return pts.slice();
   const half = Math.floor(window / 2);
@@ -43,9 +43,10 @@ function rangeOf(vals: number[]): { min: number; max: number } | null {
 }
 
 /**
- * Monitor de signos vitales:
- * - Escala Y fija (no “salta” de tamaño).
- * - Trazo nuevo entra por la derecha y la onda se desplaza a la izquierda.
+ * Monitor ECG:
+ * - Escala Y se fija al inicio y no vuelve a cambiar en vivo.
+ * - Barrido: nuevas a la derecha, viejas salen por la izquierda.
+ * - Al terminar: onda completa.
  */
 export function EcgWaveform({
   samples,
@@ -57,20 +58,16 @@ export function EcgWaveform({
 }: EcgWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  /** Escala Y bloqueada tras calibración. */
   const scaleRef = useRef<{ min: number; max: number; locked: boolean }>({
     min: 0,
     max: 1,
     locked: false,
   });
-  /** Última ventana al terminar (se queda fija). */
-  const lastViewRef = useRef<number[] | null>(null);
   const seenLenRef = useRef(0);
 
   useEffect(() => {
     if (samples.length === 0) {
       scaleRef.current = { min: 0, max: 1, locked: false };
-      lastViewRef.current = null;
       seenLenRef.current = 0;
     }
   }, [samples.length]);
@@ -79,6 +76,8 @@ export function EcgWaveform({
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
+
+    const cols = Math.max(120, liveWindow);
 
     const drawMonitorBg = (
       ctx: CanvasRenderingContext2D,
@@ -127,33 +126,31 @@ export function EcgWaveform({
       return h - 10 - t * (h - 20);
     };
 
-    /**
-     * Calibra una vez con las primeras muestras y bloquea.
-     * Solo amplía si algo se sale (nunca encoge → no “salta” el tamaño).
-     */
-    const ensureScale = (vals: number[]) => {
-      const r = rangeOf(vals);
+    /** Fija la escala UNA vez con las primeras muestras de la lectura. */
+    const lockScaleFromStart = (all: number[]) => {
+      if (scaleRef.current.locked) return;
+      // Usa solo el tramo inicial (no la ventana deslizante).
+      const seed = softenMonitorWave(all.slice(0, Math.min(48, all.length)));
+      const r = rangeOf(seed);
       if (!r) return;
-      const pad = Math.max((r.max - r.min) * 0.35, 40);
+      const span = Math.max(r.max - r.min, 30);
+      const pad = Math.max(span * 0.55, 50);
       let min = r.min - pad;
       let max = r.max + pad;
-      if (max - min < 80) {
+      if (max - min < 100) {
         const mid = (min + max) / 2;
-        min = mid - 40;
-        max = mid + 40;
+        min = mid - 50;
+        max = mid + 50;
       }
-
-      const cur = scaleRef.current;
-      if (cur.locked) return; // escala fija: el tamaño de la onda ya no cambia
-      // Espera un poco de señal antes de fijar.
-      if (vals.length >= 36) {
+      // Bloquea en cuanto hay señal útil; si aún hay muy poco, deja provisional.
+      if (all.length >= 24) {
         scaleRef.current = { min, max, locked: true };
       } else {
         scaleRef.current = { min, max, locked: false };
       }
     };
 
-    const strokeTrace = (
+    const strokeSeries = (
       ctx: CanvasRenderingContext2D,
       vals: number[],
       w: number,
@@ -164,40 +161,46 @@ export function EcgWaveform({
     ) => {
       const n = vals.length;
       if (!n) return;
-      // Siempre el ancho completo del monitor (tamaño horizontal fijo).
       const xStep = n > 1 ? w / (n - 1) : 0;
 
-      ctx.beginPath();
-      ctx.strokeStyle = "rgba(74, 222, 128, 0.28)";
-      ctx.lineWidth = 4.5;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      for (let i = 0; i < n; i++) {
-        const x = i * xStep;
-        const y = yAt(vals[i]!, h, min, max);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
+      const paint = (width: number, color: string) => {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        let drawing = false;
+        for (let i = 0; i < n; i++) {
+          const v = vals[i]!;
+          if (!Number.isFinite(v)) {
+            drawing = false;
+            continue;
+          }
+          const x = i * xStep;
+          const y = yAt(v, h, min, max);
+          if (!drawing) {
+            ctx.moveTo(x, y);
+            drawing = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
+      };
 
-      ctx.beginPath();
-      ctx.strokeStyle = "#4ade80";
-      ctx.lineWidth = 2;
-      for (let i = 0; i < n; i++) {
-        const x = i * xStep;
-        const y = yAt(vals[i]!, h, min, max);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
+      paint(4.5, "rgba(74, 222, 128, 0.28)");
+      paint(2, "#4ade80");
 
       if (tip) {
-        const x = (n - 1) * xStep;
-        const y = yAt(vals[n - 1]!, h, min, max);
-        ctx.beginPath();
-        ctx.fillStyle = "#bbf7d0";
-        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-        ctx.fill();
+        for (let i = n - 1; i >= 0; i--) {
+          const v = vals[i]!;
+          if (!Number.isFinite(v)) continue;
+          ctx.beginPath();
+          ctx.fillStyle = "#bbf7d0";
+          ctx.arc(i * xStep, yAt(v, h, min, max), 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
       }
     };
 
@@ -215,7 +218,7 @@ export function EcgWaveform({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawMonitorBg(ctx, w, h);
 
-      if (!samples.length && !lastViewRef.current) {
+      if (!samples.length) {
         ctx.fillStyle = "#86efac";
         ctx.font = "600 16px system-ui, sans-serif";
         ctx.textAlign = "center";
@@ -227,80 +230,31 @@ export function EcgWaveform({
         return;
       }
 
-      const cols = Math.max(100, Math.min(liveWindow, Math.floor(w / 2.2)));
-
-      if (samples.length > 0 && samples.length < seenLenRef.current) {
+      if (samples.length < seenLenRef.current) {
         scaleRef.current = { min: 0, max: 1, locked: false };
-        lastViewRef.current = null;
       }
       seenLenRef.current = samples.length;
 
-      let view: number[];
-      if (live && samples.length) {
-        // Ventana deslizante: lo más nuevo a la derecha → la onda “pasa” a la izquierda.
-        const raw = samples.slice(-cols);
-        view = softenMonitorWave(raw);
-        lastViewRef.current = view;
-      } else if (lastViewRef.current?.length) {
-        view = lastViewRef.current;
-      } else if (samples.length) {
-        view = softenMonitorWave(samples.slice(-cols));
-        lastViewRef.current = view;
-      } else {
-        return;
-      }
-
-      ensureScale(view);
+      // Escala del inicio: no se recalcula con el barrido.
+      lockScaleFromStart(samples);
       const { min, max } = scaleRef.current;
 
-      // Si aún no llena la ventana, ancla el trazo a la derecha (entra por la derecha).
-      if (live && view.length < cols) {
-        const pad = cols - view.length;
-        const padded = [
+      if (live) {
+        // Buffer fijo de `cols`: nuevas a la derecha, viejas salen a la izquierda.
+        const raw = samples.slice(-cols);
+        const soft = softenMonitorWave(raw);
+        const pad = Math.max(0, cols - soft.length);
+        const frame: number[] = [
           ...Array.from({ length: pad }, () => Number.NaN),
-          ...view,
+          ...soft,
         ];
-        // Dibuja solo segmentos finitos (hueco a la izquierda).
-        const xStep = cols > 1 ? w / (cols - 1) : 0;
-        const { min: sMin, max: sMax } = scaleRef.current;
-
-        const strokeFinite = (width: number, color: string) => {
-          ctx.beginPath();
-          ctx.strokeStyle = color;
-          ctx.lineWidth = width;
-          ctx.lineJoin = "round";
-          ctx.lineCap = "round";
-          let drawing = false;
-          for (let i = 0; i < padded.length; i++) {
-            const v = padded[i]!;
-            if (!Number.isFinite(v)) {
-              drawing = false;
-              continue;
-            }
-            const x = i * xStep;
-            const y = yAt(v, h, sMin, sMax);
-            if (!drawing) {
-              ctx.moveTo(x, y);
-              drawing = true;
-            } else {
-              ctx.lineTo(x, y);
-            }
-          }
-          ctx.stroke();
-        };
-        strokeFinite(4.5, "rgba(74, 222, 128, 0.28)");
-        strokeFinite(2, "#4ade80");
-
-        const last = view[view.length - 1]!;
-        const tipX = (cols - 1) * xStep;
-        ctx.beginPath();
-        ctx.fillStyle = "#bbf7d0";
-        ctx.arc(tipX, yAt(last, h, sMin, sMax), 3.5, 0, Math.PI * 2);
-        ctx.fill();
+        strokeSeries(ctx, frame, w, h, min, max, true);
         return;
       }
 
-      strokeTrace(ctx, view, w, h, min, max, live);
+      // Terminado: onda completa (misma escala Y del inicio).
+      const full = softenMonitorWave(samples);
+      strokeSeries(ctx, full, w, h, min, max, false);
     };
 
     draw();
@@ -321,11 +275,11 @@ export function EcgWaveform({
         {live ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-300">
             <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            En vivo · ← scroll
+            Barrido · ←
           </span>
         ) : (
           <span className="text-sm font-semibold text-emerald-500/90">
-            Vista fijada
+            Onda completa
           </span>
         )}
       </div>
