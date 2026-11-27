@@ -227,23 +227,28 @@ export function buildSinusRhythmWave(
   return out;
 }
 
-/** Estimación rápida de FC por picos (para pacing del sinusal de display). */
-export function estimateHrForDisplay(
+export type DisplayPeak = { index: number; amp: number };
+
+/** Picos R reales del trazado (índice + amplitud centrada). */
+export function findRealRPeaks(
   samples: number[],
   sampleRate = 60,
-): number | null {
+): { peaks: DisplayPeak[]; baseline: number } {
   const pts = samples.filter((n) => Number.isFinite(n));
-  if (pts.length < Math.max(40, sampleRate)) return null;
+  if (pts.length < Math.max(40, sampleRate * 0.6)) {
+    return { peaks: [], baseline: pts.length ? pts[0]! : 512 };
+  }
 
-  const mean = pts.reduce((a, b) => a + b, 0) / pts.length;
-  const centered = pts.map((v) => v - mean);
+  const baseline = pts.reduce((a, b) => a + b, 0) / pts.length;
+  const centered = pts.map((v) => v - baseline);
   const positives = centered.filter((v) => v > 0);
-  if (positives.length < 8) return null;
-  positives.sort((a, b) => a - b);
-  const thr = positives[Math.floor(positives.length * 0.85)]! * 0.55;
+  if (positives.length < 8) return { peaks: [], baseline };
+
+  const sorted = [...positives].sort((a, b) => a - b);
+  const thr = sorted[Math.floor(sorted.length * 0.85)]! * 0.55;
   const minDist = Math.max(8, Math.round(sampleRate * 0.32));
 
-  const peaks: number[] = [];
+  const candidates: DisplayPeak[] = [];
   for (let i = 2; i < centered.length - 2; i++) {
     const v = centered[i]!;
     if (v < thr) continue;
@@ -253,13 +258,30 @@ export function estimateHrForDisplay(
       v >= centered[i - 2]! &&
       v >= centered[i + 2]!
     ) {
-      if (peaks.every((p) => Math.abs(p - i) >= minDist)) peaks.push(i);
+      candidates.push({ index: i, amp: v });
     }
   }
+  candidates.sort((a, b) => b.amp - a.amp);
+  const chosen: DisplayPeak[] = [];
+  for (const c of candidates) {
+    if (chosen.every((p) => Math.abs(p.index - c.index) >= minDist)) {
+      chosen.push(c);
+    }
+  }
+  chosen.sort((a, b) => a.index - b.index);
+  return { peaks: chosen, baseline };
+}
+
+/** Estimación rápida de FC por picos reales. */
+export function estimateHrForDisplay(
+  samples: number[],
+  sampleRate = 60,
+): number | null {
+  const { peaks } = findRealRPeaks(samples, sampleRate);
   if (peaks.length < 3) return null;
   const rrs: number[] = [];
   for (let i = 1; i < peaks.length; i++) {
-    rrs.push((peaks[i]! - peaks[i - 1]!) / sampleRate);
+    rrs.push((peaks[i]!.index - peaks[i - 1]!.index) / sampleRate);
   }
   rrs.sort((a, b) => a - b);
   const med = rrs[Math.floor(rrs.length / 2)]!;
@@ -267,9 +289,39 @@ export function estimateHrForDisplay(
   return Math.round(60 / med);
 }
 
+/** Un latido P–QRS–T centrado en tR (segundos), escalado por ampScale. */
+function paintBeatAt(
+  out: number[],
+  sampleRate: number,
+  tR: number,
+  ampScale: number,
+) {
+  const n = out.length;
+  const tP = tR - 0.16;
+  const tQ = tR - 0.025;
+  const tS = tR + 0.03;
+  const tT = tR + 0.22;
+  const i0 = Math.max(0, Math.floor((tR - 0.28) * sampleRate));
+  const i1 = Math.min(n - 1, Math.ceil((tR + 0.38) * sampleRate));
+  for (let i = i0; i <= i1; i++) {
+    const t = i / sampleRate;
+    let dy = 0;
+    dy += sineLobe(t, tP, 0.045, 36 * ampScale);
+    dy -= sineLobe(t, tQ, 0.018, 42 * ampScale);
+    dy += sineLobe(t, tR, 0.028, 220 * ampScale);
+    dy -= sineLobe(t, tS, 0.024, 62 * ampScale);
+    dy += sineLobe(t, tT, 0.09, 64 * ampScale);
+    out[i] = (out[i] ?? 0) + dy;
+  }
+}
+
 /**
- * Con los datos recibidos: misma longitud, morfología de ritmo sinusal
- * paced por la FC estimada del trazado (o 72 lpm).
+ * Simulación visual de ritmo sinusal usando los datos reales del ECG:
+ * - Línea base = media del trazado real
+ * - Cada R detectado en la onda real coloca un latido P–QRS–T
+ * - La altura del R sigue la amplitud real de ese pico
+ * - Los intervalos RR son los reales (si el ritmo es irregular, se ve)
+ * Fallback: sinusal regular a FC estimada / 72 si hay pocos picos.
  */
 export function buildDisplaySinusFromSamples(
   raw: number[],
@@ -278,9 +330,37 @@ export function buildDisplaySinusFromSamples(
   const sampleRate = opts?.sampleRateHz ?? 60;
   const pts = prepareWaveForDisplay(raw);
   if (pts.length === 0) return [];
+
+  const { peaks, baseline } = findRealRPeaks(pts, sampleRate);
+  const refAmp = 220; // amplitud R del template
+
+  if (peaks.length >= 2) {
+    const out = Array.from({ length: pts.length }, () => baseline);
+    const medianAmp = (() => {
+      const amps = peaks.map((p) => p.amp).sort((a, b) => a - b);
+      return amps[Math.floor(amps.length / 2)]! || refAmp;
+    })();
+
+    for (const peak of peaks) {
+      const ampScale = Math.min(
+        1.6,
+        Math.max(0.45, peak.amp / Math.max(medianAmp, 1)),
+      );
+      const tR = peak.index / sampleRate;
+      paintBeatAt(out, sampleRate, tR, ampScale);
+    }
+    return out.map((v) => Math.round(v));
+  }
+
+  // Pocos picos aún: pacing regular con FC de los datos (o fallback).
   const bpm =
     estimateHrForDisplay(pts, sampleRate) ?? opts?.fallbackBpm ?? 72;
-  return buildSinusRhythmWave(pts.length, bpm, sampleRate);
+  const synth = buildSinusRhythmWave(pts.length, bpm, sampleRate);
+  // Re-centra a la baseline real para que no “salte” de escala.
+  const synthMean =
+    synth.reduce((a, b) => a + b, 0) / Math.max(1, synth.length);
+  const shift = baseline - synthMean;
+  return synth.map((v) => Math.round(v + shift));
 }
 
 /** Alias demo / simulación kiosko. */

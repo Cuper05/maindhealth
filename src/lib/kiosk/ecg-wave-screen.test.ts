@@ -139,15 +139,18 @@ describe("ritmo sinusal de display", () => {
     expect(span).toBeGreaterThan(100);
   });
 
-  it("buildDisplaySinusFromSamples respeta longitud (cap display) y FC ~72", () => {
+  it("buildDisplaySinusFromSamples usa picos reales (longitud + FC ~72)", () => {
     const raw = syntheticAtBpm(72, 8, 60); // 480 pts
     const disp = buildDisplaySinusFromSamples(raw);
     expect(disp.length).toBe(raw.length);
-    const hr = estimateHrForDisplay(disp, 60);
-    expect(hr).not.toBeNull();
-    if (hr != null) {
-      expect(hr).toBeGreaterThan(55);
-      expect(hr).toBeLessThan(95);
+    const hrRaw = estimateHrForDisplay(raw, 60);
+    const hrDisp = estimateHrForDisplay(disp, 60);
+    expect(hrRaw).not.toBeNull();
+    expect(hrDisp).not.toBeNull();
+    if (hrRaw != null && hrDisp != null) {
+      expect(Math.abs(hrDisp - hrRaw)).toBeLessThanOrEqual(8);
+      expect(hrDisp).toBeGreaterThan(55);
+      expect(hrDisp).toBeLessThan(95);
     }
   });
 });
