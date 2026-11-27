@@ -5,18 +5,22 @@ import { useEffect, useRef } from "react";
 type EcgWaveformProps = {
   samples: number[];
   live?: boolean;
+  /** Puntos visibles en vivo (ventana que se desplaza). ~60 Hz → 180 ≈ 3 s. */
+  liveWindow?: number;
   height?: number;
   className?: string;
   label?: string;
 };
 
 /**
- * Papel ECG rosa + trazo oscuro (como la app ChoiceMMed).
- * Muestras uint16 ya decodificadas (LO|HI<<8), no bytes sueltos.
+ * Papel ECG rosa + trazo oscuro.
+ * En vivo: solo una ventana reciente que “pasa” de izquierda a derecha.
+ * Al terminar: trazado completo de la lectura.
  */
 export function EcgWaveform({
   samples,
   live = false,
+  liveWindow = 180,
   height = 190,
   className = "",
   label = "Onda ECG",
@@ -42,7 +46,6 @@ export function EcgWaveform({
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // Fondo papel ECG (rosa claro).
       ctx.fillStyle = "#ffe4ec";
       ctx.fillRect(0, 0, w, h);
 
@@ -88,9 +91,17 @@ export function EcgWaveform({
         return;
       }
 
-      let min = samples[0]!;
-      let max = samples[0]!;
-      for (const v of samples) {
+      // En vivo: ventana fija → la onda “avanza”; al terminar: todo el trazado.
+      const windowSize = Math.max(40, liveWindow);
+      const view = live
+        ? samples.length > windowSize
+          ? samples.slice(-windowSize)
+          : samples
+        : samples;
+
+      let min = view[0]!;
+      let max = view[0]!;
+      for (const v of view) {
         if (v < min) min = v;
         if (v > max) max = v;
       }
@@ -103,32 +114,44 @@ export function EcgWaveform({
         max += 30;
       }
 
-      const n = samples.length;
-      const xStep = n > 1 ? w / (n - 1) : w;
+      const n = view.length;
+      // Escala X fija a la ventana en vivo (no comprimir todo el historial).
+      const slots = live ? Math.max(n, windowSize) : Math.max(n, 2);
+      const xStep = w / (slots - 1);
+      // Alinea a la derecha mientras se llena la ventana (crece hacia la derecha).
+      const x0 = live && n < windowSize ? (windowSize - n) * xStep : 0;
+
       const yAt = (v: number) => {
         const t = (v - min) / (max - min || 1);
         return h - 8 - t * (h - 16);
       };
 
-      // Trazo oscuro como la app del aparato.
       ctx.beginPath();
       ctx.strokeStyle = "#1a1a1a";
       ctx.lineWidth = 1.75;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      samples.forEach((v, i) => {
-        const x = i * xStep;
+      view.forEach((v, i) => {
+        const x = x0 + i * xStep;
         const y = yAt(v);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
 
-      if (live) {
-        const last = samples[n - 1]!;
+      if (live && n > 0) {
+        const last = view[n - 1]!;
+        const x = x0 + (n - 1) * xStep;
+        // Cursor / punta de la onda en movimiento.
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(220, 20, 60, 0.35)";
+        ctx.lineWidth = 1;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
         ctx.beginPath();
         ctx.fillStyle = "#dc143c";
-        ctx.arc((n - 1) * xStep, yAt(last), 3.5, 0, Math.PI * 2);
+        ctx.arc(x, yAt(last), 3.5, 0, Math.PI * 2);
         ctx.fill();
       }
     };
@@ -137,7 +160,7 @@ export function EcgWaveform({
     const ro = new ResizeObserver(() => draw());
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [samples, height, live]);
+  }, [samples, height, live, liveWindow]);
 
   return (
     <div
