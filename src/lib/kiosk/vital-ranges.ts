@@ -43,7 +43,7 @@ export const VITAL_RANGE_COPY = {
   heartRate: "Pulso normal adulto en reposo: 60 – 100 lpm",
   spo2: "Oxígeno (SpO₂) normal: 94 – 100 %",
   temperature: "Temperatura en la frente, normal: 36.0 – 37.5 °C",
-  ecg: "ECG: trazado MD100C_P · el pulso (lpm) lo da el oxímetro",
+  ecg: "ECG: cribado automático del trazado · pulso (lpm) del oxímetro · el médico interpreta",
   disclaimer:
     "Rangos orientativos para adultos en reposo. El médico interpreta su caso completo.",
 } as const;
@@ -162,6 +162,8 @@ export function interpretHeight(height?: string | null): VitalReadingView | null
 export function interpretEcg(
   ecgStatus?: string | null,
   ecgRhythm?: string | null,
+  ecgQuality?: string | null,
+  ecgFlags?: string | null,
 ): VitalReadingView | null {
   if (!ecgStatus) return null;
   if (ecgStatus === "skipped") {
@@ -174,12 +176,29 @@ export function interpretEcg(
     };
   }
   const rhythm = (ecgRhythm ?? "Trazado ECG registrado").trim();
+  const flags = (ecgFlags ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const clinical = flags.some((f) =>
+    ["bradycardia", "tachycardia", "irregular", "possible_af"].includes(f),
+  );
+  const poor = ecgQuality === "poor" || flags.includes("poor_signal");
+  let band: VitalBand = "normal";
+  if (poor) band = "info";
+  else if (clinical) band = "high";
+  else if (ecgQuality === "fair" || flags.includes("hr_mismatch")) band = "info";
+
   return {
     label: "ECG",
     valueText: rhythm,
     normalRange: VITAL_RANGE_COPY.ecg,
-    band: "info",
-    verdict: "Trazado registrado — el médico lo revisará",
+    band,
+    verdict: poor
+      ? "Señal insuficiente — conviene repetir"
+      : clinical
+        ? "Cribado con hallazgo — el médico lo revisará"
+        : "Trazado registrado — el médico lo revisará",
   };
 }
 

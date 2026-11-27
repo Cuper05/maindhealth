@@ -120,15 +120,31 @@ export function StationKioskPatientPanel({
               {vitals.height && <p>Talla {vitals.height} m</p>}
               {vitals.bmi && <p>IMC {vitals.bmi}</p>}
               {vitals.ecgStatus && (
-                <p>
-                  ECG: {vitals.ecgRhythm ?? vitals.ecgStatus}
-                  {vitals.ecgHeartRate ? ` · FC ${vitals.ecgHeartRate}` : ""}
-                  {vitals.ecgSource === "kardia"
-                    ? " · KardiaMobile"
-                    : vitals.ecgSource === "md100c_p"
-                      ? " · MD100C_P"
-                      : ""}
-                </p>
+                <div className="sm:col-span-2 space-y-1">
+                  <p>
+                    ECG: {vitals.ecgRhythm ?? vitals.ecgStatus}
+                    {vitals.ecgEstimatedHr
+                      ? ` · FC est. ${vitals.ecgEstimatedHr} lpm`
+                      : vitals.ecgHeartRate
+                        ? ` · FC ${vitals.ecgHeartRate}`
+                        : ""}
+                    {vitals.ecgSource === "kardia"
+                      ? " · KardiaMobile"
+                      : vitals.ecgSource === "md100c_p"
+                        ? " · MD100C_P"
+                        : ""}
+                  </p>
+                  {(vitals.ecgQuality || vitals.ecgFlags) && (
+                    <p className="text-sm text-slate-600">
+                      {vitals.ecgQuality ? `Calidad cribado: ${vitals.ecgQuality}` : null}
+                      {vitals.ecgQuality && vitals.ecgFlags ? " · " : null}
+                      {vitals.ecgFlags ? `Flags: ${vitals.ecgFlags}` : null}
+                      <span className="block text-xs text-slate-500">
+                        Cribado automático — no es diagnóstico; el médico interpreta.
+                      </span>
+                    </p>
+                  )}
+                </div>
               )}
               {appointmentId && vitals.ecgKardiaReady === "1" ? (
                 <div className="sm:col-span-2 mt-2 overflow-hidden rounded-lg border border-teal-200 bg-white">

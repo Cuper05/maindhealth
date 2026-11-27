@@ -151,11 +151,11 @@ export const TEMP_SUCCESS_VOICE =
 
 /** Al iniciar lectura del ECG (botón). */
 export const ECG_START_VOICE =
-  "Iniciamos el electrocardiograma. Encienda el MD100C_P, ponga los dedos en las placas y manténgalos quietos unos treinta segundos. Cuando vea la onda en la pantalla, toque Ya terminó. El pulso lo tomamos con el oxímetro.";
+  "Iniciamos el electrocardiograma. Encienda el MD100C_P, ponga los dedos en las placas y manténgalos quietos unos treinta segundos. Cuando vea la onda en la pantalla, toque Ya terminó. El pulso lo tomamos con el oxímetro. El cribado del trazado es automático y no es un diagnóstico.";
 
 /** Tras ECG. */
 export const ECG_SUCCESS_VOICE =
-  "Listo. Terminó el electrocardiograma. Puede soltar las placas y toque Continuar.";
+  "Listo. Terminó el electrocardiograma. Puede soltar las placas y toque Continuar. Un cribado automático del trazado quedará para que el médico lo revise.";
 
 /** Frases de fin por paso de signos vitales (cuando la lectura queda registrada). */
 export const VITAL_DONE_VOICE: Partial<Record<KioskStep, string>> = {

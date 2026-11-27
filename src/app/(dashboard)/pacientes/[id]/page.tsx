@@ -558,9 +558,14 @@ function VitalsList({
             const ecg = v.deviceExtras;
             const ecgLabel = ecg?.ecgStatus
               ? [
-                  ecg.ecgStatus,
-                  ecg.ecgRhythm,
-                  ecg.ecgHeartRate ? `${ecg.ecgHeartRate} lpm` : null,
+                  ecg.ecgRhythm ?? ecg.ecgStatus,
+                  ecg.ecgQuality ? `cal.${ecg.ecgQuality}` : null,
+                  ecg.ecgEstimatedHr
+                    ? `FC est. ${ecg.ecgEstimatedHr}`
+                    : ecg.ecgHeartRate
+                      ? `${ecg.ecgHeartRate} lpm`
+                      : null,
+                  ecg.ecgFlags || null,
                 ]
                   .filter(Boolean)
                   .join(" · ")

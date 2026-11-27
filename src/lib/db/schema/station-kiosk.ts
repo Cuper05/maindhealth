@@ -111,7 +111,13 @@ export type KioskVitalsDraft = {
   ecgStatus?: string;
   ecgRhythm?: string;
   ecgHeartRate?: string;
-  /** pc80b | kardia */
+  /** Cribado onda: good | fair | poor */
+  ecgQuality?: string;
+  /** Flags CSV: poor_signal,bradycardia,tachycardia,irregular,possible_af,hr_mismatch */
+  ecgFlags?: string;
+  /** FC estimada por RR del trazado (no sustituye oxímetro). */
+  ecgEstimatedHr?: string;
+  /** pc80b | kardia | md100c_p */
   ecgSource?: string;
   /** "1" si hay PDF/imagen Kardia guardado (el binario no se manda en el poll). */
   ecgKardiaReady?: string;
