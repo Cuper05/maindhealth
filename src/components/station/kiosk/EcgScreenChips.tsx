@@ -73,7 +73,7 @@ export function EcgScreenChips({
       <p className="text-xs font-medium leading-snug text-slate-600 xl:text-sm">
         {ECG_SCREEN_DISCLAIMER}
         {patientViewActive
-          ? " La vista sinusal es solo para el paciente; el análisis usa el trazado real."
+          ? " Vista paciente (sinusal); el cribado automático usa el trazado real."
           : null}
       </p>
     </div>
