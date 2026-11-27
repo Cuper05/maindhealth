@@ -37,9 +37,9 @@ MIN_MEASURE_SEC = float(os.environ.get("ECG_MIN_MEASURE_SEC", "28"))
 # Mínimo de puntos de onda antes de poder auto-cerrar (tras MIN_MEASURE_SEC).
 MIN_WAVE_POINTS = int(os.environ.get("ECG_MIN_WAVE_POINTS", "40"))
 HEX_LOG_LIMIT = int(os.environ.get("ECG_HEX_LOG_LIMIT", "80"))
-# ~3–4 s de onda a ~120 Hz (5 muestras/paquete).
-WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "480"))
-WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "360"))
+# Más buffer: tras filtrar el ~34 quedan ~mitad de puntos para el cribado.
+WAVE_BUFFER_MAX = int(os.environ.get("ECG_WAVE_BUFFER_MAX", "900"))
+WAVE_PROGRESS_POINTS = int(os.environ.get("ECG_WAVE_PROGRESS_POINTS", "600"))
 
 # Comandos de activación (mismos que ecg.py / script de estación).
 ACTIVATE_COMMANDS = [
