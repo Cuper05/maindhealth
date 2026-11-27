@@ -13,11 +13,12 @@ Servicio local en `http://127.0.0.1:3928`.
 - Entrega la **onda en vivo** (`wave` en `GET /progress`) para el trazado del kiosko.
 - **No** entrega frecuencia cardiaca: los **lpm** los toma el oxímetro CMS50D+.
 
-### Decodificación de onda (`ecg.py`)
+### Decodificación de onda (ChoiceMMed / `ecg.py`)
 
-1. Si la trama es onda `0x01` (16/17/20 B): se toman los bytes `1..n` (20–220) como muestras densas.
-2. Si no: igual que `ecg.py` — con `len(data) >= 4` y `30 <= data[3] <= 200`, ese byte es un punto.
-3. El kiosko **interpola** (easing coseno) entre puntos para dibujar la sinusoidal continua.
+1. Trama `0x01` de 16 bytes: **5 muestras** `[LO, HI, FLAG]` → `amplitud = LO | (HI<<8)`.
+   - Leer byte a byte generaba diente de sierra (HI≈0, FLAG≈1).
+2. Fallback `ecg.py`: `len >= 4` y `30 <= data[3] <= 200` → un punto.
+3. El kiosko dibuja las muestras uint16 en papel ECG (rosa); solo interpola si llegan pocos puntos.
 
 ## Una sola vez
 
